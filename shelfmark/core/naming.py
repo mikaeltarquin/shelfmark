@@ -98,8 +98,9 @@ def find_template_blocks(template: str) -> list[tuple[int, int, str]]:
     """Return (start, end, content) for each top-level {...} block in a template.
 
     Braces nest, so a block may carry literal braces around its token:
-    `{ {Narrator}}` renders " {Rosamund Pike}" (the Audiobookshelf narrator
-    folder convention) and nothing at all when the value is empty. An empty `{}`
+    `{Title} {{Narrator}}` renders "Title {Rosamund Pike}" (the Audiobookshelf
+    narrator folder convention), and just "Title" when the narrator is empty: the
+    block renders nothing and the folder name's trailing space is trimmed. An empty `{}`
     or a `{` that is never closed stays literal text.
     """
     blocks: list[tuple[int, int, str]] = []

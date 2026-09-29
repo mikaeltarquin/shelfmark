@@ -1449,7 +1449,7 @@ def download_settings() -> list[SettingsField]:
                 "{OriginalName} (source filename without extension), {Series}, {SeriesPosition}, "
                 "{Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: "
                 "{Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. "
-                "Braces inside a block are kept: {Title}{ {Narrator}} outputs "
+                "Braces inside a block are kept: {Title} {{Narrator}} outputs "
                 "'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. "
                 "{Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'."
             ),

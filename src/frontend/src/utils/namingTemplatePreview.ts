@@ -103,7 +103,7 @@ export const NAMING_TEMPLATE_TOKENS: NamingTemplateToken[] = [
     token: 'Narrator',
     label: 'Narrator',
     description:
-      'Audiobook narrators (MyAnonamouse). Use { {Narrator}} for an Audiobookshelf folder',
+      'Audiobook narrators (MyAnonamouse). Use {Title} {{Narrator}} for an Audiobookshelf folder',
     value: 'Kate Reading & Michael Kramer',
     group: 'Universal',
     audiobookOnly: true,
@@ -158,7 +158,7 @@ interface TemplateBlock {
 }
 
 // Mirrors find_template_blocks() in shelfmark/core/naming.py: braces nest, so
-// `{ {Narrator}}` is one block whose inner braces are literal text.
+// `{{Narrator}}` is one block whose inner braces are literal text.
 export const findTemplateBlocks = (template: string): TemplateBlock[] => {
   const blocks: TemplateBlock[] = [];
   let cursor = 0;

@@ -20,16 +20,16 @@ Audiobook templates can use `{Narrator}`. Narrators come from [MyAnonamouse Enri
 
 Several narrators are joined with **Narrator Separator** (`NARRATOR_SEPARATOR`): `&` (default) gives `Kate Reading & Michael Kramer`, `,` gives `Kate Reading, Michael Kramer`.
 
-Braces nested inside a template block are kept as text, so `{ {Narrator}}` renders ` {Rosamund Pike}` and disappears entirely when there is no narrator. The recommended audiobook **Path Template** is:
+Braces nested inside a template block are kept as text, so `{{Narrator}}` renders `{Rosamund Pike}` and disappears entirely when there is no narrator (the space before it is trimmed too). The recommended audiobook **Path Template** is:
 
 ```
-{Author}/{Title}{ {Narrator}}/{Title}
+{Author}/{Title} {{Narrator}}/{Title}
 ```
 
 or, with series folders:
 
 ```
-{Author}/{Series/}{Title}{ {Narrator}}/{Title}{ - Part }{PartNumber}
+{Author}/{Series/}{Title} {{Narrator}}/{Title}{ - Part }{PartNumber}
 ```
 
 ## Keeping ebooks with audiobooks
