@@ -9,6 +9,39 @@ import {
 } from '../utils/namingTemplatePreview';
 
 describe('namingTemplatePreview', () => {
+  it('renders the Audiobookshelf narrator folder', () => {
+    const preview = buildNamingTemplatePreview(
+      '{Author}/{PrimaryTitle}{ {Narrator}}/{PrimaryTitle}',
+      'path',
+      'audiobook',
+    );
+
+    expect(preview.value).toBe(
+      'Arthur Conan Doyle/The Hound of the Baskervilles {Kate Reading & Michael Kramer}/The Hound of the Baskervilles.mp3',
+    );
+    expect(preview.unknownTokens).toEqual([]);
+  });
+
+  it('drops the narrator block and its space when empty', () => {
+    const preview = renderNamingTemplate(
+      '{Author}/{PrimaryTitle}{ {Narrator}}/{PrimaryTitle}',
+      { ...SAMPLE_NAMING_METADATA, Narrator: '' },
+      { allowPathSeparators: true },
+    );
+
+    expect(preview.value).toBe(
+      'Arthur Conan Doyle/The Hound of the Baskervilles/The Hound of the Baskervilles',
+    );
+  });
+
+  it('keeps unclosed and empty braces as literal text', () => {
+    const preview = renderNamingTemplate('{PrimaryTitle} {} {oops', SAMPLE_NAMING_METADATA, {
+      allowPathSeparators: false,
+    });
+
+    expect(preview.value).toBe('The Hound of the Baskervilles {} {oops');
+  });
+
   it('groups primary title with universal variables', () => {
     expect(NAMING_TEMPLATE_TOKENS.find((token) => token.token === 'PrimaryTitle')?.group).toBe(
       'Universal',

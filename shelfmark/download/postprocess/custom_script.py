@@ -230,6 +230,7 @@ def _build_custom_script_payload(
             "series_position": context.task.series_position,
             "subtitle": context.task.subtitle,
             "language": context.task.language,
+            "narrators": list(context.task.narrators or []),
             "original_download_path": context.task.original_download_path,
         },
         "output": {

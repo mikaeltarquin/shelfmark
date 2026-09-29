@@ -96,6 +96,7 @@ def process_folder_output(
     preserve_source_on_failure: bool = False,
 ) -> str | None:
     """Post-process download to the configured folder destination."""
+    from shelfmark.download.postprocess.companions import colocate_ebooks_with_audiobooks
     from shelfmark.download.postprocess.pipeline import (
         CustomScriptContext,
         CustomScriptTransferSummary,
@@ -228,6 +229,8 @@ def process_folder_output(
             op_counts.get("copy", 0),
             len(final_paths),
         )
+
+    final_paths = colocate_ebooks_with_audiobooks(task, final_paths)
 
     script_context = CustomScriptContext(
         task=task,

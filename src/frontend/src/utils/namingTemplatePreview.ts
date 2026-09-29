@@ -100,6 +100,15 @@ export const NAMING_TEMPLATE_TOKENS: NamingTemplateToken[] = [
     group: 'Files',
   },
   {
+    token: 'Narrator',
+    label: 'Narrator',
+    description:
+      'Audiobook narrators (MyAnonamouse). Use {Title} {{Narrator}} for an Audiobookshelf folder',
+    value: 'Kate Reading & Michael Kramer',
+    group: 'Universal',
+    audiobookOnly: true,
+  },
+  {
     token: 'PartNumber',
     label: 'Part number',
     description: 'Sequential part number for multi-file audiobooks',
@@ -115,6 +124,7 @@ const KNOWN_TOKENS = [
   'originalname',
   'firstauthor',
   'partnumber',
+  'narrator',
   'language',
   'subtitle',
   'author',
@@ -128,7 +138,8 @@ const KNOWN_TOKENS = [
 // pre-joined with ',' or ';' and {FirstAuthor} keeps only the first entry.
 const firstAuthor = (value: string): string => value.split(/\s*[,;]\s*/)[0]?.trim() ?? '';
 
-const BRACE_PATTERN = /\{([^}]+)\}/g;
+// Mirrors SEGMENT_EDGE_SEPARATORS in shelfmark/core/naming.py.
+const SEGMENT_EDGE_SEPARATORS_PATTERN = /^[\s-]+|[\s-]+$/g;
 const INVALID_CHARS_PATTERN = /[\\/:*?"<>|]/g;
 const WHITESPACE_RUN_PATTERN = /\s+/g;
 
@@ -139,6 +150,49 @@ export const SAMPLE_NAMING_METADATA = NAMING_TEMPLATE_TOKENS.reduce<Record<strin
   },
   {},
 );
+
+interface TemplateBlock {
+  start: number;
+  end: number;
+  content: string;
+}
+
+// Mirrors find_template_blocks() in shelfmark/core/naming.py: braces nest, so
+// `{{Narrator}}` is one block whose inner braces are literal text.
+export const findTemplateBlocks = (template: string): TemplateBlock[] => {
+  const blocks: TemplateBlock[] = [];
+  let cursor = 0;
+  while (cursor < template.length) {
+    const start = template.indexOf('{', cursor);
+    if (start === -1) {
+      break;
+    }
+    let depth = 0;
+    let end = -1;
+    for (let index = start; index < template.length; index += 1) {
+      const char = template[index];
+      if (char === '{') {
+        depth += 1;
+      } else if (char === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
+      }
+    }
+    if (end === -1) {
+      cursor = start + 1;
+      continue;
+    }
+    const content = template.slice(start + 1, end);
+    if (content) {
+      blocks.push({ start, end: end + 1, content });
+    }
+    cursor = end + 1;
+  }
+  return blocks;
+};
 
 const sanitizeFilename = (value: string): string => {
   return value
@@ -212,25 +266,24 @@ export const renderNamingTemplate = (
     return `${prefix}${value}${suffix}`;
   };
 
-  const matches = Array.from(template.matchAll(BRACE_PATTERN));
+  const blocks = findTemplateBlocks(template);
   let result = '';
 
-  if (matches.length === 0) {
+  if (blocks.length === 0) {
     result = template;
   } else {
     let cursor = 0;
-    matches.forEach((match, index) => {
-      result += template.slice(cursor, match.index);
-      const content = match[1] ?? '';
+    blocks.forEach((block, index) => {
+      result += template.slice(cursor, block.start);
+      const content = block.content;
       const rendered = renderBlock(content);
 
       if (rendered !== null) {
         result += rendered;
       } else {
-        const nextMatch = matches[index + 1];
-        const conditionalLiteral =
-          nextMatch !== undefined && match.index + match[0].length === nextMatch.index;
-        const nextContent = nextMatch?.[1] ?? '';
+        const nextBlock = blocks[index + 1];
+        const conditionalLiteral = nextBlock !== undefined && block.end === nextBlock.start;
+        const nextContent = nextBlock?.content ?? '';
         const nextPlaceholder = findPlaceholder(nextContent).name;
         const includeLiteral =
           conditionalLiteral && nextPlaceholder
@@ -240,11 +293,11 @@ export const renderNamingTemplate = (
         if (includeLiteral) {
           result += content;
         } else if (!conditionalLiteral && /\s/.test(content)) {
-          result += match[0];
+          result += template.slice(block.start, block.end);
         }
       }
 
-      cursor = match.index + match[0].length;
+      cursor = block.end;
     });
     result += template.slice(cursor);
   }
@@ -257,6 +310,12 @@ export const renderNamingTemplate = (
   result = result.replace(/\(\s*\)/g, '');
   result = result.replace(/\[\s*\]/g, '');
   result = result.replace(/[\s\-_.]+$/g, '');
+
+  result = result
+    .split('/')
+    .map((segment) => segment.replace(SEGMENT_EDGE_SEPARATORS_PATTERN, ''))
+    .filter(Boolean)
+    .join('/');
 
   return { value: result, unknownTokens };
 };

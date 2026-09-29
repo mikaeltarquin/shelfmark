@@ -117,6 +117,10 @@ def _enrich_mam_releases(
             continue
         if details.narrator:
             release.extra["narrator"] = details.narrator
+        if details.narrators:
+            # Kept as a list so {Narrator} can join the names with the configured
+            # separator; "narrator" above is the display string for the column.
+            release.extra["narrators"] = list(details.narrators)
         if details.series:
             release.extra["series"] = details.series
         if details.bitrate and not release.extra.get("bitrate"):

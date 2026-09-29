@@ -90,6 +90,7 @@ class MamTorrentDetails:
     """The fields Prowlarr drops from a MyAnonamouse search result."""
 
     narrator: str | None = None
+    narrators: tuple[str, ...] = ()
     series: str | None = None
     bitrate: str | None = None
     bitrate_kbps: int | None = None
@@ -202,10 +203,9 @@ def _decode_info(raw: object) -> dict[str, Any]:
     return decoded if isinstance(decoded, dict) else {}
 
 
-def _parse_names(raw: object) -> str | None:
+def _parse_name_list(raw: object) -> tuple[str, ...]:
     names = [str(v).strip() for v in _decode_info(raw).values() if isinstance(v, str)]
-    names = [n for n in names if n]
-    return ", ".join(dict.fromkeys(names)) or None
+    return tuple(dict.fromkeys(n for n in names if n))
 
 
 def _parse_series(raw: object) -> str | None:
@@ -239,8 +239,10 @@ def _parse_bitrate(tags: object) -> tuple[str | None, int | None]:
 def parse_torrent_details(item: dict[str, Any]) -> MamTorrentDetails:
     """Pull narrator, series and bitrate out of one MAM search result."""
     bitrate, bitrate_kbps = _parse_bitrate(item.get("tags"))
+    narrators = _parse_name_list(item.get("narrator_info"))
     return MamTorrentDetails(
-        narrator=_parse_names(item.get("narrator_info")),
+        narrator=", ".join(narrators) or None,
+        narrators=narrators,
         series=_parse_series(item.get("series_info")),
         bitrate=bitrate,
         bitrate_kbps=bitrate_kbps,

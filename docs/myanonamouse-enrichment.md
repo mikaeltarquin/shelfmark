@@ -10,6 +10,8 @@ Prowlarr's MyAnonamouse indexer keeps the title, author, language and file type 
 | Narrator | Audiobooks | MAM narrator info |
 | Bitrate | Audiobooks | Parsed from the uploader's tags (e.g. `64 kbps`), so some releases have none |
 
+The narrator is also available to audiobook naming templates as `{Narrator}`, see [Audiobookshelf Folders](audiobookshelf.md).
+
 Only MyAnonamouse results are enriched. Other Prowlarr indexers fill the bitrate column only if they report a Torznab `bitrate` attribute, which most don't. AudiobookBay's bitrate column is unaffected and follows the same toggle.
 
 ## Setup
