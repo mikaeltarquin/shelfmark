@@ -18,6 +18,7 @@ Use the guides below to set up the app, connect your library tools, and understa
 - [API Access](api-access.md)
 - [URL Search Parameters](url-search-parameters.md)
 - [MyAnonamouse Enrichment](myanonamouse-enrichment.md)
+- [Audiobookshelf Folders](audiobookshelf.md)
 - [Library Check](library-check.md)
 - [Custom Scripts](custom-scripts.md)
 

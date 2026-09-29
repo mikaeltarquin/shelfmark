@@ -93,9 +93,18 @@ class TestParsing:
         )
 
         assert details.narrator == "Samuel Roukin"
+        assert details.narrators == ("Samuel Roukin",)
         assert details.series == "The Sun Eater #1"
         assert details.bitrate == "64 Kbps"
         assert details.bitrate_kbps == 64
+
+    def test_multiple_narrators_are_kept_as_a_list(self):
+        details = parse_torrent_details(
+            _mam_item(1, narrator_info=json.dumps({"1": "Kate Reading", "2": "Michael Kramer"}))
+        )
+
+        assert details.narrator == "Kate Reading, Michael Kramer"
+        assert details.narrators == ("Kate Reading", "Michael Kramer")
 
     def test_multiple_series_and_missing_number(self):
         details = parse_torrent_details(
@@ -479,6 +488,7 @@ class TestReleaseEnrichment:
         )
 
         assert mam_release.extra["narrator"] == "Samuel Roukin"
+        assert mam_release.extra["narrators"] == ["Samuel Roukin"]
         assert mam_release.extra["series"] == "The Sun Eater #1"
         assert mam_release.extra["bitrate"] == "64 Kbps"
         assert mam_release.extra["bitrate_value"] == 64

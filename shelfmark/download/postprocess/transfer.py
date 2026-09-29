@@ -13,6 +13,7 @@ from shelfmark.core.naming import (
     assign_part_numbers,
     build_library_path,
     derive_primary_title,
+    join_narrators,
     normalize_language_code,
     parse_naming_template,
     sanitize_filename,
@@ -27,6 +28,7 @@ from shelfmark.download.fs import (
 )
 from shelfmark.download.postprocess.policy import (
     get_file_organization,
+    get_narrator_separator,
     get_template,
     get_word_separator,
 )
@@ -42,6 +44,10 @@ if TYPE_CHECKING:
     from shelfmark.core.models import DownloadTask
 
 logger = setup_logger("shelfmark.download.postprocess.pipeline")
+
+# {Narrator} for an audiobook whose release named no narrator, so it still gets its
+# own "{Audiobook}" folder rather than sharing the ebook-only one.
+UNKNOWN_NARRATOR = "Audiobook"
 _TRANSFER_PROCESS_ERRORS = (AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError)
 
 
@@ -60,6 +66,14 @@ def should_hardlink(task: DownloadTask) -> bool:
     return bool(hardlink_enabled)
 
 
+def narrator_value(task: DownloadTask) -> str:
+    """Render {Narrator}: the release's narrators, or a placeholder for audiobooks."""
+    narrator = join_narrators(task.narrators, get_narrator_separator())
+    if not narrator and check_audiobook(task.content_type):
+        return UNKNOWN_NARRATOR
+    return narrator
+
+
 def build_metadata_dict(task: DownloadTask) -> dict:
     """Build template metadata from a download task."""
     primary_title = derive_primary_title(task.title, task.subtitle)
@@ -72,6 +86,7 @@ def build_metadata_dict(task: DownloadTask) -> dict:
         "Series": task.series_name,
         "SeriesPosition": task.series_position,
         "Language": normalize_language_code(task.language),
+        "Narrator": narrator_value(task),
         "User": task.username,
     }
 

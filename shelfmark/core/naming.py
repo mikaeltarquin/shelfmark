@@ -21,6 +21,7 @@ KNOWN_TOKENS = [
     "originalname",
     "firstauthor",
     "partnumber",
+    "narrator",
     "language",
     "subtitle",
     "author",
@@ -36,8 +37,12 @@ KNOWN_TOKENS = [
 # not mark which form it is (see #930).
 AUTHOR_LIST_SEPARATOR = re.compile(r"\s*[,;]\s*")
 
-# Match any {...} block for template parsing
-BRACE_PATTERN = re.compile(r"\{([^}]+)\}")
+# Leading/trailing whitespace and dashes left on one path segment by an empty token,
+# e.g. "The Eye of the World " from "{Title} {Narrator}" with no narrator.
+SEGMENT_EDGE_SEPARATORS = re.compile(r"^[\s\-]+|[\s\-]+$")
+
+NARRATOR_SEPARATORS = {"&": " & ", ",": ", "}
+DEFAULT_NARRATOR_SEPARATOR = "&"
 
 # Characters that are invalid in filenames on various filesystems
 INVALID_CHARS = re.compile(r'[\\/:*?"<>|]')
@@ -65,6 +70,64 @@ def sanitize_filename(name: str | None, max_length: int = 245) -> str:
 
 # Alias for backwards compatibility
 sanitize_path_component = sanitize_filename
+
+
+# A narrator string that did not arrive as a list ("A, B" or "A & B").
+NARRATOR_LIST_SEPARATOR = re.compile(r"\s*[,;&]\s*")
+
+
+def narrator_list(value: object) -> list[str]:
+    """Normalize narrators given as a list or a joined string to a de-duplicated list."""
+    if isinstance(value, str):
+        items: list[object] = list(NARRATOR_LIST_SEPARATOR.split(value))
+    elif isinstance(value, (list, tuple)):
+        items = list(value)
+    else:
+        return []
+    names = (" ".join(str(item or "").split()) for item in items)
+    return list(dict.fromkeys(name for name in names if name))
+
+
+def join_narrators(value: object, separator: str = DEFAULT_NARRATOR_SEPARATOR) -> str:
+    """Join narrators for {Narrator}: "A & B" for "&" (the default), "A, B" for ","."""
+    joiner = NARRATOR_SEPARATORS.get(separator.strip(), NARRATOR_SEPARATORS["&"])
+    return joiner.join(narrator_list(value))
+
+
+def find_template_blocks(template: str) -> list[tuple[int, int, str]]:
+    """Return (start, end, content) for each top-level {...} block in a template.
+
+    Braces nest, so a block may carry literal braces around its token:
+    `{ {Narrator}}` renders " {Rosamund Pike}" (the Audiobookshelf narrator
+    folder convention) and nothing at all when the value is empty. An empty `{}`
+    or a `{` that is never closed stays literal text.
+    """
+    blocks: list[tuple[int, int, str]] = []
+    cursor = 0
+    length = len(template)
+    while cursor < length:
+        start = template.find("{", cursor)
+        if start == -1:
+            break
+        depth = 0
+        end = -1
+        for index in range(start, length):
+            char = template[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end == -1:
+            cursor = start + 1
+            continue
+        content = template[start + 1 : end]
+        if content:
+            blocks.append((start, end + 1, content))
+        cursor = end + 1
+    return blocks
 
 
 def first_author(value: object) -> str:
@@ -216,15 +279,14 @@ def parse_naming_template(
 
     # Process brace blocks in order so we can support conditional literal blocks like:
     # { - Part }{PartNumber}
-    matches = list(BRACE_PATTERN.finditer(template))
-    if not matches:
+    blocks = find_template_blocks(template)
+    if not blocks:
         result = template
     else:
         parts: list[str] = []
         cursor = 0
-        for idx, match in enumerate(matches):
-            parts.append(template[cursor : match.start()])
-            content = match.group(1)
+        for idx, (start, end, content) in enumerate(blocks):
+            parts.append(template[cursor:start])
             rendered = render_block(content)
 
             if rendered is not None:
@@ -232,8 +294,8 @@ def parse_naming_template(
             else:
                 conditional_literal = False
                 include_literal = False
-                if idx + 1 < len(matches) and match.end() == matches[idx + 1].start():
-                    next_content = matches[idx + 1].group(1)
+                if idx + 1 < len(blocks) and end == blocks[idx + 1][0]:
+                    next_content = blocks[idx + 1][2]
                     next_placeholder_name, _next_idx = find_placeholder(next_content)
                     if next_placeholder_name is not None:
                         conditional_literal = True
@@ -243,9 +305,9 @@ def parse_naming_template(
                 elif not conditional_literal and re.search(r"\s", content):
                     # Preserve blocks that look like literal text, but treat bare unknown
                     # placeholders as missing variables.
-                    parts.append(match.group(0))
+                    parts.append(template[start:end])
 
-            cursor = match.end()
+            cursor = end
 
         parts.append(template[cursor:])
         result = "".join(parts)
@@ -266,7 +328,12 @@ def parse_naming_template(
     result = re.sub(r"\[\s*\]", "", result)
 
     # Final trim of any trailing separators left after cleanup
-    return re.sub(r"[\s\-_.]+$", "", result)
+    result = re.sub(r"[\s\-_.]+$", "", result)
+
+    # Trim each folder name too, not just the ends of the whole path, and drop
+    # folders an empty token left blank.
+    segments = (SEGMENT_EDGE_SEPARATORS.sub("", segment) for segment in result.split("/"))
+    return "/".join(segment for segment in segments if segment)
 
 
 def build_library_path(

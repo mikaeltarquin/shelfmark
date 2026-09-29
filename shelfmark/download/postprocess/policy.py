@@ -66,6 +66,12 @@ def get_word_separator() -> str:
     return _config_text(core_config.config.get("NAMING_WORD_SEPARATOR", "")) or " "
 
 
+def get_narrator_separator() -> str:
+    """Get how {Narrator} joins several narrators: "&" (A & B) or "," (A, B)."""
+    value = _config_text(core_config.config.get("NARRATOR_SEPARATOR", "&")).strip()
+    return value if value in ("&", ",") else "&"
+
+
 def get_template(*, is_audiobook: bool, organization_mode: str) -> str:
     """Get the template for the content type and organization mode."""
     if is_audiobook:

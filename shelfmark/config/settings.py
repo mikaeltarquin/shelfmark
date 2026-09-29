@@ -1427,7 +1427,7 @@ def download_settings() -> list[SettingsField]:
             description=(
                 "Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} "
                 "(source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, "
-                "{PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: "
+                "{PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: "
                 "{Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. "
                 "Rename templates are filename-only (no '/' or '\\'); use Organize for folders. "
                 "Applies to single-file downloads."
@@ -1447,11 +1447,45 @@ def download_settings() -> list[SettingsField]:
             description=(
                 "Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, "
                 "{OriginalName} (source filename without extension), {Series}, {SeriesPosition}, "
-                "{Subtitle}, {PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: "
-                "{Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty."
+                "{Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: "
+                "{Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. "
+                "Braces inside a block are kept: {Title}{ {Narrator}} outputs "
+                "'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. "
+                "{Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'."
             ),
             default="{Author}/{Title}/{Title}",
             placeholder="{Author}/{Series/}{Title}{ - Part }{PartNumber}",
+            show_when={"field": "FILE_ORGANIZATION_AUDIOBOOK", "value": "organize"},
+            universal_only=True,
+        ),
+        SelectField(
+            key="NARRATOR_SEPARATOR",
+            label="Narrator Separator",
+            description="How {Narrator} joins several narrators.",
+            options=[
+                {"value": "&", "label": "Ampersand (Kate Reading & Michael Kramer)"},
+                {"value": ",", "label": "Comma (Kate Reading, Michael Kramer)"},
+            ],
+            default="&",
+            show_when={
+                "field": "FILE_ORGANIZATION_AUDIOBOOK",
+                "value": ["rename", "rename_and_group", "organize"],
+            },
+            universal_only=True,
+        ),
+        CheckboxField(
+            key="EBOOKS_WITH_AUDIOBOOKS",
+            label="Keep Ebooks With Audiobooks",
+            description=(
+                "Audiobookshelf shows an ebook and an audiobook as one item when they share a "
+                "folder. Also place each downloaded ebook in the folder of every audiobook of "
+                "the same book (one per narrator), and copy an existing ebook into a newly "
+                "downloaded audiobook's folder. Ebooks with no audiobook yet go to the "
+                "audiobook path without a narrator and move in when the first audiobook "
+                "arrives. Uses the audiobook Path Template, so include {Narrator} to keep "
+                "narrations apart."
+            ),
+            default=False,
             show_when={"field": "FILE_ORGANIZATION_AUDIOBOOK", "value": "organize"},
             universal_only=True,
         ),

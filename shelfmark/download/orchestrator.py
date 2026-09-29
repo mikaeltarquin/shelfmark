@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.models import DownloadTask, QueueStatus, SearchMode
+from shelfmark.core.naming import narrator_list
 from shelfmark.core.queue import book_queue
 from shelfmark.core.request_helpers import (
     normalize_optional_text,
@@ -266,6 +267,12 @@ def queue_release(
         series_position = release_data.get("series_position") or extra.get("series_position")
         subtitle = release_data.get("subtitle") or extra.get("subtitle")
         language = release_data.get("language") or extra.get("language")
+        narrators = narrator_list(
+            release_data.get("narrators")
+            or extra.get("narrators")
+            or release_data.get("narrator")
+            or extra.get("narrator")
+        )
         multi_book = bool(release_data.get("multi_book") or extra.get("multi_book"))
         book_plan = _normalize_book_plan(release_data.get("book_plan") or extra.get("book_plan"))
 
@@ -304,6 +311,7 @@ def queue_release(
             series_position=series_position,
             subtitle=subtitle,
             language=language,
+            narrators=narrators or None,
             multi_book=multi_book or book_plan is not None,
             book_plan=book_plan,
             search_mode=search_mode,
@@ -506,6 +514,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "series_position": getattr(task, "series_position", None),
         "subtitle": getattr(task, "subtitle", None),
         "language": getattr(task, "language", None),
+        "narrators": list(getattr(task, "narrators", None) or []),
         "search_mode": search_mode,
         "multi_book": bool(getattr(task, "multi_book", False)),
         "book_plan": _normalize_book_plan(getattr(task, "book_plan", None)),
@@ -567,6 +576,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         series_position=_optional_number(payload.get("series_position")),
         subtitle=normalize_optional_text(payload.get("subtitle")),
         language=normalize_optional_text(payload.get("language")),
+        narrators=narrator_list(payload.get("narrators")) or None,
         search_mode=search_mode,
         multi_book=bool(payload.get("multi_book", False)),
         book_plan=_normalize_book_plan(payload.get("book_plan")),

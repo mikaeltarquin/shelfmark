@@ -506,8 +506,10 @@ Audiobooks only. AudiobookBay lists it for most releases. In Prowlarr results it
 | `EMAIL_ALLOW_UNVERIFIED_TLS` | Disable TLS certificate verification (not recommended). | boolean | `false` |
 | `DESTINATION_AUDIOBOOK` | Directory where downloaded audiobook files are saved. Leave empty to use the Books destination. | string | _none_ |
 | `FILE_ORGANIZATION_AUDIOBOOK` | Choose how downloaded audiobook files are named and organized. | string (choice) | `rename` |
-| `TEMPLATE_AUDIOBOOK_RENAME` | Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Rename templates are filename-only (no '/' or '\'); use Organize for folders. Applies to single-file downloads. | string | `{Author} - {Title}` |
-| `TEMPLATE_AUDIOBOOK_ORGANIZE` | Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. | string | `{Author}/{Title}/{Title}` |
+| `TEMPLATE_AUDIOBOOK_RENAME` | Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Rename templates are filename-only (no '/' or '\'); use Organize for folders. Applies to single-file downloads. | string | `{Author} - {Title}` |
+| `TEMPLATE_AUDIOBOOK_ORGANIZE` | Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Braces inside a block are kept: {Title}{ {Narrator}} outputs 'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. {Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'. | string | `{Author}/{Title}/{Title}` |
+| `NARRATOR_SEPARATOR` | How {Narrator} joins several narrators. | string (choice) | `&` |
+| `EBOOKS_WITH_AUDIOBOOKS` | Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart. | boolean | `false` |
 | `HARDLINK_TORRENTS_AUDIOBOOK` | Create hardlinks instead of copying. Preserves seeding but archives won't be extracted. Don't use if destination is a library ingest folder. | boolean | `true` |
 | `AUTO_OPEN_DOWNLOADS_SIDEBAR` | Automatically open the downloads sidebar when a new download is queued. | boolean | `false` |
 | `DOWNLOAD_TO_BROWSER_CONTENT_TYPES` | Automatically download completed files to your browser for the selected content types. | string (comma-separated) | _empty list_ |
@@ -770,7 +772,7 @@ Choose how downloaded audiobook files are named and organized.
 
 **Naming Template**
 
-Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Rename templates are filename-only (no '/' or '\'); use Organize for folders. Applies to single-file downloads.
+Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Rename templates are filename-only (no '/' or '\'); use Organize for folders. Applies to single-file downloads.
 
 - **Type:** string
 - **Default:** `{Author} - {Title}`
@@ -779,10 +781,29 @@ Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, 
 
 **Path Template**
 
-Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty.
+Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Braces inside a block are kept: {Title}{ {Narrator}} outputs 'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. {Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'.
 
 - **Type:** string
 - **Default:** `{Author}/{Title}/{Title}`
+
+#### `NARRATOR_SEPARATOR`
+
+**Narrator Separator**
+
+How {Narrator} joins several narrators.
+
+- **Type:** string (choice)
+- **Default:** `&`
+- **Options:** `&` (Ampersand (Kate Reading & Michael Kramer)), `,` (Comma (Kate Reading, Michael Kramer))
+
+#### `EBOOKS_WITH_AUDIOBOOKS`
+
+**Keep Ebooks With Audiobooks**
+
+Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart.
+
+- **Type:** boolean
+- **Default:** `false`
 
 #### `HARDLINK_TORRENTS_AUDIOBOOK`
 
