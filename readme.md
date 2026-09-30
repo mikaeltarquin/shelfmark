@@ -14,6 +14,64 @@ Works great alongside the following library tools, with support for automatic im
 - [Grimmory](https://github.com/grimmory-tools/grimmory)
 - [Audiobookshelf](https://github.com/advplyr/audiobookshelf)
 
+## 🍴 About this fork
+
+This is a fork of [calibrain/shelfmark](https://github.com/calibrain/shelfmark) focused on
+**shared ebook and audiobook libraries in [Audiobookshelf](https://github.com/advplyr/audiobookshelf)**
+and on **MyAnonamouse** as a source. Everything upstream still works the same; the fork only adds.
+
+**Image:** `ghcr.io/mikaeltarquin/shelfmark:dev` (and `ghcr.io/mikaeltarquin/shelfmark-lite:dev`),
+rebuilt from `main` after each change. The compose files and install commands below still point at
+upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get the features listed here.
+
+### What's different from upstream
+
+**Audiobookshelf-friendly file layout** ([docs](docs/audiobookshelf.md))
+- A `{Narrator}` naming-template token, so each narration of a book gets its own folder. Several
+  narrators are joined with `&` or `,` (setting), and a missing narrator falls back to `Audiobook`.
+- **Keep Ebooks With Audiobooks**: in combined (ebook + audiobook) downloads, the ebook goes straight
+  into each narrator's folder next to the audio, so Audiobookshelf shows one item with both formats.
+- Pick **several audiobooks** (e.g. different narrators) for one book in the combined download flow.
+- **Write Audiobookshelf Metadata**: a `metadata.opf` in each audiobook folder with title, authors,
+  narrators, year, language and series with number, so every book of a series files under the same
+  series name. Edits made in Audiobookshelf itself still win.
+
+**MyAnonamouse account tools** (admin only; needs the MAM session ID)
+- An **account panel** (header menu → MyAnonamouse) with upload, download, ratio, buffer, bonus
+  points, VIP expiry, the **unsatisfied torrent** count and limit, and an estimated **bonus points
+  per hour**, plus connection status for MAM and your torrent client.
+- **Buy upload credit** from the panel (preset amounts, a custom amount or "max affordable").
+- **Auto-buy** upload credit when the ratio or buffer falls below a threshold, or spend bonus
+  points above a threshold, always keeping a reserve. It runs on a schedule and after MAM downloads
+  are queued, and keeps a purchase history.
+- A **projected ratio** line in the release list, and a **buffer check before downloading**. When a
+  download wouldn't fit in your buffer, Shelfmark offers to buy just enough credit first.
+- **Unsatisfied limit guard**: optionally block MAM downloads that would take you past the
+  unsatisfied limit, keeping a number of slots free (5 by default).
+
+**Library integration** ([docs](docs/library-check.md))
+- **Audiobookshelf library check** next to upstream's Calibre one. It marks search results you
+  already own, **per format** (an item with audio counts as the audiobook, one with an ebook file as
+  the ebook), and marks audiobook releases whose **narrator** you already have. Pick the libraries
+  to read by name after pressing Test.
+- A **Libraries** settings group (Audiobookshelf, Calibre, and a Kavita placeholder). Existing
+  settings move there automatically.
+- A **library browser** (the **Library** button in the header, admin only):
+  - **All**: every book in your connected libraries as a cover grid, with filter, format filter
+    and sorting. A book held by both libraries shows once, with both format badges.
+  - **Authors**: each author's books, all together or grouped by series.
+  - **Series**: each series in reading order, with numbers.
+  - **Not in your library**: on author and series pages, the books your metadata provider
+    (Hardcover) knows that you don't have, with an Any / Ebook / Audiobook switch. A book you own
+    only as an ebook still shows as a missing audiobook.
+  - Every card, owned or missing, has **details**, **Hardcover lists** and **+ Get**. Use Get to
+    fill a gap, get the other format, upgrade a copy or add another narrator's version.
+  - Covers come from your libraries, with Hardcover as a fallback.
+
+Upstream's **[Project scope](#project-scope)** rules out library tracking and library integration.
+This fork deliberately does both: it reads your libraries (read-only) to show what you have and
+what you're missing. It still doesn't monitor authors or queue future downloads.
+
 ## ✨ Features
 
 - **One-Stop Interface** - A clean, modern UI to search, browse, and download from multiple configured sources in one place
@@ -263,6 +321,9 @@ Shelfmark intentionally does not:
 
 These are non-goals, not missing features.
 
+> [!NOTE]
+> This section describes upstream Shelfmark. This fork does read your libraries (Audiobookshelf and Calibre, read-only) to mark what you own, browse it, and list what you're missing. See [About this fork](#-about-this-fork).
+
 ## Contributing
 
 Shelfmark's core feature set is complete.
@@ -334,4 +395,4 @@ Use of this tool is entirely at your own risk.
 
 ## Support
 
-For issues or questions, please [file an issue](https://github.com/calibrain/shelfmark/issues) on GitHub.
+For issues with the features added in this fork, [file an issue here](https://github.com/mikaeltarquin/shelfmark/issues). For everything else, see [upstream's issues](https://github.com/calibrain/shelfmark/issues).
