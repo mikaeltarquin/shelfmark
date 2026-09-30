@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   customAmountError,
+  describeAutobuy,
+  describeCheck,
   formatGib,
   formatPoints,
   formatRatio,
@@ -54,5 +56,49 @@ describe('formatting', () => {
     expect(formatRatio(Infinity)).toBe('∞');
     expect(formatRatio(null)).toBe('—');
     expect(formatPoints(61250.7)).toBe('61,250');
+  });
+});
+
+describe('auto-buy descriptions', () => {
+  const settings = {
+    ratio_enabled: true,
+    ratio_threshold: 2,
+    ratio_amount: 50,
+    buffer_enabled: false,
+    buffer_threshold_gb: 10,
+    buffer_amount: 50,
+    bonus_enabled: true,
+    bonus_threshold: 50000,
+    bonus_amount: 100,
+    reserve_points: 5000,
+    interval_hours: 6,
+  };
+
+  it('lists the modes that are on', () => {
+    expect(describeAutobuy(settings)).toEqual([
+      'Ratio below 2 → buy 50 GB',
+      'Bonus points at 50,000 or more → buy 100 GB, repeatedly',
+      'Always keeps 5,000 points',
+    ]);
+    expect(describeAutobuy({ ...settings, ratio_enabled: false, bonus_enabled: false })).toEqual(
+      [],
+    );
+  });
+
+  it('summarises a check', () => {
+    const base = { at: 0, trigger: 'schedule', skipped: null, notes: [] };
+    expect(describeCheck({ ...base, purchases: [] })).toBe('Nothing needed buying');
+    expect(
+      describeCheck({
+        ...base,
+        purchases: [
+          { reason: 'bonus', amount_gb: 50, success: true, error: null },
+          { reason: 'bonus', amount_gb: 0, success: false, error: 'Not enough bonus points' },
+        ],
+      }),
+    ).toBe('Bought 50 GB; stopped: Not enough bonus points');
+    expect(describeCheck({ ...base, purchases: [], skipped: 'No auto-buy mode is on' })).toBe(
+      'No auto-buy mode is on',
+    );
   });
 });

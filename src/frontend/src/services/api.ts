@@ -31,6 +31,7 @@ import {
 } from '../utils/bookTransformers';
 import type {
   MamAccountResponse,
+  MamAutobuyResponse,
   MamPurchaseResponse,
   MamStatusResponse,
   UploadCreditAmount,
@@ -620,13 +621,21 @@ export const getMamStatus = async (): Promise<MamStatusResponse> =>
 
 export const buyMamUploadCredit = async (
   amount: UploadCreditAmount,
+  reason: 'manual' | 'download' = 'manual',
 ): Promise<MamPurchaseResponse> =>
   // A purchase can take several requests to MAM (one per 100/50 GB).
   fetchJSON<MamPurchaseResponse>(
     `${API_BASE}/mam/upload-credit`,
-    { method: 'POST', body: JSON.stringify({ amount }) },
+    { method: 'POST', body: JSON.stringify({ amount, reason }) },
     120000,
   );
+
+export const getMamAutobuy = async (): Promise<MamAutobuyResponse> =>
+  fetchJSON<MamAutobuyResponse>(`${API_BASE}/mam/autobuy`);
+
+export const runMamAutobuy = async (): Promise<MamAutobuyResponse> =>
+  // A check can make up to 20 purchases.
+  fetchJSON<MamAutobuyResponse>(`${API_BASE}/mam/autobuy/run`, { method: 'POST' }, 300000);
 
 export const getActivitySnapshot = async (): Promise<ActivitySnapshotResponse> => {
   return fetchJSON<ActivitySnapshotResponse>(API.activitySnapshot);

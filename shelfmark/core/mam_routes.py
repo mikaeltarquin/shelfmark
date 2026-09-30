@@ -6,6 +6,7 @@ its bonus points.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -13,7 +14,7 @@ from flask import jsonify, request, session
 
 from shelfmark.core.auth_modes import load_active_auth_mode
 from shelfmark.core.logger import setup_logger
-from shelfmark.release_sources.prowlarr import mam_account
+from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -91,6 +92,26 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
             return jsonify({"error": "releases must be a list"}), 400
         return jsonify(buffer_check_payload([r for r in releases if isinstance(r, dict)]))
 
+    @app.route("/api/mam/autobuy", methods=["GET"])
+    @login_required
+    @_admin_only
+    def api_mam_autobuy() -> Response:
+        settings = mam_autobuy.load_settings()
+        return jsonify(
+            {
+                "settings": asdict(settings),
+                "last_check": mam_autobuy.last_report(),
+                "history": mam_autobuy.load_history()[:10],
+            }
+        )
+
+    @app.route("/api/mam/autobuy/run", methods=["POST"])
+    @login_required
+    @_admin_only
+    def api_mam_autobuy_run() -> Response:
+        report = mam_autobuy.run_check("manual")
+        return jsonify({"last_check": report.to_dict(), "history": mam_autobuy.load_history()[:10]})
+
     @app.route("/api/mam/status", methods=["GET"])
     @login_required
     @_admin_only
@@ -109,7 +130,9 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
         if not mam_account.is_configured():
             return jsonify({"success": False, "error": "No MAM session ID is set"}), 400
 
-        result = mam_account.purchase_upload_credit(amount, reason="manual")
+        # "download": bought from the buffer prompt before downloading.
+        reason = "download" if data.get("reason") == "download" else "manual"
+        result = mam_autobuy.buy(amount, reason=reason)
         payload: dict[str, Any] = {
             "success": result.success,
             "amount_gb": result.amount_gb,

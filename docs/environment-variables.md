@@ -1331,6 +1331,17 @@ How long to cache individual book details. Default: 600 (10 minutes). Max: 60480
 | `PROWLARR_USE_SEED_PREFERENCES` | Apply per-indexer seed time and ratio preferences from Prowlarr when sending torrents to the download client | boolean | `false` |
 | `PROWLARR_MAM_ID` | The mam_id value MyAnonamouse shows when you create a session. MAM locks each session to one IP or ASN, so reusing Prowlarr's or another client's session often fails with a 403: you will likely need a separate session for Shelfmark if it reaches MAM from another IP (different host, VPN or proxy) or the existing session is ASN-locked to another network. Leave empty to turn enrichment off. | string (secret) | _none_ |
 | `MAM_BLOCK_ON_LOW_BUFFER` | Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead. | boolean | `true` |
+| `MAM_AUTOBUY_RATIO_ENABLED` | Buy once per check while the ratio is below the threshold. | boolean | `false` |
+| `MAM_AUTOBUY_RATIO_THRESHOLD` | Buy when the ratio is below this. 2.0 is MAM's minimum for renewing VIP; 1.0 is the site minimum. | number | `2.0` |
+| `MAM_AUTOBUY_RATIO_AMOUNT` | How much to buy each time, in multiples of 50 GB. | number | `50` |
+| `MAM_AUTOBUY_BUFFER_ENABLED` | Buy once per check while the buffer (uploaded minus downloaded) is below the threshold. | boolean | `false` |
+| `MAM_AUTOBUY_BUFFER_THRESHOLD_GB` | Buy when the buffer is below this many GB. | number | `10` |
+| `MAM_AUTOBUY_BUFFER_AMOUNT` | How much to buy each time, in multiples of 50 GB. | number | `50` |
+| `MAM_AUTOBUY_BONUS_ENABLED` | While bonus points are at or above the threshold, keep buying upload credit (at most 20 purchases per check). | boolean | `false` |
+| `MAM_AUTOBUY_BONUS_THRESHOLD` | Buy while bonus points are at or above this. | number | `50000` |
+| `MAM_AUTOBUY_BONUS_AMOUNT` | How much to buy each time, in multiples of 50 GB. | number | `50` |
+| `MAM_AUTOBUY_RESERVE_POINTS` | Auto-buy never spends bonus points below this. Manual purchases are not limited. | number | `0` |
+| `MAM_AUTOBUY_INTERVAL_HOURS` | How often to check the account. | number | `6` |
 
 <details>
 <summary>Detailed descriptions</summary>
@@ -1427,6 +1438,113 @@ Before queueing MyAnonamouse torrents, check that they fit in the account's buff
 
 - **Type:** boolean
 - **Default:** `true`
+
+#### `MAM_AUTOBUY_RATIO_ENABLED`
+
+**Buy When Ratio Is Low**
+
+Buy once per check while the ratio is below the threshold.
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `MAM_AUTOBUY_RATIO_THRESHOLD`
+
+**Ratio Threshold**
+
+Buy when the ratio is below this. 2.0 is MAM's minimum for renewing VIP; 1.0 is the site minimum.
+
+- **Type:** number
+- **Default:** `2.0`
+- **Constraints:** min: 1.0
+
+#### `MAM_AUTOBUY_RATIO_AMOUNT`
+
+**Ratio Purchase (GB)**
+
+How much to buy each time, in multiples of 50 GB.
+
+- **Type:** number
+- **Default:** `50`
+- **Constraints:** min: 50
+
+#### `MAM_AUTOBUY_BUFFER_ENABLED`
+
+**Buy When Buffer Is Low**
+
+Buy once per check while the buffer (uploaded minus downloaded) is below the threshold.
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `MAM_AUTOBUY_BUFFER_THRESHOLD_GB`
+
+**Buffer Threshold (GB)**
+
+Buy when the buffer is below this many GB.
+
+- **Type:** number
+- **Default:** `10`
+- **Constraints:** min: 0
+
+#### `MAM_AUTOBUY_BUFFER_AMOUNT`
+
+**Buffer Purchase (GB)**
+
+How much to buy each time, in multiples of 50 GB.
+
+- **Type:** number
+- **Default:** `50`
+- **Constraints:** min: 50
+
+#### `MAM_AUTOBUY_BONUS_ENABLED`
+
+**Spend Excess Bonus Points**
+
+While bonus points are at or above the threshold, keep buying upload credit (at most 20 purchases per check).
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `MAM_AUTOBUY_BONUS_THRESHOLD`
+
+**Bonus Points Threshold**
+
+Buy while bonus points are at or above this.
+
+- **Type:** number
+- **Default:** `50000`
+- **Constraints:** min: 0
+
+#### `MAM_AUTOBUY_BONUS_AMOUNT`
+
+**Bonus Purchase (GB)**
+
+How much to buy each time, in multiples of 50 GB.
+
+- **Type:** number
+- **Default:** `50`
+- **Constraints:** min: 50
+
+#### `MAM_AUTOBUY_RESERVE_POINTS`
+
+**Keep at Least (Points)**
+
+Auto-buy never spends bonus points below this. Manual purchases are not limited.
+
+- **Type:** number
+- **Default:** `0`
+- **Constraints:** min: 0
+
+#### `MAM_AUTOBUY_INTERVAL_HOURS`
+
+**Check Every (Hours)**
+
+How often to check the account.
+
+- **Type:** number
+- **Default:** `6`
+- **Constraints:** min: 1
 
 </details>
 

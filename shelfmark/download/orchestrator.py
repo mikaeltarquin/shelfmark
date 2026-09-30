@@ -337,6 +337,12 @@ def queue_release(
             logger.info("Release already in queue: %s", task.title)
             return False, "Release is already in the download queue"
 
+        if task.mam_charge_bytes:
+            # A MAM download lowers the buffer: let auto-buy look soon.
+            from shelfmark.release_sources.prowlarr import mam_autobuy
+
+            mam_autobuy.check_soon("download")
+
         logger.info(
             "Release queued with priority %s: %s (downloads=%s, release_data.downloads=%s, extra=%s)",
             priority,

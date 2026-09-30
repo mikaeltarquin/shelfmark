@@ -95,6 +95,7 @@ from shelfmark.release_sources import (
     SourceUnavailableError,
     get_source_display_name,
 )
+from shelfmark.release_sources.prowlarr import mam_autobuy
 
 if TYPE_CHECKING:
     from shelfmark.metadata_providers import BookMetadata, MetadataProvider
@@ -233,6 +234,7 @@ _warn_if_local_admin_missing()
 
 # Start download coordinator
 backend.start()
+mam_autobuy.start()
 
 # Pre-solve the direct-download source's protection challenge in the background so the
 # first user search does not pay for a cold Chrome bypass. Never blocks startup.

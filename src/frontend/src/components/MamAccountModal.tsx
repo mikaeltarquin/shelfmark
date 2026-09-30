@@ -3,9 +3,18 @@ import { useCallback, useState } from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { useMountEffect } from '../hooks/useMountEffect';
-import { buyMamUploadCredit, getMamAccount, getMamStatus } from '../services/api';
+import {
+  buyMamUploadCredit,
+  getMamAccount,
+  getMamAutobuy,
+  getMamStatus,
+  runMamAutobuy,
+} from '../services/api';
 import {
   customAmountError,
+  describeAutobuy,
+  describeCheck,
+  purchaseReasonLabel,
   DEFAULT_POINTS_PER_GB,
   DEFAULT_STEP_GB,
   formatGib,
@@ -15,6 +24,7 @@ import {
   UPLOAD_CREDIT_PRESETS_GB,
   uploadCreditCost,
   type MamAccountResponse,
+  type MamAutobuyResponse,
   type MamConnection,
   type MamStatusResponse,
   type UploadCreditAmount,
@@ -81,6 +91,8 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [status, setStatus] = useState<MamStatusResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autobuy, setAutobuy] = useState<MamAutobuyResponse | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [choice, setChoice] = useState<Choice>(50);
   const [customValue, setCustomValue] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -104,9 +116,27 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
         const failed = { configured: true, ok: false, message: errorText(error) };
         setStatus({ mam: failed, torrent_client: failed });
       });
-    await Promise.all([accountRequest, statusRequest]);
+    const autobuyRequest = getMamAutobuy()
+      .then(setAutobuy)
+      .catch((error: unknown) => console.warn('Could not load MAM auto-buy:', error));
+    await Promise.all([accountRequest, statusRequest, autobuyRequest]);
     setIsRefreshing(false);
   }, []);
+
+  const runCheck = async () => {
+    setIsChecking(true);
+    try {
+      const result = await runMamAutobuy();
+      setAutobuy((previous) => ({ ...previous, ...result }));
+      if (result.last_check?.purchases.length) {
+        await refresh(true);
+      }
+    } catch (error) {
+      setPurchaseMessage({ ok: false, text: errorText(error) });
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   useMountEffect(() => {
     void refresh(false);
@@ -166,6 +196,9 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
     try {
       const result = await buyMamUploadCredit(amount);
       setAccount(result);
+      void getMamAutobuy()
+        .then(setAutobuy)
+        .catch(() => undefined);
       if (result.success) {
         setPurchaseMessage({ ok: true, text: `Added ${result.amount_gb} GB of upload credit.` });
       } else {
@@ -186,6 +219,7 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
     setPurchaseMessage(null);
   };
 
+  const autobuyLines = autobuy?.settings ? describeAutobuy(autobuy.settings) : [];
   const titleId = 'mam-account-modal-title';
   const error = accountError ?? account?.error ?? null;
 
@@ -369,6 +403,68 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               >
                 {purchaseMessage.text}
               </p>
+            )}
+          </section>
+
+          <section aria-label="Auto-buy">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-semibold">Auto-buy</h4>
+              <button
+                type="button"
+                onClick={() => void runCheck()}
+                disabled={isChecking || isBuying || !autobuyLines.length}
+                className="rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isChecking ? 'Checking…' : 'Check now'}
+              </button>
+            </div>
+            {autobuyLines.length > 0 ? (
+              <ul className="mt-1 list-disc pl-5 text-xs opacity-80">
+                {autobuyLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+                <li>
+                  Checked every {autobuy?.settings?.interval_hours ?? 6} hours and after MAM
+                  downloads
+                </li>
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs opacity-70">
+                Off. Turn modes on under Settings › Prowlarr › Upload Credit Auto-Buy.
+              </p>
+            )}
+            {autobuy?.last_check && (
+              <p className="mt-2 text-xs opacity-80">
+                Last check {new Date(autobuy.last_check.at * 1000).toLocaleString()}:{' '}
+                {describeCheck(autobuy.last_check)}
+              </p>
+            )}
+            {autobuy && autobuy.history.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium tracking-wide uppercase opacity-60">
+                  Recent purchases
+                </p>
+                <ul className="mt-1 divide-y divide-(--border-muted) text-xs">
+                  {autobuy.history.map((entry) => (
+                    <li
+                      key={`${entry.at}-${entry.reason}`}
+                      className="flex items-baseline justify-between gap-3 py-1.5"
+                    >
+                      <span className="opacity-70">
+                        {new Date(entry.at * 1000).toLocaleString()} ·{' '}
+                        {purchaseReasonLabel(entry.reason)}
+                      </span>
+                      <span
+                        className={`text-right tabular-nums ${entry.success ? '' : 'text-red-600 dark:text-red-400'}`}
+                      >
+                        {entry.success
+                          ? `+${entry.amount_gb} GB`
+                          : `Failed${entry.amount_gb > 0 ? ` after +${entry.amount_gb} GB` : ''}: ${entry.error ?? ''}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </section>
         </div>

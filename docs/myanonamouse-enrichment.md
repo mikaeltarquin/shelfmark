@@ -61,3 +61,20 @@ MyAnonamouse results are recognised by their MAM torrent link, whether or not en
 - **Buffer check** (**Hold Back Downloads Larger Than the Buffer**, `MAM_BLOCK_ON_LOW_BUFFER`, on by default): before MAM torrents are queued, Shelfmark checks that they, plus its still-active MAM downloads, fit in the buffer. Picks made together are checked together, so none is queued unless all fit. If they don't, admins are offered the smallest upload credit purchase that covers the shortfall (or another amount) and the downloads go ahead once it is bought; other users are asked to contact an admin. Freeleech torrents don't count, and if MAM can't be reached the downloads go ahead.
 
 Active downloads are counted at their full size, because MAM's figures only include what a torrent has downloaded so far; this errs towards a smaller buffer.
+
+## Upload credit auto-buy
+
+Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonus points on upload credit by itself. Each mode is off until you turn it on:
+
+| Mode | Buys when | Default threshold | Default amount |
+|------|-----------|-------------------|----------------|
+| **Buy When Ratio Is Low** | ratio is below the threshold | 2.0 (MAM's minimum for renewing VIP) | 50 GB |
+| **Buy When Buffer Is Low** | buffer (uploaded − downloaded) is below the threshold | 10 GB | 50 GB |
+| **Spend Excess Bonus Points** | bonus points are at or above the threshold, repeatedly | 50,000 | 50 GB |
+
+- Checks run every **Check Every (Hours)** (6 by default), a minute after Shelfmark starts, and about 20 seconds after a MAM download is queued. **Check now** in the MyAnonamouse panel runs one immediately.
+- Ratio and buffer buy at most once per check, and buffer only when ratio didn't. The bonus mode stops after 20 purchases in one check, as soon as bonus points don't go down, or when a purchase fails.
+- **Keep at Least (Points)** is a floor auto-buy never spends below. Manual purchases ignore it.
+- Amounts are in multiples of 50 GB; other values are rounded down.
+- The ratio line's amber warning follows the ratio threshold.
+- Every purchase, manual or automatic, is listed under **Recent purchases** in the MyAnonamouse panel with its reason, and kept in `mam_purchases.json` in the config folder.
