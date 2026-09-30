@@ -34,3 +34,19 @@ export const releaseNarrators = (release: Release): string[] | string | null => 
   const narrator: unknown = release.extra?.narrator;
   return typeof narrator === 'string' && narrator.trim() ? narrator : null;
 };
+
+// Mirrors shelfmark/core/release_parts.py: "#1p2" in the series, "Part 2", "Pt. 2",
+// "(2 of 5)" or "[2/5]" in the title.
+const SERIES_PART = /#\s*\d+(?:\.\d+)?\s*(?:p|pt\.?|part)\s*\d+\b/i;
+const TITLE_PARTS = [/\b(?:part|pt\.?)\s*\d+\b/i, /[([]\s*\d+\s*(?:of|\/)\s*\d+\s*[)\]]/i];
+
+/**
+ * Whether a release is one part of a book published in parts (GraphicAudio). Each part
+ * is filed as its own book, "Title (1 of 5)", so an ebook downloaded with it has no
+ * single audiobook folder to go into.
+ */
+export const isPartRelease = (release: Release): boolean => {
+  const series: unknown = release.extra?.series;
+  if (typeof series === 'string' && SERIES_PART.test(series)) return true;
+  return TITLE_PARTS.some((pattern) => pattern.test(release.title));
+};

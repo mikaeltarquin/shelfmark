@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Book, Release } from '../types';
 import {
+  isPartRelease,
   isReleaseSelected,
   releaseNarrators,
   toggleReleaseSelection,
@@ -65,5 +66,33 @@ describe('companion audiobook narrators in the ebook payload', () => {
       companionAudiobookNarrators: [],
     });
     expect(payload).not.toHaveProperty('companion_audiobook_narrators');
+  });
+});
+
+describe('books published in parts', () => {
+  const part = (title: string, series = 'Stormlight Archive #2'): Release => ({
+    source: 'prowlarr',
+    source_id: title,
+    title,
+    extra: { series, narrators: ['GraphicAudio'] },
+  });
+
+  it('recognizes parts by title or MyAnonamouse series', () => {
+    expect(isPartRelease(part('Words of Radiance (Part 1 of 5)'))).toBe(true);
+    expect(isPartRelease(part('Elantris', 'Elantris #1p2'))).toBe(true);
+    expect(isPartRelease(part('Elantris [2/3]', ''))).toBe(true);
+    expect(isPartRelease(part('Words of Radiance'))).toBe(false);
+    expect(isPartRelease(part('Part-Time Indian', ''))).toBe(false);
+  });
+
+  it('sends the release title, which names the part', () => {
+    const book: Book = { id: 'b', title: 'Words of Radiance', author: 'Brandon Sanderson' };
+    const payload = buildReleaseDownloadPayload(
+      book,
+      part('Words of Radiance (Part 1 of 5)'),
+      'audiobook',
+    );
+    expect(payload.title).toBe('Words of Radiance');
+    expect(payload.release_title).toBe('Words of Radiance (Part 1 of 5)');
   });
 });
