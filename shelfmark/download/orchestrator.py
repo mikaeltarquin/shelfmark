@@ -19,7 +19,7 @@ from shelfmark.core.logger import setup_logger
 from shelfmark.core.models import DownloadTask, QueueStatus, SearchMode
 from shelfmark.core.naming import narrator_list
 from shelfmark.core.queue import book_queue
-from shelfmark.core.release_parts import release_part_number
+from shelfmark.core.release_parts import release_part
 from shelfmark.core.request_helpers import (
     normalize_optional_text,
     normalize_positive_int,
@@ -285,8 +285,8 @@ def queue_release(
             or release_data.get("narrator")
             or extra.get("narrator")
         )
-        release_part = (
-            release_part_number(release_data.get("title"), extra.get("series"))
+        part = (
+            release_part(release_data.get("title"), extra.get("series"))
             if check_audiobook(content_type)
             else None
         )
@@ -332,7 +332,8 @@ def queue_release(
             companion_narrators=companion_narrators,
             mam_charge_bytes=mam_charge_bytes,
             mam_torrent_id=mam_torrent_id,
-            release_part=release_part,
+            release_part=part.number if part else None,
+            release_part_total=part.total if part else None,
             multi_book=multi_book or book_plan is not None,
             book_plan=book_plan,
             search_mode=search_mode,
@@ -553,6 +554,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "mam_charge_bytes": getattr(task, "mam_charge_bytes", None),
         "mam_torrent_id": getattr(task, "mam_torrent_id", None),
         "release_part": getattr(task, "release_part", None),
+        "release_part_total": getattr(task, "release_part_total", None),
         "search_mode": search_mode,
         "multi_book": bool(getattr(task, "multi_book", False)),
         "book_plan": _normalize_book_plan(getattr(task, "book_plan", None)),
@@ -619,6 +621,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         mam_charge_bytes=normalize_positive_int(payload.get("mam_charge_bytes")),
         mam_torrent_id=normalize_positive_int(payload.get("mam_torrent_id")),
         release_part=normalize_positive_int(payload.get("release_part")),
+        release_part_total=normalize_positive_int(payload.get("release_part_total")),
         search_mode=search_mode,
         multi_book=bool(payload.get("multi_book", False)),
         book_plan=_normalize_book_plan(payload.get("book_plan")),

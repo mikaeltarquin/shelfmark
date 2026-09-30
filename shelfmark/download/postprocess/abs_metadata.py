@@ -30,6 +30,7 @@ from shelfmark.core.naming import (
     narrator_list,
     normalize_language_code,
 )
+from shelfmark.core.release_parts import part_title
 from shelfmark.download.fs import atomic_write, run_blocking_io
 
 from .policy import get_file_organization
@@ -54,6 +55,8 @@ def is_enabled() -> bool:
 def build_opf(task: DownloadTask, narrators: list[str] | None = None) -> str:
     """Render the task's book metadata as an OPF package Audiobookshelf reads."""
     title = derive_primary_title(task.title, task.subtitle) or task.title
+    if task.release_part:  # One part of a book published in parts: "Title (1 of 2)"
+        title = part_title(title, task.release_part, task.release_part_total)
     authors = [
         name for name in AUTHOR_LIST_SEPARATOR.split(" ".join((task.author or "").split())) if name
     ]

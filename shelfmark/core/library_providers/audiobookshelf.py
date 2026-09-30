@@ -19,6 +19,7 @@ import requests
 from shelfmark.core.config import config as app_config
 from shelfmark.core.library_providers import LibraryEntry, LibraryItem, setting
 from shelfmark.core.logger import setup_logger
+from shelfmark.core.release_parts import strip_part
 from shelfmark.core.text_match import isbn_variants, tokens
 
 if TYPE_CHECKING:
@@ -106,7 +107,9 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
         LibraryItem(
             source="audiobookshelf",
             item_id=item_id,
-            title=title,
+            # A book published in parts is one item per part ("Elantris (1 of 2)");
+            # the browser shows them as the one book.
+            title=strip_part(title),
             authors=tuple(_split_names(metadata.get("authorName"))),
             series=_series_with_numbers(metadata.get("seriesName")),
             narrators=tuple(narrator_names),

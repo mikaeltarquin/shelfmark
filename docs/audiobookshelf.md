@@ -67,14 +67,17 @@ Turn on **Settings > Downloads > Audiobooks > Write Audiobookshelf Metadata** (`
 Some publishers split one book into several releases: GraphicAudio's dramatizations come
 in parts, each its own torrent. Shelfmark reads the part from MyAnonamouse's series field
 ("Elantris #1p2") or, for other sources, from the title ("Part 2", "Pt. 2", "(2 of 3)"),
-and names the files by it so they sort in reading order whichever download finishes
-first:
+and files each part as its own book, so Audiobookshelf gets one item per part that it can
+match:
 
 ```
-Brandon Sanderson/Elantris {GraphicAudio}/Elantris - Part 01.m4b
-Brandon Sanderson/Elantris {GraphicAudio}/Elantris - Part 02.m4b
+Brandon Sanderson/Elantris (1 of 2) {GraphicAudio}/Elantris (1 of 2).m4b
+Brandon Sanderson/Elantris (2 of 2) {GraphicAudio}/Elantris (2 of 2).m4b
 ```
 
-A part with several files numbers them within the part (`Part 02-01`, `Part 02-02`). If
-your template already has `{PartNumber}`, the part goes there instead of being appended.
-All parts land in the same folder, so Audiobookshelf shows them as one book.
+The part goes into the title everywhere `{Title}` is used, and into the `metadata.opf`.
+The number of parts comes from the release title ("(1 of 2)"); when no release says it,
+the part is written `Elantris (Part 1)`. Parts are left out of
+[Keep Ebooks With Audiobooks](#keeping-ebooks-with-audiobooks): the ebook stays in its own
+folder rather than in one part's. The library check and the library browser still count
+the parts as the audiobook of the book.

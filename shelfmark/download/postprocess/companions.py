@@ -94,6 +94,10 @@ def is_enabled_for(task: DownloadTask) -> bool:
         return False
     if task.search_mode == SearchMode.DIRECT:
         return False
+    # One part of a book published in parts is not the book: which part's folder the
+    # ebook belongs in is anyone's guess, so parts keep to their own folders.
+    if task.release_part:
+        return False
     return not (task.multi_book or task.book_plan)
 
 
