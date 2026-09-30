@@ -2806,6 +2806,28 @@ def api_metadata_field_options() -> Response:
         return jsonify({"options": []})
 
 
+def _mark_owned_narrations(book: Any, releases: list[dict[str, Any]]) -> None:
+    """Flag audiobook releases whose narrator already narrates a library copy of ``book``."""
+    from shelfmark.core import library_index
+    from shelfmark.core.library_providers.audiobookshelf import normalize_narrator
+    from shelfmark.core.naming import narrator_list
+
+    try:
+        owned = library_index.owned_narrators(book)
+    except Exception as exc:  # noqa: BLE001 - the library check fails open
+        logger.warning("Could not check owned narrations: %s", exc)
+        return
+    if not owned:
+        return
+    for release in releases:
+        extra = release.get("extra")
+        if not isinstance(extra, dict):
+            continue
+        names = narrator_list(extra.get("narrators") or extra.get("narrator"))
+        if any(normalize_narrator(name) in owned for name in names):
+            extra["in_library"] = True
+
+
 def _attach_library_ownership(book: Any, book_dict: dict[str, Any]) -> None:
     """Add per-format ownership under ``library`` when a library check is enabled."""
     from shelfmark.core import library_index
@@ -2813,6 +2835,7 @@ def _attach_library_ownership(book: Any, book_dict: dict[str, Any]) -> None:
     owned = library_index.ownership(book)
     if owned is not None:
         book_dict["library"] = owned
+        book_dict["library_sources"] = library_index.ownership_sources(book)
 
 
 def _resolve_metadata_provider(provider_name: str) -> MetadataProvider:
@@ -3158,6 +3181,8 @@ def api_releases() -> Response | tuple[Response, int]:
 
         # Convert Release objects to dicts
         releases_data = [_serialize_release(release) for release in all_releases]
+        if content_type == "audiobook":
+            _mark_owned_narrations(book, releases_data)
 
         # Get column config from the first source searched
         # Reuse the same instance to get any dynamic data (e.g., online_servers for IRC)

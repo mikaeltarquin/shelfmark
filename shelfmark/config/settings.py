@@ -389,6 +389,23 @@ def _clear_metadata_cache(current_values: dict) -> dict:
         }
 
 
+def _test_abs_library(current_values: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Settings action: list the Audiobookshelf libraries and index the chosen ones."""
+    from shelfmark.core import library_index
+    from shelfmark.core.library_providers.audiobookshelf import AudiobookshelfLibrary
+
+    values = {**(current_values or {}), "LIBRARY_CHECK_ABS_ENABLED": True}
+    try:
+        libraries = AudiobookshelfLibrary(values).libraries()
+    except Exception as exc:  # noqa: BLE001 - shown to the user
+        return {"success": False, "message": f"Audiobookshelf: {exc}"}
+    result = library_index.test_connection("audiobookshelf", values)
+    listing = ", ".join(f"{lib.get('name')} ({lib.get('id')})" for lib in libraries)
+    if result.get("success") and listing:
+        result["message"] = f"{result['message']} Libraries: {listing}."
+    return result
+
+
 def _test_calibre_library(current_values: dict[str, Any] | None = None) -> dict[str, Any]:
     """Action-button callback: read the Calibre database and count the books."""
     from shelfmark.core import library_index
@@ -443,6 +460,46 @@ def general_settings() -> list[SettingsField]:
             label="Test Calibre library",
             description="Check that Shelfmark can read the Calibre database and count the books.",
             callback=_test_calibre_library,
+        ),
+        CheckboxField(
+            key="LIBRARY_CHECK_ABS_ENABLED",
+            label="Mark books already in your Audiobookshelf library",
+            description=(
+                "Read your Audiobookshelf book libraries and mark search results you already "
+                "own, per format: an item with audio files counts as the audiobook, one with an "
+                "ebook as the ebook. Audiobook releases whose narrator you already have are "
+                "marked too. Read only, nothing is written to Audiobookshelf."
+            ),
+            default=False,
+        ),
+        TextField(
+            key="ABS_URL",
+            label="Audiobookshelf URL",
+            description="The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80.",
+            placeholder="http://audiobookshelf:80",
+        ),
+        PasswordField(
+            key="ABS_API_KEY",
+            label="Audiobookshelf API key",
+            description=(
+                "Create one in Audiobookshelf under Settings > API Keys. A key for a user that "
+                "can see the libraries to check is enough."
+            ),
+        ),
+        TextField(
+            key="ABS_LIBRARY_IDS",
+            label="Audiobookshelf library IDs",
+            description=(
+                "Comma-separated IDs of the libraries to read (Test lists them). Leave empty "
+                "to read every book library."
+            ),
+            placeholder="all book libraries",
+        ),
+        ActionButton(
+            key="test_abs_library",
+            label="Test Audiobookshelf library",
+            description="Check that Shelfmark can read Audiobookshelf, list its libraries and count the items.",
+            callback=_test_abs_library,
         ),
         HeadingField(
             key="search_defaults_heading",

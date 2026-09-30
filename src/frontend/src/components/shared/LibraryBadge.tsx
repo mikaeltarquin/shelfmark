@@ -1,9 +1,46 @@
-import type { LibraryOwnership } from '../../types';
+import type { LibraryOwnership, LibrarySources } from '../../types';
 
 /** True when the library check reports this book held in any format. */
 export function isInLibrary(library?: LibraryOwnership | null): boolean {
   if (!library) return false;
   return Object.values(library).some((holding) => holding === 'owned' || holding === 'collection');
+}
+
+const FORMAT_LABELS: Record<string, string> = { ebook: 'ebook', audiobook: 'audiobook' };
+
+/** Formats that hold the book, in a fixed order. */
+export function heldFormats(library?: LibraryOwnership | null): string[] {
+  const formats = ['ebook', 'audiobook'] as const;
+  return formats.filter((format) => {
+    const holding = library?.[format];
+    return holding === 'owned' || holding === 'collection';
+  });
+}
+
+/**
+ * The badge text. With a single format checked it is just "In library"; with both it
+ * says which: "Ebook", "Audiobook" or "Ebook + audio".
+ */
+export function libraryBadgeText(library?: LibraryOwnership | null): string {
+  if (isCollectionOnly(library)) return 'In a collection';
+  const checked = Object.keys(library ?? {}).length;
+  const held = heldFormats(library);
+  if (checked < 2) return 'In library';
+  if (held.length === 2) return 'Have ebook + audio';
+  return held[0] === 'ebook' ? 'Have ebook' : 'Have audiobook';
+}
+
+/** "Audiobookshelf: audiobook, ebook; Calibre: ebook" for the tooltip. */
+export function librarySourcesText(sources?: LibrarySources | null): string {
+  const byLibrary = new Map<string, string[]>();
+  for (const format of ['ebook', 'audiobook'] as const) {
+    for (const name of sources?.[format] ?? []) {
+      byLibrary.set(name, [...(byLibrary.get(name) ?? []), FORMAT_LABELS[format]]);
+    }
+  }
+  return [...byLibrary.entries()]
+    .map(([name, formats]) => `${name}: ${formats.join(', ')}`)
+    .join('; ');
 }
 
 /** True when every format that holds it holds it inside a larger volume. */
@@ -14,18 +51,25 @@ export function isCollectionOnly(library?: LibraryOwnership | null): boolean {
 
 interface LibraryBadgeProps {
   library?: LibraryOwnership | null;
+  sources?: LibrarySources | null;
   /** Solid pill for use over cover art; otherwise a tinted inline pill. */
   overlay?: boolean;
   className?: string;
 }
 
 /** "Already in your library" badge. Renders nothing when the book is not held. */
-export function LibraryBadge({ library, overlay = false, className = '' }: LibraryBadgeProps) {
+export function LibraryBadge({
+  library,
+  sources,
+  overlay = false,
+  className = '',
+}: LibraryBadgeProps) {
   if (!isInLibrary(library)) return null;
 
   const collectionOnly = isCollectionOnly(library);
-  const label = collectionOnly ? 'In your library, inside a collection' : 'Already in your library';
-  const text = collectionOnly ? 'In a collection' : 'In library';
+  const where = librarySourcesText(sources);
+  const label = `${collectionOnly ? 'In your library, inside a collection' : 'Already in your library'}${where ? ` (${where})` : ''}`;
+  const text = libraryBadgeText(library);
 
   const pill = overlay
     ? 'rounded-md border border-sky-700 bg-sky-600 px-1.5 py-0.5 text-[10px] font-bold text-white'
