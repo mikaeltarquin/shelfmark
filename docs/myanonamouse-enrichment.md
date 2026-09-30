@@ -47,7 +47,8 @@ After a failed request (a 403, a timeout, an unexpected reply), Shelfmark waits 
 
 With a MAM session ID set, admins get a **MyAnonamouse** entry in the menu (top right). It shows:
 
-- **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class and VIP expiry, from MAM's `jsonLoad.php`. Refreshed at most once a minute unless you press **Refresh**.
+- **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class, VIP expiry and unsatisfied torrents against your class's limit (amber at 90%, red at the limit), from MAM's `jsonLoad.php?snatch_summary`. Refreshed at most once a minute unless you press **Refresh**.
+- **Points / hour:** MAM's API has no earning rate, so Shelfmark estimates it from its own readings of your balance (taken hourly, kept for two days) over the last 24 hours. Points Shelfmark spent on upload credit are added back; a period where points dropped for another reason (spending on MAM's site) or hit MAM's 99,999 cap is left out. It shows once a few hours of readings exist.
 - **Connections:** whether MAM accepts the session, and whether Shelfmark can reach its torrent client, each with the error when it can't.
 - **Buy upload credit:** spends bonus points in MAM's store (500 points per GB). Pick 50, 100, 250 or 500 GB, a custom amount in multiples of 50 GB, or **Max affordable**. Nothing is bought until you confirm. Larger amounts are bought as 100 GB and 50 GB purchases, and a purchase stops at the first one MAM declines, reporting what was already added.
 
@@ -78,3 +79,7 @@ Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonu
 - Amounts are in multiples of 50 GB; other values are rounded down.
 - The ratio line's amber warning follows the ratio threshold.
 - Every purchase, manual or automatic, is listed under **Recent purchases** in the MyAnonamouse panel with its reason, and kept in `mam_purchases.json` in the config folder.
+
+## Unsatisfied limit
+
+MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by class. With **Hold Back Downloads at the Unsatisfied Limit** (`MAM_BLOCK_ON_UNSAT_LIMIT`, on by default), MAM torrents are held back when they, plus Shelfmark's MAM downloads not yet handed to the torrent client, would leave fewer free slots than **Unsatisfied Slots to Keep Free** (`MAM_UNSAT_RESERVE_SLOTS`, 5). Every MAM torrent counts, freeleech too. Upload credit can't fix this, so none is offered: wait for torrents to finish seeding or pick fewer. The projected-ratio line also shows `unsatisfied 94 → 98 / 100`, red when the picks would be held back.

@@ -14,7 +14,7 @@ from flask import jsonify, request, session
 
 from shelfmark.core.auth_modes import load_active_auth_mode
 from shelfmark.core.logger import setup_logger
-from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy
+from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy, mam_points
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -45,7 +45,12 @@ def _account_payload(*, refresh: bool) -> dict[str, Any]:
         stats = mam_account.get_stats(refresh=refresh)
     except mam_account.MAM_ERRORS as exc:
         return {"configured": True, "stats": None, "error": mam_account.describe_error(exc)}
-    return {"configured": True, "stats": stats.to_dict(), "error": None}
+    return {
+        "configured": True,
+        "stats": stats.to_dict(),
+        "error": None,
+        "points_per_hour": mam_points.estimate_rate(),
+    }
 
 
 def _is_admin() -> bool:

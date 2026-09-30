@@ -63,3 +63,33 @@ describe('projectRatio', () => {
     expect(projection?.selectedBytes).toBe(0);
   });
 });
+
+describe('unsatisfied projection', () => {
+  const withUnsat: MamRatioSnapshot = {
+    ...snapshot,
+    unsat_count: 90,
+    unsat_limit: 100,
+    unsat_pending: 2,
+    unsat_reserve: 5,
+  };
+
+  it('adds queued downloads and every MAM pick, freeleech included', () => {
+    const projection = projectRatio(withUnsat, [
+      release(1),
+      release(1, { mam_torrent_id: 2, freeleech: true }),
+      release(1, {}),
+    ]);
+    expect(projection?.unsat).toEqual({ current: 90, projected: 94, limit: 100, blocked: false });
+    expect(projection?.tone).toBe('ok');
+  });
+
+  it('turns red once the slots kept free would be used', () => {
+    const projection = projectRatio(withUnsat, [release(1), release(1), release(1), release(1)]);
+    expect(projection?.unsat?.blocked).toBe(true);
+    expect(projection?.tone).toBe('bad');
+  });
+
+  it('is left out when MAM reports no limit', () => {
+    expect(projectRatio(snapshot, [release(1)])?.unsat).toBeNull();
+  });
+});

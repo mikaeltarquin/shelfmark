@@ -357,6 +357,8 @@ const MamRatioLine = ({ projection }: { projection: RatioProjection }) => (
     MAM ratio {formatRatio(projection.currentRatio)} → {formatRatio(projection.projectedRatio)}
     {' · '}buffer {formatGib(projection.currentBuffer)} → {formatGib(projection.projectedBuffer)}
     {projection.selectedBytes === 0 && ' · freeleech'}
+    {projection.unsat &&
+      ` · unsatisfied ${projection.unsat.current} → ${projection.unsat.projected} / ${projection.unsat.limit}`}
     {projection.pendingBytes > 0 &&
       ` · includes ${formatGib(projection.pendingBytes)} still downloading`}
   </p>

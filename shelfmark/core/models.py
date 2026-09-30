@@ -128,6 +128,9 @@ class DownloadTask:
     # Bytes this download adds to the MyAnonamouse account's downloaded total (a
     # non-freeleech MAM torrent's size), counted against the buffer while it is active.
     mam_charge_bytes: int | None = None
+    # Set for MyAnonamouse torrents (freeleech too): each one is an unsatisfied torrent
+    # on the account until it has seeded 72 hours.
+    mam_torrent_id: int | None = None
 
     # Hardlinking support
     original_download_path: str | None = None  # Path in download client (for hardlinking)

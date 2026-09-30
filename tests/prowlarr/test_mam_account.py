@@ -52,7 +52,10 @@ class FakeMam:
 
 
 @pytest.fixture
-def mam(monkeypatch):
+def mam(monkeypatch, tmp_path):
+    from shelfmark.release_sources.prowlarr import mam_points
+
+    monkeypatch.setattr(mam_points, "_path", lambda: tmp_path / "points.json")
     fake = FakeMam()
     monkeypatch.setattr(mam_account, "MamClient", fake)
     monkeypatch.setattr(mam_account, "session_id", lambda: "session")
@@ -421,3 +424,75 @@ class TestRatioAndBufferRoutes:
 
         assert resp.status_code == 200
         q.assert_called_once()
+
+
+def _unsat_user(count: int, limit: int, *, nested: bool = True) -> dict:
+    unsat = {"name": "Unsatisfied", "count": count, "limit": limit, "size": None}
+    return {**USER, "snatch_summary": {"unsat": unsat}} if nested else {**USER, "unsat": unsat}
+
+
+class TestUnsatisfied:
+    @pytest.mark.parametrize("nested", [True, False])
+    def test_parsed_from_either_shape(self, nested):
+        stats = mam_account.parse_stats(_unsat_user(87, 100, nested=nested))
+        assert (stats.unsat_count, stats.unsat_limit) == (87, 100)
+
+    def test_missing_summary(self):
+        stats = mam_account.parse_stats(USER)
+        assert (stats.unsat_count, stats.unsat_limit) == (None, None)
+
+    def test_blocks_when_slots_to_keep_free_would_be_used(self, mam, no_pending, monkeypatch):
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        mam.user = _unsat_user(94, 100)
+
+        one = mam_account.check_buffer([_mam_release(1)])
+        two = mam_account.check_buffer([_mam_release(1), _mam_release(2)])
+
+        assert one.ok and one.unsat_ok  # 95 <= 100 - 5
+        assert not two.ok and not two.unsat_ok and two.buffer_ok
+        assert (two.unsat_count, two.unsat_limit, two.unsat_reserve) == (94, 100, 5)
+
+    def test_freeleech_counts_and_queued_downloads_count(self, mam, no_pending, monkeypatch):
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 3)
+        mam.user = _unsat_user(92, 100)
+
+        result = mam_account.check_buffer([_mam_release(1, freeleech=True)])
+
+        assert not result.unsat_ok  # 92 + 3 queued + 1 > 95
+        assert result.unsat_pending == 3 and result.request_bytes == 0
+
+    def test_off_or_no_limit_reported(self, mam, no_pending, monkeypatch):
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        mam.user = USER
+        assert mam_account.check_buffer([_mam_release(1)]).unsat_ok
+        mam.user = _unsat_user(100, 100)
+        monkeypatch.setattr(mam_account, "unsat_check_enabled", lambda: False)
+        assert mam_account.check_buffer([_mam_release(1)]).ok
+
+    def test_pending_counts_only_queued_mam_tasks(self, monkeypatch):
+        from shelfmark.core.models import DownloadTask, QueueStatus
+        from shelfmark.core.queue import book_queue
+
+        def task(task_id: str, mam_id: int | None) -> DownloadTask:
+            return DownloadTask(
+                task_id=task_id, source="prowlarr", title="T", mam_torrent_id=mam_id
+            )
+
+        status = {s: {} for s in QueueStatus}
+        status[QueueStatus.QUEUED] = {"a": task("a", 1), "b": task("b", None)}
+        status[QueueStatus.RESOLVING] = {"c": task("c", 2)}
+        status[QueueStatus.DOWNLOADING] = {"d": task("d", 3)}  # already in MAM's count
+        monkeypatch.setattr(book_queue, "get_status", lambda: status)
+
+        assert mam_account.pending_unsat_count() == 2
+
+    def test_download_route_names_the_unsat_limit(self, main_module, mam, no_pending, monkeypatch):
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        mam.user = _unsat_user(96, 100)
+        with patch.object(main_module.backend, "queue_release") as queue_release:
+            resp = _client(main_module, is_admin=True).post(
+                "/api/releases/download", json={**_mam_release(1), "content_type": "audiobook"}
+            )
+        assert resp.status_code == 409
+        assert "unsatisfied limit" in resp.get_json()["error"]
+        queue_release.assert_not_called()

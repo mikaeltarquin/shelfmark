@@ -95,7 +95,7 @@ from shelfmark.release_sources import (
     SourceUnavailableError,
     get_source_display_name,
 )
-from shelfmark.release_sources.prowlarr import mam_autobuy
+from shelfmark.release_sources.prowlarr import mam_autobuy, mam_points
 
 if TYPE_CHECKING:
     from shelfmark.metadata_providers import BookMetadata, MetadataProvider
@@ -235,6 +235,7 @@ _warn_if_local_admin_missing()
 # Start download coordinator
 backend.start()
 mam_autobuy.start()
+mam_points.start()
 
 # Pre-solve the direct-download source's protection challenge in the background so the
 # first user search does not pay for a cold Chrome bypass. Never blocks startup.
@@ -1212,7 +1213,11 @@ def api_download_release() -> Response | tuple[Response, int]:
                 {
                     **buffer_check,
                     "code": "insufficient_mam_buffer",
-                    "error": "Not enough MyAnonamouse buffer for this download",
+                    "error": (
+                        "Not enough MyAnonamouse buffer for this download"
+                        if buffer_check["unsat_ok"]
+                        else "This download would pass your MyAnonamouse unsatisfied limit"
+                    ),
                 }
             ), 409
 
