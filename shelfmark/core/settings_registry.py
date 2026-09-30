@@ -104,6 +104,7 @@ class MultiSelectField(FieldBase):
     options: object = field(default_factory=list)  # [{value: "", label: ""}] or callable
     default: list[str] = field(default_factory=list)
     variant: str = "pills"  # "pills" (default) or "dropdown" for checkbox dropdown style
+    placeholder: str = ""  # Dropdown summary when nothing is selected
 
 
 @dataclass
@@ -1056,6 +1057,8 @@ def serialize_field(
         options = field.options() if callable(field.options) else field.options
         result["options"] = options
         result["variant"] = field.variant
+        if field.placeholder:
+            result["placeholder"] = field.placeholder
     elif isinstance(field, TagListField):
         result["placeholder"] = field.placeholder
         result["normalizeUrls"] = field.normalize_urls

@@ -90,7 +90,7 @@ class FakeAbs(AudiobookshelfLibrary):
         self.pages = pages
         self.calls: list[tuple[str, dict | None]] = []
 
-    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    def _get(self, path: str, params: dict[str, Any] | None = None, timeout: float = 30) -> Any:
         self.calls.append((path, params))
         if path == "/api/libraries":
             return {
@@ -126,6 +126,19 @@ class TestFetch:
             {"books": [[_item("A")]], "other": [[_item("D")]]}, {"ABS_LIBRARY_IDS": "other"}
         )
         assert len(abs_.fetch_entries()) == 1
+
+    def test_chosen_libraries_from_the_picker(self):
+        abs_ = FakeAbs(
+            {"books": [[_item("A")]], "other": [[_item("D")]]}, {"ABS_LIBRARY_IDS": ["books"]}
+        )
+        assert len(abs_.fetch_entries()) == 1
+
+    def test_all_option_reads_every_library(self):
+        abs_ = FakeAbs(
+            {"books": [[_item("A")]], "other": [[_item("D")]]},
+            {"ABS_LIBRARY_IDS": ["all", "books"]},
+        )
+        assert len(abs_.fetch_entries()) == 2
 
     def test_needs_url_and_key(self):
         library = AudiobookshelfLibrary(

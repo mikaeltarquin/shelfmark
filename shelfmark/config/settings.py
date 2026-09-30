@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from shelfmark.config import env
+from shelfmark.config.abs_settings import check_abs_library, get_abs_library_options
 from shelfmark.config.booklore_settings import (
     check_booklore_connection,
     get_booklore_library_options,
@@ -389,23 +390,6 @@ def _clear_metadata_cache(current_values: dict) -> dict:
         }
 
 
-def _test_abs_library(current_values: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Settings action: list the Audiobookshelf libraries and index the chosen ones."""
-    from shelfmark.core import library_index
-    from shelfmark.core.library_providers.audiobookshelf import AudiobookshelfLibrary
-
-    values = {**(current_values or {}), "LIBRARY_CHECK_ABS_ENABLED": True}
-    try:
-        libraries = AudiobookshelfLibrary(values).libraries()
-    except Exception as exc:  # noqa: BLE001 - shown to the user
-        return {"success": False, "message": f"Audiobookshelf: {exc}"}
-    result = library_index.test_connection("audiobookshelf", values)
-    listing = ", ".join(f"{lib.get('name')} ({lib.get('id')})" for lib in libraries)
-    if result.get("success") and listing:
-        result["message"] = f"{result['message']} Libraries: {listing}."
-    return result
-
-
 def _test_calibre_library(current_values: dict[str, Any] | None = None) -> dict[str, Any]:
     """Action-button callback: read the Calibre database and count the books."""
     from shelfmark.core import library_index
@@ -486,20 +470,24 @@ def general_settings() -> list[SettingsField]:
                 "can see the libraries to check is enough."
             ),
         ),
-        TextField(
-            key="ABS_LIBRARY_IDS",
-            label="Audiobookshelf library IDs",
-            description=(
-                "Comma-separated IDs of the libraries to read (Test lists them). Leave empty "
-                "to read every book library."
-            ),
-            placeholder="all book libraries",
-        ),
         ActionButton(
             key="test_abs_library",
             label="Test Audiobookshelf library",
-            description="Check that Shelfmark can read Audiobookshelf, list its libraries and count the items.",
-            callback=_test_abs_library,
+            description="Connect to Audiobookshelf, list its book libraries and count the items.",
+            callback=check_abs_library,
+        ),
+        MultiSelectField(
+            key="ABS_LIBRARY_IDS",
+            label="Audiobookshelf libraries",
+            description=(
+                "Press Test above to list the libraries, then pick the ones to read. All book "
+                "libraries also covers ones added later. As an environment variable: "
+                "comma-separated library IDs."
+            ),
+            options=get_abs_library_options,
+            default=[],
+            variant="dropdown",
+            placeholder="All book libraries",
         ),
         HeadingField(
             key="search_defaults_heading",
