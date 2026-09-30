@@ -8,6 +8,7 @@ import { libraryPath, parseLibraryRoute, type LibraryTab } from '../../utils/lib
 import { LibraryAllView } from './LibraryAllView';
 import { LibraryAuthorPage, LibrarySeriesPage } from './LibraryDetailPages';
 import { LibraryAuthorsView, LibrarySeriesView } from './LibraryGroupsView';
+import type { LibraryBookActions } from './LibraryMissingSection';
 
 const TABS: Array<{ tab: LibraryTab; label: string; path: string }> = [
   { tab: 'all', label: 'All', path: '/library' },
@@ -17,10 +18,11 @@ const TABS: Array<{ tab: LibraryTab; label: string; path: string }> = [
 
 interface LibraryPageProps {
   onBack: () => void;
+  actions: LibraryBookActions;
 }
 
 /** Browse the books already in the user's libraries (Audiobookshelf, Calibre). */
-export const LibraryPage = ({ onBack }: LibraryPageProps) => {
+export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const route = parseLibraryRoute(location.pathname);
@@ -62,6 +64,7 @@ export const LibraryPage = ({ onBack }: LibraryPageProps) => {
       <LibraryAuthorPage
         key={route.name}
         books={data.books}
+        actions={actions}
         author={route.name}
         onAuthorClick={openAuthor}
         onSeriesClick={openSeries}
@@ -74,6 +77,7 @@ export const LibraryPage = ({ onBack }: LibraryPageProps) => {
       <LibrarySeriesPage
         key={route.name}
         books={data.books}
+        actions={actions}
         series={route.name}
         onAuthorClick={openAuthor}
       />

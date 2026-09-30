@@ -62,6 +62,15 @@ series page shows the books in reading order with their numbers. Clicking an aut
 series name anywhere opens its page, and each page has its own address
 (`/library/authors/<name>`, `/library/series/<name>`), so it can be bookmarked.
 
+Below the books you own, author and series pages list what is **Not in your library**:
+the books the metadata provider knows for that author or series, minus the ones you have.
+Pick **Any format**, **Ebook** or **Audiobook**: under Audiobook, a book you own only as
+an ebook still shows (with a "Have ebook" badge). Picking Ebook or Audiobook also switches
+the header's content type, so **Get** on a missing book finds releases in that format;
+it opens the usual release (or request) flow. Series need a provider that can list a
+series (Hardcover); with Hardcover an author is looked up by their Hardcover id, so the
+list is their own books. Up to 200 books are listed per author or series.
+
 Covers come from the library that holds the book. Calibre's covers live in each book's
 folder, so they show when the whole Calibre library is mounted, not just `metadata.db`.
 A book without a library cover gets one from the metadata provider (Hardcover, for
