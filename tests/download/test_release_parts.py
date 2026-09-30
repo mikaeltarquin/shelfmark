@@ -229,21 +229,29 @@ def test_library_browser_shows_parts_as_one_book():
         entry_from_item,
     )
 
-    def item(item_id: str, title: str) -> dict:
+    def item(item_id: str, title: str, series: str) -> dict:
         return {
             "id": item_id,
             "media": {
                 "numAudioFiles": 1,
-                "metadata": {"title": title, "authorName": "Brandon Sanderson"},
+                "metadata": {
+                    "title": title,
+                    "authorName": "Brandon Sanderson",
+                    "seriesName": series,
+                },
             },
         }
 
     entries = [
-        entry_from_item(item("a", "Elantris (1 of 2)")),
-        entry_from_item(item("b", "Elantris (2 of 2)")),
+        entry_from_item(item("a", "Elantris (1 of 2)", "Elantris #1.1")),
+        entry_from_item(item("b", "Elantris (2 of 2)", "Elantris #1.2")),
+        entry_from_item(item("c", "Warbreaker", "Cosmere #1.5")),
     ]
     books = build_catalog([(AudiobookshelfLibrary(), [e for e in entries if e])])
-    assert [b.title for b in books] == ["Elantris"]
+    assert [b.title for b in books] == ["Elantris", "Warbreaker"]
+    # The parts' series positions (1.1, 1.2) are the book's (1); a novella keeps 1.5.
+    assert books[0].series == [{"name": "Elantris", "number": "1"}]
+    assert books[1].series == [{"name": "Cosmere", "number": "1.5"}]
 
 
 def test_queue_reads_the_part_from_the_release_title(monkeypatch):
@@ -256,8 +264,51 @@ def test_queue_reads_the_part_from_the_release_title(monkeypatch):
             "title": "Words of Radiance",
             "release_title": "Words of Radiance (Part 1 of 5)",
             "content_type": "audiobook",
+            "series_position": "2",
             "extra": {"series": "Stormlight Archive #2"},
         },
     )
     assert (task.release_part, task.release_part_total) == (1, 5)
     assert task.title == "Words of Radiance"
+    assert task.series_position == 2.1
+
+
+@pytest.mark.parametrize(
+    ("position", "part", "expected"),
+    [
+        (2, ReleasePart(1, 5), 2.1),
+        (2.0, ReleasePart(5, 5), 2.5),
+        (2.0, ReleasePart(3), 2.3),
+        # Ten or more parts take two decimals, so part 10 still sorts after part 9.
+        (1, ReleasePart(1, 12), 1.01),
+        (1, ReleasePart(10, 12), 1.1),
+        (1, ReleasePart(12), 1.12),
+        # A novella's position, or none at all, is kept.
+        (1.5, ReleasePart(1, 2), 1.5),
+        (None, ReleasePart(1, 2), None),
+    ],
+)
+def test_part_series_position(position, part, expected):
+    from shelfmark.core.release_parts import part_series_position
+
+    assert part_series_position(position, part) == expected
+
+
+def test_opf_carries_the_part_position(monkeypatch):
+    from shelfmark.download.postprocess.abs_metadata import build_opf
+
+    task = _queue(
+        monkeypatch,
+        {
+            "source_id": "wor3",
+            "title": "Words of Radiance",
+            "release_title": "Words of Radiance (Part 3 of 5)",
+            "content_type": "audiobook",
+            "series_name": "The Stormlight Archive",
+            "series_position": 2,
+        },
+    )
+    opf = build_opf(task)
+    assert '<meta name="calibre:series" content="The Stormlight Archive"/>' in opf
+    assert '<meta name="calibre:series_index" content="2.3"/>' in opf
+    assert "<dc:title>Words of Radiance (3 of 5)</dc:title>" in opf

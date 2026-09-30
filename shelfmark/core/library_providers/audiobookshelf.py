@@ -63,6 +63,13 @@ def _series_with_numbers(value: object) -> tuple[tuple[str, str | None], ...]:
     return tuple(pairs)
 
 
+def _book_series(
+    series: tuple[tuple[str, str | None], ...],
+) -> tuple[tuple[str, str | None], ...]:
+    """A part's series numbers as the book's: part 1 of book 2 is filed as #2.1."""
+    return tuple((name, number.split(".")[0] if number else number) for name, number in series)
+
+
 def _year(value: object) -> int | None:
     match = re.match(r"\s*(\d{4})", str(value or ""))
     return int(match.group(1)) if match else None
@@ -103,15 +110,19 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
     isbn = str(metadata.get("isbn") or "").strip()
     narrator_names = _split_names(metadata.get("narratorName"))
     item_id = str(item.get("id") or "")
+    series = _series_with_numbers(metadata.get("seriesName"))
+    display_title = strip_part(title)
+    if display_title != title:
+        series = _book_series(series)
     display = (
         LibraryItem(
             source="audiobookshelf",
             item_id=item_id,
             # A book published in parts is one item per part ("Elantris (1 of 2)");
             # the browser shows them as the one book.
-            title=strip_part(title),
+            title=display_title,
             authors=tuple(_split_names(metadata.get("authorName"))),
-            series=_series_with_numbers(metadata.get("seriesName")),
+            series=series,
             narrators=tuple(narrator_names),
             added_at=_added_at(item.get("addedAt")),
             year=_year(metadata.get("publishedYear")),

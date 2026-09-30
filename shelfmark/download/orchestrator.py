@@ -19,7 +19,7 @@ from shelfmark.core.logger import setup_logger
 from shelfmark.core.models import DownloadTask, QueueStatus, SearchMode
 from shelfmark.core.naming import narrator_list
 from shelfmark.core.queue import book_queue
-from shelfmark.core.release_parts import release_part
+from shelfmark.core.release_parts import part_series_position, release_part
 from shelfmark.core.request_helpers import (
     normalize_optional_text,
     normalize_positive_int,
@@ -294,6 +294,9 @@ def queue_release(
             if check_audiobook(content_type)
             else None
         )
+        # Each part sorts after the book's number in its series: book 2, part 1 is 2.1.
+        if part:
+            series_position = part_series_position(_optional_number(series_position), part)
         multi_book = bool(release_data.get("multi_book") or extra.get("multi_book"))
         book_plan = _normalize_book_plan(release_data.get("book_plan") or extra.get("book_plan"))
 

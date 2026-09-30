@@ -77,6 +77,19 @@ def part_title(title: str, number: int, total: int | None) -> str:
     return f"{title} {suffix}"
 
 
+def part_series_position(position: float | None, part: ReleasePart) -> float | None:
+    """Book 2's part 1 as series position 2.1, so the parts sort in order in a series.
+
+    Parts past the ninth take two decimals (2.01 ... 2.12) so they still sort in
+    order. A position that is missing or already fractional (a novella, 1.5) is
+    kept as it is.
+    """
+    if position is None or not float(position).is_integer():
+        return position
+    digits = 2 if max(part.number, part.total or 0) >= 10 else 1
+    return round(position + part.number / 10**digits, digits)
+
+
 _PART_SUFFIX = re.compile(
     r"\s*[(\[]\s*(?:(?:part|pt\.?)\s*)?\d+(?:\s*(?:of|/)\s*\d+)?\s*[)\]]\s*$", re.IGNORECASE
 )
