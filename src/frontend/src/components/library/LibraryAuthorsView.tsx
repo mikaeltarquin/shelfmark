@@ -10,6 +10,7 @@ import {
   type LibraryAuthorGroup,
   type SortDirection,
 } from '../../utils/libraryGroups';
+import { loadStoredPrefs, saveStoredPrefs } from '../../utils/libraryPrefs';
 import { LibraryFormatBadges } from './LibraryBookCard';
 import { LibraryGroupCard } from './LibraryGroupCard';
 import { inputClass, segmentClass } from './libraryStyles';
@@ -36,30 +37,15 @@ const SORT_OPTIONS: Array<{ value: AuthorSortField; label: string }> = [
 const isSortField = (value: unknown): value is AuthorSortField =>
   SORT_OPTIONS.some((option) => option.value === value);
 
-// Remembered per browser, as a convenience; any problem falls back to the defaults.
 const loadPrefs = (): AuthorPrefs => {
-  try {
-    const raw: unknown = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
-    if (raw && typeof raw === 'object') {
-      const sort: unknown = Reflect.get(raw, 'sort');
-      return {
-        sort: isSortField(sort) ? sort : DEFAULT_PREFS.sort,
-        direction: Reflect.get(raw, 'direction') === 'desc' ? 'desc' : 'asc',
-        view: Reflect.get(raw, 'view') === 'table' ? 'table' : 'grid',
-      };
-    }
-  } catch {
-    // Storage blocked or unreadable.
-  }
-  return DEFAULT_PREFS;
-};
-
-const savePrefs = (prefs: AuthorPrefs) => {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-  } catch {
-    // Not remembered, which is fine.
-  }
+  const raw = loadStoredPrefs(PREFS_KEY);
+  if (!raw) return DEFAULT_PREFS;
+  const sort: unknown = Reflect.get(raw, 'sort');
+  return {
+    sort: isSortField(sort) ? sort : DEFAULT_PREFS.sort,
+    direction: Reflect.get(raw, 'direction') === 'desc' ? 'desc' : 'asc',
+    view: Reflect.get(raw, 'view') === 'table' ? 'table' : 'grid',
+  };
 };
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -132,7 +118,7 @@ export const LibraryAuthorsView = ({
   const update = (next: Partial<AuthorPrefs>) => {
     const merged = { ...prefs, ...next };
     setPrefs(merged);
-    savePrefs(merged);
+    saveStoredPrefs(PREFS_KEY, merged);
   };
   // Picking a field starts it in its natural direction; picking it again flips it.
   const sortBy = (field: AuthorSortField) =>

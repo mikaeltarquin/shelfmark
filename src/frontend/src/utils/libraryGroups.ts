@@ -14,9 +14,10 @@ export interface LibraryAuthorGroup {
 
 export interface LibrarySeriesGroup {
   name: string;
-  authors: string[];
+  authors: string[]; // "First Last"
   books: LibraryBook[]; // In series order
   formats: LibraryFormat[];
+  latestAdded: number | null; // Unix time the newest book was added
 }
 
 export interface LibrarySeriesSection {
@@ -33,6 +34,10 @@ const fold = (value: string): string =>
 
 export const sameName = (a: string, b: string): boolean => fold(a) === fold(b);
 
+/** Same author, whether written "First Last" or "Last, First". */
+export const sameAuthor = (a: string, b: string): boolean =>
+  sameName(firstLastName(a), firstLastName(b));
+
 // "2.5" -> 2.5; unnumbered books go last.
 export const seriesNumberValue = (number: string | null | undefined): number => {
   const value = Number.parseFloat(number ?? '');
@@ -48,6 +53,15 @@ const collectFormats = (books: LibraryBook[]): LibraryFormat[] => {
 };
 
 const byTitle = (a: LibraryBook, b: LibraryBook): number => a.title.localeCompare(b.title);
+
+const newestAdded = (books: LibraryBook[]): number | null =>
+  books.reduce<number | null>(
+    (latest, book) =>
+      book.added_at !== null && (latest === null || book.added_at > latest)
+        ? book.added_at
+        : latest,
+    null,
+  );
 
 // Oldest first, as an author's bibliography reads; undated books after, by title.
 const byYear = (a: LibraryBook, b: LibraryBook): number =>
@@ -82,13 +96,7 @@ export const groupByAuthor = (books: LibraryBook[]): LibraryAuthorGroup[] => {
         .size,
       ebookCount: group.books.filter((book) => book.formats.includes('ebook')).length,
       audiobookCount: group.books.filter((book) => book.formats.includes('audiobook')).length,
-      latestAdded: group.books.reduce<number | null>(
-        (latest, book) =>
-          book.added_at !== null && (latest === null || book.added_at > latest)
-            ? book.added_at
-            : latest,
-        null,
-      ),
+      latestAdded: newestAdded(group.books),
     }))
     .toSorted((a, b) => authorSortKey(a.name).localeCompare(authorSortKey(b.name)));
 };
@@ -109,7 +117,9 @@ export const groupBySeries = (books: LibraryBook[]): LibrarySeriesGroup[] => {
       const authors: string[] = [];
       for (const book of group.books) {
         for (const author of book.authors) {
-          if (!authors.some((known) => sameName(known, author))) authors.push(author);
+          if (!authors.some((known) => sameAuthor(known, author))) {
+            authors.push(firstLastName(author));
+          }
         }
       }
       return {
@@ -117,14 +127,11 @@ export const groupBySeries = (books: LibraryBook[]): LibrarySeriesGroup[] => {
         authors,
         books: sortInSeries(group.books, group.name),
         formats: collectFormats(group.books),
+        latestAdded: newestAdded(group.books),
       };
     })
     .toSorted((a, b) => fold(a.name).localeCompare(fold(b.name)));
 };
-
-/** Same author, whether written "First Last" or "Last, First". */
-export const sameAuthor = (a: string, b: string): boolean =>
-  sameName(firstLastName(a), firstLastName(b));
 
 export const booksByAuthor = (books: LibraryBook[], author: string): LibraryBook[] =>
   books.filter((book) => book.authors.some((name) => sameAuthor(name, author))).toSorted(byYear);
@@ -180,5 +187,39 @@ export const sortAuthorGroups = (
       sign * (value(a) - value(b)) ||
       firstLastSortKey(a.name).localeCompare(firstLastSortKey(b.name))
     );
+  });
+};
+
+export type SeriesSortField = 'name' | 'author_first' | 'author_last' | 'books' | 'added';
+
+/** The direction a field starts in: names A–Z, counts and dates biggest first. */
+export const defaultSeriesSortDirection = (field: SeriesSortField): SortDirection =>
+  field === 'books' || field === 'added' ? 'desc' : 'asc';
+
+const seriesNameKey = (group: LibrarySeriesGroup): string =>
+  group.name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/^(the|a|an)\s+/, '');
+
+/** Series sorted by a field; ties (an author's several series) fall back to the series name. */
+export const sortSeriesGroups = (
+  groups: LibrarySeriesGroup[],
+  field: SeriesSortField,
+  direction: SortDirection,
+): LibrarySeriesGroup[] => {
+  const sign = direction === 'asc' ? 1 : -1;
+  const byName = (a: LibrarySeriesGroup, b: LibrarySeriesGroup) =>
+    seriesNameKey(a).localeCompare(seriesNameKey(b));
+  return groups.toSorted((a, b) => {
+    if (field === 'author_first' || field === 'author_last') {
+      const key = field === 'author_last' ? lastFirstSortKey : firstLastSortKey;
+      return sign * key(a.authors[0] ?? '').localeCompare(key(b.authors[0] ?? '')) || byName(a, b);
+    }
+    if (field === 'books') return sign * (a.books.length - b.books.length) || byName(a, b);
+    if (field === 'added')
+      return sign * ((a.latestAdded ?? 0) - (b.latestAdded ?? 0)) || byName(a, b);
+    return sign * byName(a, b);
   });
 };

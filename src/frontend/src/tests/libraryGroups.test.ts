@@ -4,6 +4,7 @@ import type { LibraryBook } from '../types';
 import {
   authorSeriesSections,
   sortAuthorGroups,
+  sortSeriesGroups,
   booksByAuthor,
   groupByAuthor,
   groupBySeries,
@@ -146,5 +147,49 @@ describe('author sorting', () => {
     expect(names('books', 'desc')[0]).toBe('Brandon Sanderson');
     expect(names('books', 'asc')[0]).toBe('Neil Gaiman');
     expect(names('added', 'desc')[0]).toBe('Andy Weir');
+  });
+});
+
+describe('series sorting', () => {
+  const discworld = book('Guards! Guards!', {
+    authors: ['Pratchett, Terry'],
+    series: [{ name: 'Discworld', number: '8' }],
+    added_at: 500,
+  });
+  const alex = book('Along Came a Spider', {
+    authors: ['James Patterson'],
+    series: [{ name: 'Alex Cross', number: '1' }],
+  });
+  const groups = groupBySeries([...all, discworld, alex]);
+  const names = (field: Parameters<typeof sortSeriesGroups>[1], dir: 'asc' | 'desc') =>
+    sortSeriesGroups(groups, field, dir).map((g) => g.name);
+
+  it('lists series authors as "First Last"', () => {
+    expect(groups.find((g) => g.name === 'Discworld')?.authors).toEqual(['Terry Pratchett']);
+  });
+
+  it('sorts by series name, author and recency', () => {
+    expect(names('name', 'asc')).toEqual(['Alex Cross', 'Discworld', 'Mistborn', 'Stormlight']);
+    expect(names('author_first', 'asc')).toEqual([
+      'Mistborn',
+      'Stormlight',
+      'Alex Cross',
+      'Discworld',
+    ]);
+    expect(names('author_last', 'asc')).toEqual([
+      'Alex Cross',
+      'Discworld',
+      'Mistborn',
+      'Stormlight',
+    ]);
+    // An author's several series stay A-Z whichever way the authors go.
+    expect(names('author_last', 'desc')).toEqual([
+      'Mistborn',
+      'Stormlight',
+      'Discworld',
+      'Alex Cross',
+    ]);
+    expect(names('books', 'desc')[0]).toBe('Mistborn');
+    expect(names('added', 'desc')[0]).toBe('Discworld');
   });
 });

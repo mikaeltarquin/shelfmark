@@ -60,7 +60,9 @@ The **Authors** and **Series** tabs list every author and series with a count. A
 by **First Last** (the default), **Last, First** (which also shows names that way), number
 of books or series, or most recently added, ascending or descending, and show as cards or
 as a **table** (click a column heading to sort by it). These choices are remembered in
-the browser. "Weir, Andy" and "Andy Weir" count as the same author. An author's
+the browser. "Weir, Andy" and "Andy Weir" count as the same author. Series sort by name,
+by author (First Last or Last, First), by number of books or by most recently added, in
+either direction. An author's
 page shows all their books, or groups them by series (**All books** / **By series**); a
 series page shows the books in reading order with their numbers. Clicking an author or
 series name anywhere opens its page, and each page has its own address
