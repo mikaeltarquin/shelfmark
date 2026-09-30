@@ -51,9 +51,20 @@ export const LibraryFormatBadges = ({ formats }: { formats: LibraryFormat[] }) =
 
 interface LibraryBookCardProps {
   book: LibraryBook;
+  // The number in this series, shown as a badge on series pages.
+  seriesPosition?: string | null;
+  onAuthorClick?: (author: string) => void;
+  onSeriesClick?: (series: string) => void;
 }
 
-export const LibraryBookCard = ({ book }: LibraryBookCardProps) => {
+const linkClass = 'truncate text-left hover:underline focus-visible:underline';
+
+export const LibraryBookCard = ({
+  book,
+  seriesPosition,
+  onAuthorClick,
+  onSeriesClick,
+}: LibraryBookCardProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const series = seriesLabel(book);
@@ -93,6 +104,11 @@ export const LibraryBookCard = ({ book }: LibraryBookCardProps) => {
             {book.title}
           </div>
         )}
+        {seriesPosition && (
+          <div className="absolute top-2 left-2 rounded-md border border-emerald-700 bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow">
+            #{seriesPosition}
+          </div>
+        )}
         <div className="absolute right-2 bottom-2">
           <LibraryFormatBadges formats={book.formats} />
         </div>
@@ -101,12 +117,36 @@ export const LibraryBookCard = ({ book }: LibraryBookCardProps) => {
         <h3 className="line-clamp-2 text-sm leading-tight font-semibold" title={book.title}>
           {book.title}
         </h3>
-        <p className="truncate text-xs opacity-80" title={authors}>
-          {authors}
+        <p className="flex min-w-0 gap-1 text-xs opacity-80" title={authors}>
+          {onAuthorClick && book.authors.length > 0 ? (
+            book.authors.map((author, index) => (
+              <button
+                key={author}
+                type="button"
+                className={linkClass}
+                onClick={() => onAuthorClick(author)}
+              >
+                {author}
+                {index < book.authors.length - 1 ? ',' : ''}
+              </button>
+            ))
+          ) : (
+            <span className="truncate">{authors}</span>
+          )}
         </p>
-        {series && (
-          <p className="truncate text-xs opacity-60" title={series}>
-            {series}
+        {series && book.series[0] && (
+          <p className="flex min-w-0 text-xs opacity-60" title={series}>
+            {onSeriesClick ? (
+              <button
+                type="button"
+                className={linkClass}
+                onClick={() => onSeriesClick(book.series[0].name)}
+              >
+                {series}
+              </button>
+            ) : (
+              <span className="truncate">{series}</span>
+            )}
           </p>
         )}
       </div>

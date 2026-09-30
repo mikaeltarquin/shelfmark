@@ -56,6 +56,12 @@ narrator), a format filter (ebook, audiobook, or both) and sorting by title, aut
 recently added. A book held by both libraries, say the ebook in Calibre and the audiobook
 in Audiobookshelf, is one book with both format badges.
 
+The **Authors** and **Series** tabs list every author and series with a count. An author's
+page shows all their books, or groups them by series (**All books** / **By series**); a
+series page shows the books in reading order with their numbers. Clicking an author or
+series name anywhere opens its page, and each page has its own address
+(`/library/authors/<name>`, `/library/series/<name>`), so it can be bookmarked.
+
 Covers come from the library that holds the book. Calibre's covers live in each book's
 folder, so they show when the whole Calibre library is mounted, not just `metadata.db`.
 A book without a library cover gets one from the metadata provider (Hardcover, for
