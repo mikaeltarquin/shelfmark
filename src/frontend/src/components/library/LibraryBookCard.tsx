@@ -55,7 +55,48 @@ interface LibraryBookCardProps {
   seriesPosition?: string | null;
   onAuthorClick?: (author: string) => void;
   onSeriesClick?: (series: string) => void;
+  // Find releases of this book in one format: the missing one, a better copy, another narrator.
+  onGet?: (book: LibraryBook, format: LibraryFormat) => Promise<void>;
 }
+
+const GET_FORMATS: LibraryFormat[] = ['ebook', 'audiobook'];
+
+const GetFormatButton = ({
+  format,
+  owned,
+  busy,
+  disabled,
+  onClick,
+}: {
+  format: LibraryFormat;
+  owned: boolean;
+  busy: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    title={
+      owned
+        ? `You have the ${FORMAT_LABELS[format].toLowerCase()}. Find another release (a better copy, another narrator)`
+        : `Get the ${FORMAT_LABELS[format].toLowerCase()}`
+    }
+    className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-wait disabled:opacity-60 ${
+      owned
+        ? 'border border-(--border-muted) hover:bg-(--hover-surface)'
+        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+    }`}
+  >
+    {busy ? (
+      <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+    ) : (
+      <span aria-hidden="true">{owned ? '↻' : '+'}</span>
+    )}
+    {FORMAT_LABELS[format]}
+  </button>
+);
 
 const linkClass = 'truncate text-left hover:underline focus-visible:underline';
 
@@ -64,7 +105,9 @@ export const LibraryBookCard = ({
   seriesPosition,
   onAuthorClick,
   onSeriesClick,
+  onGet,
 }: LibraryBookCardProps) => {
+  const [busyFormat, setBusyFormat] = useState<LibraryFormat | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const series = seriesLabel(book);
@@ -150,6 +193,23 @@ export const LibraryBookCard = ({
           </p>
         )}
       </div>
+      {onGet && (
+        <div className="mt-auto flex gap-1.5 px-3 pb-3">
+          {GET_FORMATS.map((format) => (
+            <GetFormatButton
+              key={format}
+              format={format}
+              owned={book.formats.includes(format)}
+              busy={busyFormat === format}
+              disabled={busyFormat !== null}
+              onClick={() => {
+                setBusyFormat(format);
+                void onGet(book, format).finally(() => setBusyFormat(null));
+              }}
+            />
+          ))}
+        </div>
+      )}
     </article>
   );
 };

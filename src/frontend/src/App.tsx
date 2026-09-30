@@ -539,6 +539,10 @@ function App() {
   } | null>(null);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [releaseBook, setReleaseBook] = useState<Book | null>(null);
+  // A format picked for this release window alone (library browser), else null.
+  const [releaseContentTypeOverride, setReleaseContentTypeOverride] = useState<ContentType | null>(
+    null,
+  );
   const [activeResultsSort, setActiveResultsSort] = useState('');
 
   const resetSearchResultsState = useCallback(() => {
@@ -1568,9 +1572,12 @@ function App() {
   };
 
   // Universal-mode "Get" action (open releases, request-book, or block by policy).
-  const handleGetReleases = async (book: Book) => {
+  // `contentTypeOverride` opens the releases of one format regardless of the header's
+  // content type and combined mode (the library browser's per-format Get buttons).
+  const handleGetReleases = async (book: Book, contentTypeOverride?: ContentType) => {
     let mode = getUniversalDefaultPolicyMode();
-    const normalizedContentType = toContentType(effectiveContentType);
+    const targetContentType = contentTypeOverride ?? effectiveContentType;
+    const normalizedContentType = toContentType(targetContentType);
     policyTrace('universal.get:start', {
       bookId: book.id,
       contentType: normalizedContentType,
@@ -1580,7 +1587,7 @@ function App() {
     try {
       const latestPolicy = await refreshRequestPolicy({ force: true });
       const effectiveIsAdmin = latestPolicy?.is_admin ?? requestRoleIsAdmin;
-      mode = resolveDefaultModeFromPolicy(latestPolicy, effectiveIsAdmin, effectiveContentType);
+      mode = resolveDefaultModeFromPolicy(latestPolicy, effectiveIsAdmin, targetContentType);
       policyTrace('universal.get:resolved', {
         bookId: book.id,
         contentType: normalizedContentType,
@@ -1605,8 +1612,10 @@ function App() {
       return;
     }
 
+    setReleaseContentTypeOverride(contentTypeOverride ?? null);
+
     // Combined mode is only available when both default content types are accessible.
-    if (effectiveCombinedMode) {
+    if (effectiveCombinedMode && !contentTypeOverride) {
       const latestPolicy2 = await refreshRequestPolicy({ force: true }).catch(() => null);
       const effectiveIsAdmin2 = latestPolicy2?.is_admin ?? requestRoleIsAdmin;
       const ebookMode = resolveDefaultModeFromPolicy(latestPolicy2, effectiveIsAdmin2, 'ebook');
@@ -2477,7 +2486,10 @@ function App() {
   const isBrowseFulfilMode = fulfillingRequest !== null;
   const activeReleaseBook = fulfillingRequest?.book ?? releaseBook;
   const activeReleaseContentType =
-    fulfillingRequest?.contentType ?? effectiveCombinedState?.phase ?? effectiveContentType;
+    fulfillingRequest?.contentType ??
+    effectiveCombinedState?.phase ??
+    releaseContentTypeOverride ??
+    effectiveContentType;
   const combinedSelectionPhases = effectiveCombinedState
     ? getCombinedSelectionPhases(effectiveCombinedState)
     : [];
@@ -2500,6 +2512,7 @@ function App() {
     }
     setCombinedState(null);
     setReleaseBook(null);
+    setReleaseContentTypeOverride(null);
   }, [isBrowseFulfilMode]);
 
   let pendingOnBehalfTitle = '';

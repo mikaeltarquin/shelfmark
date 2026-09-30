@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useMountEffect } from '../../hooks/useMountEffect';
-import { getLibraryBooks } from '../../services/api';
-import type { LibraryBooksResponse } from '../../types';
+import { getLibraryBooks, lookupLibraryBook } from '../../services/api';
+import type { LibraryBook, LibraryBooksResponse, LibraryFormat } from '../../types';
 import { libraryPath, parseLibraryRoute, type LibraryTab } from '../../utils/libraryRoute';
 import { LibraryAllView } from './LibraryAllView';
 import { LibraryAuthorPage, LibrarySeriesPage } from './LibraryDetailPages';
@@ -41,6 +41,18 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
     void navigate(libraryPath('authors', author));
     window.scrollTo({ top: 0 });
   };
+  // Find the book with the metadata provider, then open its releases in that format.
+  const getBook = async (book: LibraryBook, format: LibraryFormat) => {
+    try {
+      const found = await lookupLibraryBook(book.id, format);
+      await actions.onGetReleases(found, format);
+    } catch (err: unknown) {
+      actions.onShowToast?.(
+        err instanceof Error ? err.message : `Could not look up ${book.title}`,
+        'error',
+      );
+    }
+  };
   const openSeries = (series: string) => {
     void navigate(libraryPath('series', series));
     window.scrollTo({ top: 0 });
@@ -68,6 +80,7 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         author={route.name}
         onAuthorClick={openAuthor}
         onSeriesClick={openSeries}
+        onGet={getBook}
       />
     );
   } else if (route.tab === 'authors') {
@@ -80,13 +93,19 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         actions={actions}
         series={route.name}
         onAuthorClick={openAuthor}
+        onGet={getBook}
       />
     );
   } else if (route.tab === 'series') {
     body = <LibrarySeriesView books={data.books} onOpen={openSeries} />;
   } else {
     body = (
-      <LibraryAllView books={data.books} onAuthorClick={openAuthor} onSeriesClick={openSeries} />
+      <LibraryAllView
+        books={data.books}
+        onAuthorClick={openAuthor}
+        onSeriesClick={openSeries}
+        onGet={getBook}
+      />
     );
   }
 

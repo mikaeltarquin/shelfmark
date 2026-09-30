@@ -95,3 +95,27 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
         except Exception as exc:  # noqa: BLE001 - shown on the page
             logger.warning("Missing books for %s %s failed: %s", kind, name, exc)
             return jsonify({"error": f"The metadata provider could not be reached: {exc}"}), 502
+
+    @app.route("/api/library/lookup/<source>/<item_id>", methods=["GET"])
+    @login_required
+    @admin_only
+    def api_library_lookup(source: str, item_id: str) -> ResponseReturnValue:
+        """The metadata provider's record of a library book, to get another copy of it."""
+        if not _ITEM_ID.match(item_id):
+            return jsonify({"error": "Invalid item id"}), 400
+        content_type = request.args.get("content_type", "ebook")
+        if content_type not in {"ebook", "audiobook"}:
+            content_type = "ebook"
+        found = library_catalog.find_entry(source, item_id)
+        if found is None:
+            return jsonify({"error": "Not in the library"}), 404
+        _provider, entry = found
+        try:
+            book = library_catalog.find_provider_book(entry, content_type)
+        except Exception as exc:  # noqa: BLE001 - shown on the page
+            logger.warning("Lookup of %s:%s failed: %s", source, item_id, exc)
+            return jsonify({"error": f"The metadata provider could not be reached: {exc}"}), 502
+        if book is None:
+            title = entry.item.title if entry.item else "this book"
+            return jsonify({"error": f"Could not find {title} with the metadata provider"}), 404
+        return jsonify({"book": library_missing.book_dict(book)})

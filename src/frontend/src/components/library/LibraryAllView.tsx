@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import type { LibraryBook } from '../../types';
+import type { LibraryBook, LibraryFormat } from '../../types';
 import {
   filterLibraryBooks,
   sortLibraryBooks,
@@ -33,10 +33,16 @@ interface LibraryAllViewProps {
   books: LibraryBook[];
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
+  onGet: (book: LibraryBook, format: LibraryFormat) => Promise<void>;
 }
 
 /** Every book, with a text filter, a format filter and sorting. */
-export const LibraryAllView = ({ books, onAuthorClick, onSeriesClick }: LibraryAllViewProps) => {
+export const LibraryAllView = ({
+  books,
+  onAuthorClick,
+  onSeriesClick,
+  onGet,
+}: LibraryAllViewProps) => {
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<LibraryFormatFilter>('any');
   const [sort, setSort] = useState<LibrarySort>('title');
@@ -102,6 +108,7 @@ export const LibraryAllView = ({ books, onAuthorClick, onSeriesClick }: LibraryA
           books={visible}
           onAuthorClick={onAuthorClick}
           onSeriesClick={onSeriesClick}
+          onGet={onGet}
         />
       )}
     </div>

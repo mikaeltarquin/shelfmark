@@ -89,7 +89,8 @@ def _by_author(book: BookMetadata, author: str) -> bool:
     return any(author_surname(name) == surname for name in book.authors)
 
 
-def _book_dict(book: BookMetadata) -> dict[str, Any]:
+def book_dict(book: BookMetadata) -> dict[str, Any]:
+    """A provider book as the search API returns it, with library ownership flags."""
     from shelfmark.core.utils import transform_cover_url
 
     data = asdict(book)
@@ -139,5 +140,5 @@ def candidates(kind: str, name: str, content_type: str = "ebook") -> dict[str, A
             books = [book for book in books if _by_author(book, name)]
 
     result = _result(supported=True, provider=provider)
-    result["books"] = [_book_dict(book) for book in books]
+    result["books"] = [book_dict(book) for book in books]
     return result
