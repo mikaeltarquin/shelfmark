@@ -66,12 +66,17 @@ def should_hardlink(task: DownloadTask) -> bool:
     return bool(hardlink_enabled)
 
 
-def narrator_value(task: DownloadTask) -> str:
-    """Render {Narrator}: the release's narrators, or a placeholder for audiobooks."""
-    narrator = join_narrators(task.narrators, get_narrator_separator())
-    if not narrator and check_audiobook(task.content_type):
+def format_narrator(narrators: object, *, is_audiobook: bool) -> str:
+    """Render {Narrator} from a narrator list, with the placeholder for audiobooks."""
+    narrator = join_narrators(narrators, get_narrator_separator())
+    if not narrator and is_audiobook:
         return UNKNOWN_NARRATOR
     return narrator
+
+
+def narrator_value(task: DownloadTask) -> str:
+    """Render {Narrator}: the release's narrators, or a placeholder for audiobooks."""
+    return format_narrator(task.narrators, is_audiobook=check_audiobook(task.content_type))
 
 
 def build_metadata_dict(task: DownloadTask) -> dict:
@@ -251,6 +256,8 @@ def transfer_book_files(
                 extension=ext or None,
                 word_separator=word_separator,
             )
+            if not is_audiobook:
+                dest_path = _companion_ebook_path(task, dest_path)
             run_blocking_io(dest_path.parent.mkdir, parents=True, exist_ok=True)
 
             final_path, op = _transfer_single_file(
@@ -336,6 +343,13 @@ def transfer_book_files(
         logger.debug("%s to destination: %s", op.capitalize(), final_path.name)
 
     return final_paths, None, op_counts
+
+
+def _companion_ebook_path(task: DownloadTask, dest_path: Path) -> Path:
+    # Imported here: companions builds on this module.
+    from .companions import planned_ebook_path
+
+    return planned_ebook_path(task, dest_path)
 
 
 def resolve_book_groups(

@@ -25,6 +25,7 @@ import type {
 import { isMetadataBook } from '../types';
 import { bookSupportsTargets } from '../utils/bookTargetLoader';
 import { getColorStyleFromHint } from '../utils/colorMaps';
+import { isReleaseSelected, toggleReleaseSelection } from '../utils/combinedSelection';
 import {
   LANGUAGE_OPTION_DEFAULT,
   getLanguageFilterValues,
@@ -66,12 +67,16 @@ interface CombinedModeConfig {
   ebookMode: RequestPolicyMode;
   audiobookMode: RequestPolicyMode;
   stagedEbookRelease: Release | null;
-  stagedAudiobookRelease: Release | null;
+  // Several allowed: one per narration the user wants.
+  stagedAudiobookReleases: Release[];
   onNext?: (release: Release | null) => void;
-  onBack?: (audiobookRelease: Release | null) => void;
-  onDownload?: (release: Release | null) => void;
+  onBack?: (audiobookReleases: Release[]) => void;
+  // The current step's selection: at most one book, any number of audiobooks.
+  onDownload?: (releases: Release[]) => void;
   onClearSelection?: (contentType: ContentType) => void;
 }
+
+const NO_RELEASES: Release[] = [];
 
 // Determine the combined download button label based on action modes
 function getCombinedDownloadLabel(
@@ -79,30 +84,43 @@ function getCombinedDownloadLabel(
   audiobookMode: RequestPolicyMode | null | undefined,
   hasEbookAction = true,
   hasAudiobookAction = true,
+  audiobookCount = 1,
 ): string {
   if (hasEbookAction && !hasAudiobookAction) {
     return getSingleCombinedActionLabel('ebook', ebookMode);
   }
   if (!hasEbookAction && hasAudiobookAction) {
-    return getSingleCombinedActionLabel('audiobook', audiobookMode);
+    return getSingleCombinedActionLabel('audiobook', audiobookMode, audiobookCount);
   }
 
   const ebookIsRequest = ebookMode === 'request_release' || ebookMode === 'request_book';
   const audiobookIsRequest =
     audiobookMode === 'request_release' || audiobookMode === 'request_book';
-  if (ebookIsRequest && audiobookIsRequest) return 'Request Both';
+  const all = audiobookCount > 1 ? 'All' : 'Both';
+  if (ebookIsRequest && audiobookIsRequest) return `Request ${all}`;
   if (ebookIsRequest || audiobookIsRequest) return 'Download & Request';
-  return 'Download Both';
+  return `Download ${all}`;
 }
 
 function getSingleCombinedActionLabel(
   contentType: ContentType,
   mode: RequestPolicyMode | null | undefined,
+  count = 1,
 ): string {
-  const noun = contentType === 'ebook' ? 'Book' : 'Audiobook';
   const isRequest = mode === 'request_release' || mode === 'request_book';
-  return `${isRequest ? 'Request' : 'Download'} ${noun}`;
+  const verb = isRequest ? 'Request' : 'Download';
+  if (contentType === 'audiobook' && count > 1) {
+    return `${verb} ${count} Audiobooks`;
+  }
+  return `${verb} ${contentType === 'ebook' ? 'Book' : 'Audiobook'}`;
 }
+
+const releasesOf = (value: Release | Release[] | null): Release[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return value ? [value] : NO_RELEASES;
+};
 
 // Default column configuration (fallback when backend doesn't provide one)
 const DEFAULT_COLUMN_CONFIG: ReleaseColumnConfig = {
@@ -291,12 +309,19 @@ const LeadingCell = ({ config, release }: { config?: LeadingCellConfig; release:
 };
 
 // Radio indicator for selection mode
-const RadioIndicator = ({ selected }: { selected: boolean }) => (
+// Round for a single choice, square (a checkbox) when several can be picked.
+const RadioIndicator = ({
+  selected,
+  multiple = false,
+}: {
+  selected: boolean;
+  multiple?: boolean;
+}) => (
   <div className="flex h-8 w-8 shrink-0 items-center justify-center">
     <div
-      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
-        selected ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-300 dark:border-zinc-600'
-      }`}
+      className={`flex h-5 w-5 items-center justify-center border-2 transition-colors ${
+        multiple ? 'rounded-md' : 'rounded-full'
+      } ${selected ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-300 dark:border-zinc-600'}`}
     >
       {selected && (
         <svg
@@ -319,11 +344,14 @@ const PhaseChip = ({
   isActive,
   label,
   onClear,
+  extraCount = 0,
 }: {
   release: Release | null;
   isActive: boolean;
   label: string;
   onClear?: () => void;
+  // Further releases picked for this step beyond `release`.
+  extraCount?: number;
 }) => {
   let phaseChipClassName = 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500';
   if (release) {
@@ -370,6 +398,7 @@ const PhaseChip = ({
     <>
       {selectedIcon}
       {release.format?.toUpperCase() || label} · {release.size || '?'}
+      {extraCount > 0 && ` +${extraCount}`}
     </>
   ) : (
     <>
@@ -411,6 +440,7 @@ const ReleaseRow = ({
   onlineServers,
   showReleaseSourceLinks,
   selectionMode = false,
+  multiSelect = false,
   isSelected = false,
   onSelect,
 }: {
@@ -424,6 +454,7 @@ const ReleaseRow = ({
   onlineServers?: string[];
   showReleaseSourceLinks: boolean;
   selectionMode?: boolean;
+  multiSelect?: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
 }) => {
@@ -510,7 +541,7 @@ const ReleaseRow = ({
 
         {/* Fixed: Action button or radio indicator */}
         {selectionMode ? (
-          <RadioIndicator selected={isSelected} />
+          <RadioIndicator selected={isSelected} multiple={multiSelect} />
         ) : (
           <BookDownloadButton
             buttonState={buttonState}
@@ -603,7 +634,7 @@ const ReleaseRow = ({
         </div>
 
         {selectionMode ? (
-          <RadioIndicator selected={isSelected} />
+          <RadioIndicator selected={isSelected} multiple={multiSelect} />
         ) : (
           <BookDownloadButton
             buttonState={buttonState}
@@ -778,7 +809,8 @@ const ReleaseModalSession = ({
       ? supportedAudiobookFormats
       : supportedFormats;
   const [isRequestingBook, setIsRequestingBook] = useState(false);
-  const [selectedRelease, setSelectedRelease] = useState<Release | null>(null);
+  const [selectedReleases, setSelectedReleases] = useState<Release[]>(NO_RELEASES);
+  const selectedRelease = selectedReleases[0] ?? null;
   // Multi-book packs: `multiBook` is the manual header toggle (heuristic split for
   // releases we can't inspect); `packReview` holds an inspected pack awaiting approval.
   const [multiBook, setMultiBook] = useState(false);
@@ -794,13 +826,14 @@ const ReleaseModalSession = ({
   const combinedEbookMode = combinedMode?.ebookMode ?? null;
   const combinedAudiobookMode = combinedMode?.audiobookMode ?? null;
   const stagedEbookRelease = combinedMode?.stagedEbookRelease ?? null;
-  const stagedAudiobookRelease = combinedMode?.stagedAudiobookRelease ?? null;
-  let stagedReleaseForPhase: Release | null = null;
-  if (combinedPhase === 'ebook') {
-    stagedReleaseForPhase = stagedEbookRelease;
-  } else if (combinedPhase === 'audiobook') {
-    stagedReleaseForPhase = stagedAudiobookRelease;
-  }
+  const stagedAudiobookReleases = combinedMode?.stagedAudiobookReleases ?? NO_RELEASES;
+  const stagedAudiobookRelease = stagedAudiobookReleases[0] ?? null;
+  // Several audiobooks (one per narration) can be picked; a single book.
+  const isMultiSelectPhase = combinedPhase === 'audiobook';
+  // Compared by identity to notice a new step or staged selection; both are stable
+  // references from the parent's state.
+  const stagedSelectionForPhase: Release | Release[] | null =
+    combinedPhase === 'audiobook' ? stagedAudiobookReleases : stagedEbookRelease;
   const onCombinedNext = combinedMode?.onNext;
   const onCombinedBack = combinedMode?.onBack;
   const onCombinedDownload = combinedMode?.onDownload;
@@ -864,7 +897,7 @@ const ReleaseModalSession = ({
   const [appliedCombinedSelection, setAppliedCombinedSelection] = useState<{
     bookId: Book['id'] | null;
     phase: CombinedModeConfig['phase'] | null;
-    release: Release | null;
+    release: Release | Release[] | null;
   }>({
     bookId: null,
     phase: null,
@@ -874,13 +907,13 @@ const ReleaseModalSession = ({
     isCombinedMode &&
     (appliedCombinedSelection.bookId !== (activeBookId ?? null) ||
       appliedCombinedSelection.phase !== combinedPhase ||
-      appliedCombinedSelection.release !== stagedReleaseForPhase)
+      appliedCombinedSelection.release !== stagedSelectionForPhase)
   ) {
-    setSelectedRelease(stagedReleaseForPhase);
+    setSelectedReleases(releasesOf(stagedSelectionForPhase));
     setAppliedCombinedSelection({
       bookId: activeBookId ?? null,
       phase: combinedPhase,
-      release: stagedReleaseForPhase,
+      release: stagedSelectionForPhase,
     });
   }
 
@@ -1223,7 +1256,7 @@ const ReleaseModalSession = ({
         if (mode === 'blocked' || mode === 'request_book') {
           return;
         }
-        setSelectedRelease(release);
+        setSelectedReleases((prev) => toggleReleaseSelection(prev, release, isMultiSelectPhase));
         return;
       }
 
@@ -1272,6 +1305,7 @@ const ReleaseModalSession = ({
     [
       book,
       isCombinedMode,
+      isMultiSelectPhase,
       getReleaseActionMode,
       onDownload,
       onRequestRelease,
@@ -1336,13 +1370,13 @@ const ReleaseModalSession = ({
     combinedFooterEbookMode = getReleaseActionMode(stagedEbookRelease);
   }
 
+  const footerAudiobookReleases =
+    combinedPhase === 'audiobook' ? selectedReleases : stagedAudiobookReleases;
   let combinedFooterAudiobookMode = combinedAudiobookMode;
-  if (combinedPhase === 'audiobook') {
-    combinedFooterAudiobookMode = selectedRelease
-      ? getReleaseActionMode(selectedRelease)
-      : combinedAudiobookMode;
-  } else if (stagedAudiobookRelease) {
-    combinedFooterAudiobookMode = getReleaseActionMode(stagedAudiobookRelease);
+  if (footerAudiobookReleases.length > 0) {
+    // Any request among the picks makes this step a request.
+    const modes = footerAudiobookReleases.map(getReleaseActionMode);
+    combinedFooterAudiobookMode = modes.find((mode) => mode !== 'download') ?? 'download';
   }
 
   const hasCombinedEbookAction =
@@ -1376,11 +1410,13 @@ const ReleaseModalSession = ({
   const canClearEbookSelection =
     combinedPhase === 'ebook' ? selectedRelease !== null : stagedEbookRelease !== null;
   const canClearAudiobookSelection =
-    combinedPhase === 'audiobook' ? selectedRelease !== null : stagedAudiobookRelease !== null;
+    combinedPhase === 'audiobook'
+      ? selectedReleases.length > 0
+      : stagedAudiobookReleases.length > 0;
   const clearEbookSelection = canClearEbookSelection
     ? () => {
         if (combinedPhase === 'ebook') {
-          setSelectedRelease(null);
+          setSelectedReleases(NO_RELEASES);
         }
         onCombinedClearSelection?.('ebook');
       }
@@ -1388,7 +1424,7 @@ const ReleaseModalSession = ({
   const clearAudiobookSelection = canClearAudiobookSelection
     ? () => {
         if (combinedPhase === 'audiobook') {
-          setSelectedRelease(null);
+          setSelectedReleases(NO_RELEASES);
         }
         onCombinedClearSelection?.('audiobook');
       }
@@ -2347,10 +2383,18 @@ const ReleaseModalSession = ({
                           onlineServers={columnConfig.online_servers}
                           showReleaseSourceLinks={showReleaseSourceLinks}
                           selectionMode={isCombinedMode}
+                          multiSelect={isMultiSelectPhase}
                           isSelected={
-                            isCombinedMode && selectedRelease?.source_id === release.source_id
+                            isCombinedMode && isReleaseSelected(selectedReleases, release)
                           }
-                          onSelect={isCombinedMode ? () => setSelectedRelease(release) : undefined}
+                          onSelect={
+                            isCombinedMode
+                              ? () =>
+                                  setSelectedReleases((prev) =>
+                                    toggleReleaseSelection(prev, release, isMultiSelectPhase),
+                                  )
+                              : undefined
+                          }
                         />
                       ))}
                     </div>
@@ -2414,9 +2458,8 @@ const ReleaseModalSession = ({
                     onClear={clearEbookSelection}
                   />
                   <PhaseChip
-                    release={
-                      combinedPhase === 'audiobook' ? selectedRelease : stagedAudiobookRelease
-                    }
+                    release={footerAudiobookReleases[0] ?? null}
+                    extraCount={Math.max(footerAudiobookReleases.length - 1, 0)}
                     isActive={combinedPhase === 'audiobook'}
                     label="Audiobook"
                     onClear={clearAudiobookSelection}
@@ -2429,8 +2472,8 @@ const ReleaseModalSession = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const picked = selectedRelease;
-                        setSelectedRelease(stagedEbookRelease);
+                        const picked = selectedReleases;
+                        setSelectedReleases(releasesOf(stagedEbookRelease));
                         onCombinedBack(picked);
                       }}
                       className="hover-surface rounded-lg px-3 py-1.5 text-sm font-medium text-(--text) transition-colors"
@@ -2443,14 +2486,9 @@ const ReleaseModalSession = ({
                     <button
                       type="button"
                       onClick={() => {
-                        if (selectedRelease) {
-                          const picked = selectedRelease;
-                          setSelectedRelease(stagedAudiobookRelease);
-                          onCombinedNext(picked);
-                        } else {
-                          setSelectedRelease(stagedAudiobookRelease);
-                          onCombinedNext(null);
-                        }
+                        const picked = selectedRelease;
+                        setSelectedReleases(stagedAudiobookReleases);
+                        onCombinedNext(picked);
                       }}
                       className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -2464,10 +2502,8 @@ const ReleaseModalSession = ({
                     <button
                       type="button"
                       onClick={() => {
-                        if (selectedRelease) {
-                          onCombinedDownload(selectedRelease);
-                        } else if (canCompleteCombinedAction) {
-                          onCombinedDownload(null);
+                        if (canCompleteCombinedAction) {
+                          onCombinedDownload(selectedReleases);
                         }
                       }}
                       disabled={!canCompleteCombinedAction}
@@ -2478,6 +2514,7 @@ const ReleaseModalSession = ({
                         combinedFooterAudiobookMode,
                         hasCombinedEbookAction,
                         hasCombinedAudiobookAction,
+                        footerAudiobookReleases.length,
                       )}
                     </button>
                   )}
