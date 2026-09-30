@@ -69,14 +69,14 @@ describe('companion audiobook narrators in the ebook payload', () => {
   });
 });
 
-describe('books published in parts', () => {
-  const part = (title: string, series = 'Stormlight Archive #2'): Release => ({
-    source: 'prowlarr',
-    source_id: title,
-    title,
-    extra: { series, narrators: ['GraphicAudio'] },
-  });
+const part = (title: string, series = 'Stormlight Archive #2'): Release => ({
+  source: 'prowlarr',
+  source_id: title,
+  title,
+  extra: { series, narrators: ['GraphicAudio'] },
+});
 
+describe('books published in parts', () => {
   it('recognizes parts by title or MyAnonamouse series', () => {
     expect(isPartRelease(part('Words of Radiance (Part 1 of 5)'))).toBe(true);
     expect(isPartRelease(part('Elantris', 'Elantris #1p2'))).toBe(true);
