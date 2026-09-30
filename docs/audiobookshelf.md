@@ -51,3 +51,13 @@ Once a book has an audiobook folder, the narrator-less ebook-only folder is empt
 Ebooks are hardlinked when the folders are on the same filesystem, and copied otherwise. An audiobook folder that already has an ebook of that format is left alone. Multi-book packs are skipped.
 
 If the audiobook template has no `{Narrator}`, all narrations share one folder and the ebook goes into that folder.
+
+## Consistent series and titles
+
+Audiobookshelf reads a book's metadata from several sources, each overriding the one before: folder names, the audio file's tags (or the ebook's own metadata), `.nfo`, `desc.txt`/`reader.txt`, an `.opf` file, then `metadata.json`. Releases tag their files differently, so books of one series can import with the series spelled differently, or with none at all.
+
+Turn on **Settings > Downloads > Audiobooks > Write Audiobookshelf Metadata** (`WRITE_AUDIOBOOKSHELF_OPF`, off by default, needs **Rename and Organize**) and Shelfmark saves a `metadata.opf` into each audiobook folder before the files arrive. It holds the title, subtitle, authors, narrators, year, language and the series with its number from Shelfmark's metadata provider, so every book of a series gets the same series name. With **Keep Ebooks With Audiobooks** on, the ebook's folders in the audiobook library get one too. Folders elsewhere, such as a Calibre-Web ingest folder, never do.
+
+- It ranks below `metadata.json` on purpose. Audiobookshelf keeps its own copy of each book's metadata, including your edits, as a `metadata.json`, so edits made in Audiobookshelf still win on later scans. It also means the file only takes effect for books Audiobookshelf hasn't imported yet.
+- Audiobookshelf only takes non-empty values from it. A subtitle the release's tags carry stays when Shelfmark has none to replace it with.
+- A folder that already has an `.opf` is left alone, since Audiobookshelf reads only one per folder.

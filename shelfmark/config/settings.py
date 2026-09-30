@@ -1490,6 +1490,21 @@ def download_settings() -> list[SettingsField]:
             universal_only=True,
         ),
         CheckboxField(
+            key="WRITE_AUDIOBOOKSHELF_OPF",
+            label="Write Audiobookshelf Metadata",
+            description=(
+                "Save a metadata.opf with Shelfmark's title, authors, narrators, year and "
+                "series into each audiobook folder (and the ebooks kept with them) before "
+                "the files arrive. Audiobookshelf prefers it over the release's own tags, so "
+                "every book of a series imports with the same series name and number. "
+                "Edits made in Audiobookshelf still take precedence. Folders that already "
+                "have an .opf are left alone."
+            ),
+            default=False,
+            show_when={"field": "FILE_ORGANIZATION_AUDIOBOOK", "value": "organize"},
+            universal_only=True,
+        ),
+        CheckboxField(
             key="HARDLINK_TORRENTS_AUDIOBOOK",
             label="Hardlink Audiobook Torrents",
             description="Create hardlinks instead of copying. Preserves seeding but archives won't be extracted. Don't use if destination is a library ingest folder.",

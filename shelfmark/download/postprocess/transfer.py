@@ -33,6 +33,7 @@ from shelfmark.download.postprocess.policy import (
     get_word_separator,
 )
 
+from .abs_metadata import write_book_opf
 from .packs import BookGroup, PackBook, group_files_into_books, match_plan_to_files
 from .scan import collect_directory_files, scan_directory_tree
 from .types import TransferPlan
@@ -256,7 +257,9 @@ def transfer_book_files(
                 extension=ext or None,
                 word_separator=word_separator,
             )
-            if not is_audiobook:
+            if is_audiobook:
+                write_book_opf(task, dest_path.parent, task.narrators)
+            else:
                 dest_path = _companion_ebook_path(task, dest_path)
             run_blocking_io(dest_path.parent.mkdir, parents=True, exist_ok=True)
 
@@ -274,6 +277,7 @@ def transfer_book_files(
         else:
             zero_pad_width = max(len(str(len(book_files))), 2)
             files_with_parts = assign_part_numbers(book_files, zero_pad_width)
+            opf_dirs: set[Path] = set()
 
             for source_file, part_number in files_with_parts:
                 ext = source_file.suffix.lstrip(".") or task.format or ""
@@ -286,6 +290,9 @@ def transfer_book_files(
                     extension=ext or None,
                     word_separator=word_separator,
                 )
+                if is_audiobook and dest_path.parent not in opf_dirs:
+                    write_book_opf(task, dest_path.parent, task.narrators)
+                    opf_dirs.add(dest_path.parent)
                 run_blocking_io(dest_path.parent.mkdir, parents=True, exist_ok=True)
 
                 final_path, op = _transfer_single_file(
