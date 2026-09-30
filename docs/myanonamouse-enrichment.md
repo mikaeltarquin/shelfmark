@@ -52,3 +52,12 @@ With a MAM session ID set, admins get a **MyAnonamouse** entry in the menu (top 
 - **Buy upload credit:** spends bonus points in MAM's store (500 points per GB). Pick 50, 100, 250 or 500 GB, a custom amount in multiples of 50 GB, or **Max affordable**. Nothing is bought until you confirm. Larger amounts are bought as 100 GB and 50 GB purchases, and a purchase stops at the first one MAM declines, reporting what was already added.
 
 Every Shelfmark user shares the one MAM account, so the panel and purchases are admin-only. Without login, everyone counts as an admin.
+
+## Projected ratio and buffer check
+
+MyAnonamouse results are recognised by their MAM torrent link, whether or not enrichment details were found.
+
+- **Projected ratio:** when you pick a book and audiobooks together, a line under the picks shows what your MAM ratio and buffer become once they download: `MAM ratio 3.01 → 2.87 · buffer 80.5 GiB → 45.5 GiB`. It counts Shelfmark's MAM downloads that are still active, leaves freeleech torrents out, turns amber below a 2.0 ratio (MAM's minimum for renewing VIP) and red below 1.0 or when the buffer would run out. Every user sees it; it shows no username or bonus points.
+- **Buffer check** (**Hold Back Downloads Larger Than the Buffer**, `MAM_BLOCK_ON_LOW_BUFFER`, on by default): before MAM torrents are queued, Shelfmark checks that they, plus its still-active MAM downloads, fit in the buffer. Picks made together are checked together, so none is queued unless all fit. If they don't, admins are offered the smallest upload credit purchase that covers the shortfall (or another amount) and the downloads go ahead once it is bought; other users are asked to contact an admin. Freeleech torrents don't count, and if MAM can't be reached the downloads go ahead.
+
+Active downloads are counted at their full size, because MAM's figures only include what a torrent has downloaded so far; this errs towards a smaller buffer.

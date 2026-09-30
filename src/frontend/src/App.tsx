@@ -9,6 +9,7 @@ import { DetailsModal } from './components/DetailsModal';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { MamAccountModal } from './components/MamAccountModal';
+import { MamBufferModal } from './components/MamBufferModal';
 import { MetadataConfigSession } from './components/MetadataConfigSession';
 import { OnBehalfConfirmationModal } from './components/OnBehalfConfirmationModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -60,6 +61,9 @@ import {
   isApiResponseError,
   updateSelfUser,
   setBookTargetState,
+  checkMamBuffer,
+  getMamRatio,
+  type DownloadReleasePayload,
 } from './services/api';
 import type {
   Book,
@@ -91,6 +95,7 @@ import { releaseNarrators } from './utils/combinedSelection';
 import { wasDownloadQueuedAfterResponseError } from './utils/downloadRecovery';
 import { getDynamicOptionGroup } from './utils/dynamicFieldOptions';
 import { resolveDefaultLanguageCodes } from './utils/languageFilters';
+import type { MamBufferCheck, MamRatioSnapshot } from './utils/mamRatio';
 import { getConfiguredMetadataProviderForContentType } from './utils/metadataProviders';
 import { getEffectiveMetadataSort } from './utils/metadataSort';
 import { isRecord } from './utils/objectHelpers';
@@ -667,6 +672,13 @@ function App() {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mamAccountOpen, setMamAccountOpen] = useState(false);
+  // Account figures for the projected-ratio line in the combined picker.
+  const [mamRatio, setMamRatio] = useState<MamRatioSnapshot | null>(null);
+  const [mamBufferPrompt, setMamBufferPrompt] = useState<{
+    check: MamBufferCheck;
+    releases: DownloadReleasePayload[];
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
   const [selfSettingsOpen, setSelfSettingsOpen] = useState(false);
   const [configBannerOpen, setConfigBannerOpen] = useState(false);
 
@@ -1206,6 +1218,26 @@ function App() {
     ],
   );
 
+  // Resolves true when MyAnonamouse downloads may go ahead: they fit in the buffer,
+  // or upload credit was bought for them. Never blocks when MAM can't be checked.
+  const ensureMamBuffer = useCallback(
+    async (payloads: DownloadReleasePayload[]): Promise<boolean> => {
+      if (!config?.mam_account_available || payloads.length === 0) return true;
+      let check: MamBufferCheck;
+      try {
+        check = await checkMamBuffer(payloads);
+      } catch (error) {
+        console.warn('MAM buffer check failed, downloading anyway:', error);
+        return true;
+      }
+      if (check.ok) return true;
+      return new Promise<boolean>((resolve) => {
+        setMamBufferPrompt({ check, releases: payloads, resolve });
+      });
+    },
+    [config?.mam_account_available],
+  );
+
   const executeReleaseDownload = useCallback(
     async (
       book: Book,
@@ -1590,6 +1622,12 @@ function App() {
       }
 
       const selectionPhases = getCombinedSelectionPhases({ ebookMode, audiobookMode });
+      setMamRatio(null);
+      if (config?.mam_account_available) {
+        getMamRatio()
+          .then(setMamRatio)
+          .catch((error: unknown) => console.warn('Could not load MAM ratio:', error));
+      }
       setCombinedState({
         phase: selectionPhases[0],
         ebookMode,
@@ -1675,6 +1713,8 @@ function App() {
       return;
     }
 
+    const payload = buildReleaseDownloadPayload(book, release, releaseContentType, options);
+    if (!(await ensureMamBuffer([payload]))) return;
     await executeReleaseDownload(book, release, releaseContentType, undefined, options);
   };
 
@@ -1762,6 +1802,24 @@ function App() {
               stagedAudiobooks: releases,
             };
 
+      // Check the buffer for everything picked at once, before queueing any of it.
+      const mamPayloads = [
+        ...(nextCombinedState.stagedEbook &&
+        getSourceMode(nextCombinedState.stagedEbook.release.source, 'ebook') === 'download'
+          ? [
+              buildReleaseDownloadPayload(
+                releaseBook,
+                nextCombinedState.stagedEbook.release,
+                'ebook',
+              ),
+            ]
+          : []),
+        ...nextCombinedState.stagedAudiobooks
+          .filter((audiobook) => getSourceMode(audiobook.source, 'audiobook') === 'download')
+          .map((audiobook) => buildReleaseDownloadPayload(releaseBook, audiobook, 'audiobook')),
+      ];
+      if (!(await ensureMamBuffer(mamPayloads))) return;
+
       if (effectiveActingAsUser) {
         setPendingOnBehalfDownload({
           type: 'combined',
@@ -1778,7 +1836,14 @@ function App() {
       setCombinedState(null);
       setReleaseBook(null);
     },
-    [combinedState, effectiveActingAsUser, executeCombinedAction, releaseBook],
+    [
+      combinedState,
+      effectiveActingAsUser,
+      ensureMamBuffer,
+      executeCombinedAction,
+      getSourceMode,
+      releaseBook,
+    ],
   );
 
   const handleRequestCancel = useCallback(
@@ -2693,6 +2758,7 @@ function App() {
               isRequestMode={isBrowseFulfilMode || activeReleaseBook?.provider === 'manual'}
               showReleaseSourceLinks={config?.show_release_source_links !== false}
               onShowToast={showToast}
+              mamRatio={effectiveCombinedState ? mamRatio : null}
               combinedMode={
                 effectiveCombinedState
                   ? {
@@ -2785,6 +2851,16 @@ function App() {
       <ToastContainer toasts={toasts} />
 
       {mamAccountOpen && <MamAccountModal onClose={() => setMamAccountOpen(false)} />}
+      {mamBufferPrompt && (
+        <MamBufferModal
+          check={mamBufferPrompt.check}
+          releases={mamBufferPrompt.releases}
+          onResolve={(proceed) => {
+            mamBufferPrompt.resolve(proceed);
+            setMamBufferPrompt(null);
+          }}
+        />
+      )}
 
       <SettingsModal
         isOpen={settingsOpen}

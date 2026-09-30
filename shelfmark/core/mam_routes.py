@@ -47,6 +47,19 @@ def _account_payload(*, refresh: bool) -> dict[str, Any]:
     return {"configured": True, "stats": stats.to_dict(), "error": None}
 
 
+def _is_admin() -> bool:
+    return load_active_auth_mode() == "none" or bool(session.get("is_admin", False))
+
+
+def buffer_check_payload(releases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Buffer check result for the current user; bonus points are shown to admins only."""
+    result = mam_account.check_buffer(releases).to_dict()
+    can_buy = _is_admin()
+    if not can_buy:
+        result["seedbonus"] = None
+    return {**result, "can_buy": can_buy}
+
+
 def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
     """Register the /api/mam/* routes."""
 
@@ -62,6 +75,21 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
                 "step_gb": mam_account.UPLOAD_CREDIT_STEP_GB,
             }
         )
+
+    @app.route("/api/mam/ratio", methods=["GET"])
+    @login_required
+    def api_mam_ratio() -> Response:
+        # Every user: they all download on the one account. No username or points.
+        return jsonify(mam_account.ratio_snapshot())
+
+    @app.route("/api/mam/buffer-check", methods=["POST"])
+    @login_required
+    def api_mam_buffer_check() -> Response | tuple[Response, int]:
+        data = request.get_json(silent=True) or {}
+        releases = data.get("releases")
+        if not isinstance(releases, list):
+            return jsonify({"error": "releases must be a list"}), 400
+        return jsonify(buffer_check_payload([r for r in releases if isinstance(r, dict)]))
 
     @app.route("/api/mam/status", methods=["GET"])
     @login_required

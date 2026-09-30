@@ -290,4 +290,17 @@ def prowlarr_config_settings() -> list[SettingsField]:
             callback=_test_mam_connection,
             show_when={"field": "PROWLARR_ENABLED", "value": True},
         ),
+        CheckboxField(
+            key="MAM_BLOCK_ON_LOW_BUFFER",
+            label="Hold Back Downloads Larger Than the Buffer",
+            description=(
+                "Before queueing MyAnonamouse torrents, check that they fit in the account's "
+                "buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that "
+                "are still active. If not, admins are offered upload credit to buy first; "
+                "other users are asked to contact an admin. Freeleech torrents don't count. "
+                "If MAM can't be reached, downloads go ahead."
+            ),
+            default=True,
+            show_when={"field": "PROWLARR_ENABLED", "value": True},
+        ),
     ]

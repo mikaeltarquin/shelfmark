@@ -270,3 +270,154 @@ class TestRoutes:
         resp = getattr(client, method)(path, json={"amount": 50})
         assert resp.status_code == 403
         assert mam.buys == []
+
+
+def _mam_release(gib: float, *, freeleech: bool = False, torrent_id: int | None = 123) -> dict:
+    return {
+        "source": "prowlarr",
+        "source_id": f"guid-{gib}",
+        "title": "Book",
+        "size_bytes": int(gib * GIB),
+        "extra": {"mam_torrent_id": torrent_id, "freeleech": freeleech},
+    }
+
+
+class TestCharge:
+    def test_mam_release_is_charged_its_size(self):
+        from shelfmark.release_sources.prowlarr.mam_charge import mam_charge_bytes_for_release
+
+        assert mam_charge_bytes_for_release(_mam_release(1.5)) == int(1.5 * GIB)
+        assert mam_charge_bytes_for_release(_mam_release(1.5, freeleech=True)) == 0
+        assert mam_charge_bytes_for_release(_mam_release(1.5, torrent_id=None)) == 0
+        assert mam_charge_bytes_for_release({"size_bytes": GIB}) == 0
+
+
+@pytest.fixture
+def no_pending(monkeypatch):
+    monkeypatch.setattr(mam_account, "pending_charge_bytes", lambda: 0)
+
+
+class TestBufferCheck:
+    def test_fits(self, mam, no_pending):
+        result = mam_account.check_buffer([_mam_release(30), _mam_release(40)])
+        assert result.ok and result.checked
+        assert result.buffer_bytes == int(80.5 * GIB)
+
+    def test_too_big_recommends_the_smallest_covering_purchase(self, mam, no_pending):
+        result = mam_account.check_buffer([_mam_release(60), _mam_release(40)])
+
+        assert not result.ok
+        assert result.missing_bytes == int(100 * GIB) - int(80.5 * GIB)
+        assert (result.recommended_gb, result.recommended_cost) == (50, 25000)
+        assert result.seedbonus == 61250
+
+    def test_active_downloads_count(self, mam, monkeypatch):
+        monkeypatch.setattr(mam_account, "pending_charge_bytes", lambda: 60 * GIB)
+
+        result = mam_account.check_buffer([_mam_release(30)])
+
+        assert not result.ok
+        assert result.pending_bytes == 60 * GIB
+        assert result.recommended_gb == 50
+
+    def test_freeleech_and_other_indexers_skip_the_check(self, mam, no_pending):
+        mam.user = MamAuthError("should not be asked")
+        result = mam_account.check_buffer(
+            [_mam_release(500, freeleech=True), _mam_release(500, torrent_id=None)]
+        )
+        assert result.ok and not result.checked
+
+    def test_fails_open_when_mam_is_unreachable(self, mam, no_pending):
+        mam.user = requests.exceptions.ConnectionError("down")
+
+        result = mam_account.check_buffer([_mam_release(500)])
+
+        assert result.ok and not result.checked
+        assert "Could not reach MyAnonamouse" in (result.error or "")
+
+    def test_off_when_disabled(self, mam, no_pending, monkeypatch):
+        monkeypatch.setattr(mam_account, "buffer_check_enabled", lambda: False)
+        assert mam_account.check_buffer([_mam_release(500)]).ok
+
+    def test_recommended_purchase(self):
+        assert mam_account.recommended_purchase_gb(1) == 50
+        assert mam_account.recommended_purchase_gb(50 * GIB) == 50
+        assert mam_account.recommended_purchase_gb(50 * GIB + 1) == 100
+
+    def test_pending_counts_only_active_tasks(self, monkeypatch):
+        from shelfmark.core.models import DownloadTask, QueueStatus
+        from shelfmark.core.queue import book_queue
+
+        def task(task_id: str, charge: int | None) -> DownloadTask:
+            return DownloadTask(
+                task_id=task_id, source="prowlarr", title="T", mam_charge_bytes=charge
+            )
+
+        status = {s: {} for s in QueueStatus}
+        status[QueueStatus.QUEUED] = {"a": task("a", 2 * GIB)}
+        status[QueueStatus.DOWNLOADING] = {"b": task("b", 3 * GIB), "c": task("c", None)}
+        status[QueueStatus.COMPLETE] = {"d": task("d", 50 * GIB)}
+        monkeypatch.setattr(book_queue, "get_status", lambda: status)
+
+        assert mam_account.pending_charge_bytes() == 5 * GIB
+
+
+class TestQueueRecordsCharge:
+    def test_queued_mam_task_carries_its_charge(self, monkeypatch):
+        from shelfmark.download import orchestrator
+
+        captured = {}
+        monkeypatch.setattr(orchestrator.config, "get", lambda _k, default=None, **_kw: default)
+        monkeypatch.setattr(orchestrator, "_source_unavailable_message", lambda _s: None)
+        monkeypatch.setattr(orchestrator.book_queue, "add", lambda t: captured.setdefault("t", t))
+        monkeypatch.setattr(orchestrator, "ws_manager", None)
+
+        ok, _error = orchestrator.queue_release({**_mam_release(2), "content_type": "audiobook"}, 0)
+
+        assert ok
+        task = captured["t"]
+        assert task.mam_charge_bytes == 2 * GIB
+        restored = orchestrator._restore_task_from_retry_payload(
+            orchestrator.serialize_task_for_retry(task)
+        )
+        assert restored is not None and restored.mam_charge_bytes == 2 * GIB
+
+
+class TestRatioAndBufferRoutes:
+    def test_ratio_hides_account_details(self, main_module, mam, no_pending, auth_required):
+        body = _client(main_module, is_admin=False).get("/api/mam/ratio").get_json()
+        assert body["available"] is True
+        assert body["buffer_bytes"] == int(80.5 * GIB)
+        assert body["warning_ratio"] == 2.0
+        assert "username" not in body and "seedbonus" not in body
+
+    def test_buffer_check_offers_purchase_to_admins_only(
+        self, main_module, mam, no_pending, auth_required
+    ):
+        payload = {"releases": [_mam_release(100)]}
+        admin = _client(main_module, is_admin=True).post("/api/mam/buffer-check", json=payload)
+        user = _client(main_module, is_admin=False).post("/api/mam/buffer-check", json=payload)
+
+        assert admin.get_json()["ok"] is False and admin.get_json()["can_buy"] is True
+        assert admin.get_json()["seedbonus"] == 61250
+        assert user.get_json()["can_buy"] is False and user.get_json()["seedbonus"] is None
+
+    def test_download_route_refuses_a_release_over_the_buffer(self, main_module, mam, no_pending):
+        with patch.object(main_module.backend, "queue_release") as queue_release:
+            resp = _client(main_module, is_admin=True).post(
+                "/api/releases/download", json={**_mam_release(100), "content_type": "audiobook"}
+            )
+
+        assert resp.status_code == 409
+        assert resp.get_json()["code"] == "insufficient_mam_buffer"
+        assert resp.get_json()["recommended_gb"] == 50
+        queue_release.assert_not_called()
+
+    def test_download_route_queues_a_release_that_fits(self, main_module, mam, no_pending):
+        with patch.object(main_module.backend, "queue_release", return_value=(True, None)) as q:
+            resp = _client(main_module, is_admin=True).post(
+                "/api/releases/download", json={**_mam_release(10), "content_type": "audiobook"}
+            )
+
+        assert resp.status_code == 200
+        q.assert_called_once()

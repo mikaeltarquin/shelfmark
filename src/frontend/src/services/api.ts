@@ -35,6 +35,7 @@ import type {
   MamStatusResponse,
   UploadCreditAmount,
 } from '../utils/mamAccount';
+import type { MamBufferCheck, MamRatioSnapshot } from '../utils/mamRatio';
 import { isRecord, toStringValue } from '../utils/objectHelpers';
 import type { FulfilAdminRequestBody, RejectAdminRequestBody } from './requestApiHelpers';
 import {
@@ -604,6 +605,15 @@ export const getStatus = async (): Promise<StatusData> => {
 
 export const getMamAccount = async (refresh = false): Promise<MamAccountResponse> =>
   fetchJSON<MamAccountResponse>(`${API_BASE}/mam/account${refresh ? '?refresh=1' : ''}`);
+
+export const getMamRatio = async (): Promise<MamRatioSnapshot> =>
+  fetchJSON<MamRatioSnapshot>(`${API_BASE}/mam/ratio`);
+
+export const checkMamBuffer = async (releases: DownloadReleasePayload[]): Promise<MamBufferCheck> =>
+  fetchJSON<MamBufferCheck>(`${API_BASE}/mam/buffer-check`, {
+    method: 'POST',
+    body: JSON.stringify({ releases }),
+  });
 
 export const getMamStatus = async (): Promise<MamStatusResponse> =>
   fetchJSON<MamStatusResponse>(`${API_BASE}/mam/status`);
