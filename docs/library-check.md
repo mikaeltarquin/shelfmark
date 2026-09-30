@@ -13,7 +13,7 @@ database directly. No HTTP call, no API token, and nothing is ever written back.
    `/path/to/calibre-library:/calibre-library:ro`. Mount the folder rather than the file
    so the `-wal` and `-shm` sidecars are visible, otherwise a library that is being
    written to can read as out of date.
-2. In **Settings, General**, turn on **Mark books already in your Calibre library**.
+2. In **Settings, Libraries, Calibre**, turn on **Mark books already in your Calibre library**.
 3. Leave **Calibre metadata.db path** at `/calibre-library/metadata.db` unless you mounted
    it somewhere else.
 4. Press **Test Calibre library**. It reports how many books it indexed.
@@ -27,8 +27,8 @@ Shelfmark reads your Audiobookshelf book libraries through its API. Nothing is w
 
 1. In Audiobookshelf, open **Settings > API Keys** and create a key for a user that can
    see the libraries you want checked.
-2. In Shelfmark's **Settings, General**, turn on **Mark books already in your Audiobookshelf
-   library**, and fill in **Audiobookshelf URL** (as Shelfmark reaches it, e.g.
+2. In Shelfmark's **Settings, Libraries, Audiobookshelf**, turn on **Mark books already
+   in your Audiobookshelf library**, and fill in **Audiobookshelf URL** (as Shelfmark reaches it, e.g.
    `http://audiobookshelf:80`) and **Audiobookshelf API key**.
 3. Press **Test Audiobookshelf library**. It reports how many items it indexed and fills
    **Audiobookshelf libraries** with the server's book libraries by name. Tick the ones

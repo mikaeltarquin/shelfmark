@@ -40,6 +40,7 @@ from shelfmark.config.security import _migrate_security_settings
 from shelfmark.config.settings import (
     _SUPPORTED_BOOK_LANGUAGE,
     migrate_audiobook_format_settings,
+    migrate_library_settings,
 )
 from shelfmark.core import api_key as api_key_module  # module access lets tests monkeypatch the key
 from shelfmark.core import search_deadline
@@ -178,6 +179,9 @@ _migrate_security_settings()
 
 # Widen audiobook formats for installs that still carry the old m4b/mp3-only default
 migrate_audiobook_format_settings()
+
+# Library settings moved from General to the Libraries pages
+migrate_library_settings()
 
 # Initialize user database and register multi-user routes
 # If CONFIG_DIR doesn't exist or is read-only, multi-user features will be disabled
