@@ -18,6 +18,7 @@ from shelfmark.core.naming import (
     parse_naming_template,
     sanitize_filename,
 )
+from shelfmark.core.release_parts import book_title, part_title
 from shelfmark.core.utils import is_audiobook as check_audiobook
 from shelfmark.download.archive import is_archive
 from shelfmark.download.fs import (
@@ -82,10 +83,15 @@ def narrator_value(task: DownloadTask) -> str:
 
 def build_metadata_dict(task: DownloadTask) -> dict:
     """Build template metadata from a download task."""
+    title = book_title(task)
     primary_title = derive_primary_title(task.title, task.subtitle)
+    if primary_title and title != task.title:
+        primary_title = part_title(
+            primary_title, task.release_part or 1, getattr(task, "release_part_total", None)
+        )
     return {
         "Author": task.author,
-        "Title": task.title,
+        "Title": title,
         "PrimaryTitle": primary_title,
         "Subtitle": task.subtitle,
         "Year": task.year,
@@ -106,30 +112,6 @@ def build_file_metadata(
     if part_number is not None:
         metadata["PartNumber"] = part_number
     return metadata
-
-
-def release_part_label(task: DownloadTask, file_part: str | None = None) -> str | None:
-    """The {PartNumber} for a file, led by the release's part when the book comes in parts.
-
-    Part 2 of a book split into releases is "02"; its third file "02-03". Files of
-    every part then sort in reading order, whichever download finished first.
-    """
-    release_part = getattr(task, "release_part", None)
-    if not release_part:
-        return file_part
-    label = f"{release_part:02d}"
-    return f"{label}-{file_part}" if file_part else label
-
-
-def _with_release_part(path: Path, task: DownloadTask, label: str | None, template: str) -> Path:
-    """Name a file of a part-release by its part when the template has no {PartNumber}.
-
-    Otherwise every part's files would share one name and clash, getting "_1" suffixes
-    in download order rather than part order.
-    """
-    if not getattr(task, "release_part", None) or not label or "partnumber" in template.lower():
-        return path
-    return path.with_name(f"{path.stem} - Part {label}{path.suffix}")
 
 
 def resolve_hardlink_source(
@@ -272,8 +254,7 @@ def transfer_book_files(
         if len(book_files) == 1:
             source_file = book_files[0]
             ext = source_file.suffix.lstrip(".") or task.format or ""
-            part_label = release_part_label(task)
-            file_metadata = build_file_metadata(task, source_file, part_number=part_label)
+            file_metadata = build_file_metadata(task, source_file)
             dest_path = run_blocking_io(
                 build_library_path,
                 str(destination),
@@ -282,7 +263,6 @@ def transfer_book_files(
                 extension=ext or None,
                 word_separator=word_separator,
             )
-            dest_path = _with_release_part(dest_path, task, part_label, template)
             if is_audiobook:
                 write_book_opf(task, dest_path.parent, task.narrators)
             else:
@@ -307,8 +287,7 @@ def transfer_book_files(
 
             for source_file, part_number in files_with_parts:
                 ext = source_file.suffix.lstrip(".") or task.format or ""
-                part_label = release_part_label(task, part_number)
-                file_metadata = build_file_metadata(task, source_file, part_number=part_label)
+                file_metadata = build_file_metadata(task, source_file, part_number=part_number)
                 dest_path = run_blocking_io(
                     build_library_path,
                     str(destination),
@@ -317,7 +296,6 @@ def transfer_book_files(
                     extension=ext or None,
                     word_separator=word_separator,
                 )
-                dest_path = _with_release_part(dest_path, task, part_label, template)
                 if is_audiobook and dest_path.parent not in opf_dirs:
                     write_book_opf(task, dest_path.parent, task.narrators)
                     opf_dirs.add(dest_path.parent)
@@ -350,8 +328,7 @@ def transfer_book_files(
                 task.format = book_file.suffix.lower().lstrip(".")
 
             template = get_template(is_audiobook=is_audiobook, organization_mode="rename")
-            part_label = release_part_label(task)
-            metadata = build_file_metadata(task, book_file, part_number=part_label)
+            metadata = build_file_metadata(task, book_file)
             extension = book_file.suffix.lstrip(".") or task.format or ""
 
             filename = parse_naming_template(
@@ -360,12 +337,12 @@ def transfer_book_files(
             filename = Path(filename).name if filename else ""
             if filename and extension:
                 filename = f"{sanitize_filename(filename)}.{extension}"
-                filename = _with_release_part(Path(filename), task, part_label, template).name
             else:
                 filename = book_file.name
         elif getattr(task, "release_part", None) and organization_mode != "none":
-            # Several files kept by name: lead with the part so the parts sort in order.
-            filename = f"Part {task.release_part:02d} - {book_file.name}"
+            # Several files kept by name: lead with the part's title so two parts'
+            # same-named files neither clash nor interleave.
+            filename = f"{sanitize_filename(book_title(task))} - {book_file.name}"
         else:
             filename = book_file.name
 
