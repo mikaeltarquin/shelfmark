@@ -42,3 +42,13 @@ After a Prowlarr search, Shelfmark reruns the search Prowlarr sent to MyAnonamou
 If some torrents are missing from the first page, Shelfmark reads further pages, up to 4 requests per search. Lookups are cached for an hour, stay inside the Prowlarr search time budget, and never fail the search: if MAM errors or rejects the session, the release list simply shows without the extra columns filled in.
 
 After a failed request (a 403, a timeout, an unexpected reply), Shelfmark waits before trying MAM again: 1 minute, then 2, 4 and so on, up to 30 minutes. After 10 failures in a row it stops using MAM. **Test MAM Session** (once it succeeds), a new session ID, or a restart turns it back on. Each failure is logged with the reason.
+
+## Account panel
+
+With a MAM session ID set, admins get a **MyAnonamouse** entry in the menu (top right). It shows:
+
+- **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class and VIP expiry, from MAM's `jsonLoad.php`. Refreshed at most once a minute unless you press **Refresh**.
+- **Connections:** whether MAM accepts the session, and whether Shelfmark can reach its torrent client, each with the error when it can't.
+- **Buy upload credit:** spends bonus points in MAM's store (500 points per GB). Pick 50, 100, 250 or 500 GB, a custom amount in multiples of 50 GB, or **Max affordable**. Nothing is bought until you confirm. Larger amounts are bought as 100 GB and 50 GB purchases, and a purchase stops at the first one MAM declines, reporting what was already added.
+
+Every Shelfmark user shares the one MAM account, so the panel and purchases are admin-only. Without login, everyone counts as an admin.

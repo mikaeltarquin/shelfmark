@@ -36,6 +36,8 @@ MAM_BASE_URL = "https://www.myanonamouse.net"
 _MAM_DOMAIN = "myanonamouse.net"
 _SEARCH_PATH = "/tor/js/loadSearchJSONbasic.php"
 _USER_PATH = "/jsonLoad.php"
+# The bonus point store. A GET that spends points, so it is never retried.
+_BONUS_BUY_PATH = "/json/bonusBuy.php/"
 _REQUEST_TIMEOUT_SECONDS = 15
 _RESULTS_PER_PAGE = 100
 # Rerunning Prowlarr's search normally takes one request per title variant; the rest
@@ -285,11 +287,19 @@ class MamClient:
 
     def get_username(self) -> str | None:
         """Return the account name the session belongs to (used by Test Connection)."""
-        data = self._get(_USER_PATH)
-        if not isinstance(data, dict):
-            return None
-        username = data.get("username")
+        username = self.get_user_data().get("username")
         return str(username) if username else None
+
+    def get_user_data(self) -> dict[str, Any]:
+        """Return the session's account details (ratio, bonus points, ...) as MAM sends them."""
+        data = self._get(_USER_PATH)
+        return data if isinstance(data, dict) else {}
+
+    def bonus_buy(self, params: Mapping[str, str]) -> dict[str, Any]:
+        """Spend bonus points in MAM's store; MAM reports success or an error in the body."""
+        # The timestamp is what MAM's own store page sends, to defeat caching.
+        data = self._get(_BONUS_BUY_PATH, {**params, "_": str(int(time.time() * 1000))})
+        return data if isinstance(data, dict) else {}
 
     def search(
         self, text: str, options: MamSearchOptions, *, start: int = 0

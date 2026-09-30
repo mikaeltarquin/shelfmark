@@ -8,6 +8,7 @@ import { ConfigSetupBanner } from './components/ConfigSetupBanner';
 import { DetailsModal } from './components/DetailsModal';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
+import { MamAccountModal } from './components/MamAccountModal';
 import { MetadataConfigSession } from './components/MetadataConfigSession';
 import { OnBehalfConfirmationModal } from './components/OnBehalfConfirmationModal';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -665,6 +666,7 @@ function App() {
     headerObserverRef.current = observer;
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mamAccountOpen, setMamAccountOpen] = useState(false);
   const [selfSettingsOpen, setSelfSettingsOpen] = useState(false);
   const [configBannerOpen, setConfigBannerOpen] = useState(false);
 
@@ -2457,6 +2459,12 @@ function App() {
           onSearchChange={handleActiveQueryValueChange}
           onDownloadsClick={toggleDownloadsSidebar}
           onSettingsClick={handleSettingsClick}
+          onMamAccountClick={
+            // Without login everyone is an admin, as the backend's admin check treats them.
+            (requestRoleIsAdmin || !authRequired) && config?.mam_account_available
+              ? () => setMamAccountOpen(true)
+              : undefined
+          }
           isAdmin={requestRoleIsAdmin}
           canAccessSettings={isAuthenticated}
           username={username}
@@ -2775,6 +2783,8 @@ function App() {
       />
 
       <ToastContainer toasts={toasts} />
+
+      {mamAccountOpen && <MamAccountModal onClose={() => setMamAccountOpen(false)} />}
 
       <SettingsModal
         isOpen={settingsOpen}
