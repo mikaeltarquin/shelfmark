@@ -6,9 +6,10 @@ import { getLibraryBooks, lookupLibraryBook } from '../../services/api';
 import type { Book, ContentType, LibraryBook, LibraryBooksResponse } from '../../types';
 import { libraryPath, parseLibraryRoute, type LibraryTab } from '../../utils/libraryRoute';
 import { LibraryAllView } from './LibraryAllView';
+import { LibraryAuthorsView } from './LibraryAuthorsView';
 import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryAuthorPage, LibrarySeriesPage } from './LibraryDetailPages';
-import { LibraryAuthorsView, LibrarySeriesView } from './LibraryGroupsView';
+import { LibrarySeriesView } from './LibraryGroupsView';
 import type { LibraryBookActions } from './LibraryMissingSection';
 
 const TABS: Array<{ tab: LibraryTab; label: string; path: string }> = [

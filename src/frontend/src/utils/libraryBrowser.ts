@@ -1,4 +1,5 @@
 import type { LibraryBook, LibraryFormat } from '../types';
+import { lastFirstSortKey } from './authorNames';
 
 export type LibrarySort = 'title' | 'author' | 'added';
 export type LibraryFormatFilter = 'any' | LibraryFormat | 'both';
@@ -18,10 +19,7 @@ const fold = (value: string): string =>
 const sortableTitle = (title: string): string => fold(title).replace(/^(the|a|an)\s+/, '');
 
 // "Andy Weir" sorts under Weir.
-export const authorSortKey = (author: string): string => {
-  const parts = fold(author).trim().split(/\s+/);
-  return parts.length > 1 ? `${parts[parts.length - 1]} ${parts.slice(0, -1).join(' ')}` : parts[0];
-};
+export const authorSortKey = (author: string): string => lastFirstSortKey(author);
 
 export const matchesFormat = (book: LibraryBook, format: LibraryFormatFilter): boolean => {
   if (format === 'any') return true;
