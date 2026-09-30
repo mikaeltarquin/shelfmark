@@ -131,6 +131,9 @@ class DownloadTask:
     # Set for MyAnonamouse torrents (freeleech too): each one is an unsatisfied torrent
     # on the account until it has seeded 72 hours.
     mam_torrent_id: int | None = None
+    # Audiobooks published in parts (GraphicAudio): which part this release is, so the
+    # files of all parts are named in reading order (see postprocess.transfer).
+    release_part: int | None = None
 
     # Hardlinking support
     original_download_path: str | None = None  # Path in download client (for hardlinking)

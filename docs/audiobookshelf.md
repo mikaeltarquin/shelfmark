@@ -61,3 +61,20 @@ Turn on **Settings > Downloads > Audiobooks > Write Audiobookshelf Metadata** (`
 - It ranks below `metadata.json` on purpose. Audiobookshelf keeps its own copy of each book's metadata, including your edits, as a `metadata.json`, so edits made in Audiobookshelf still win on later scans. It also means the file only takes effect for books Audiobookshelf hasn't imported yet.
 - Audiobookshelf only takes non-empty values from it. A subtitle the release's tags carry stays when Shelfmark has none to replace it with.
 - A folder that already has an `.opf` is left alone, since Audiobookshelf reads only one per folder.
+
+## Books released in parts
+
+Some publishers split one book into several releases: GraphicAudio's dramatizations come
+in parts, each its own torrent. Shelfmark reads the part from MyAnonamouse's series field
+("Elantris #1p2") or, for other sources, from the title ("Part 2", "Pt. 2", "(2 of 3)"),
+and names the files by it so they sort in reading order whichever download finishes
+first:
+
+```
+Brandon Sanderson/Elantris {GraphicAudio}/Elantris - Part 01.m4b
+Brandon Sanderson/Elantris {GraphicAudio}/Elantris - Part 02.m4b
+```
+
+A part with several files numbers them within the part (`Part 02-01`, `Part 02-02`). If
+your template already has `{PartNumber}`, the part goes there instead of being appended.
+All parts land in the same folder, so Audiobookshelf shows them as one book.
