@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isCollectionOnly, isInLibrary } from '../components/shared/LibraryBadge';
+import {
+  isCollectionOnly,
+  isInLibrary,
+  libraryBadgeText,
+  librarySourcesText,
+} from '../components/shared/LibraryBadge';
 
 describe('isInLibrary', () => {
   it('is false without a library result', () => {
@@ -35,5 +40,30 @@ describe('isCollectionOnly', () => {
   it('is false when the book is not held at all', () => {
     expect(isCollectionOnly({ ebook: null })).toBe(false);
     expect(isCollectionOnly(undefined)).toBe(false);
+  });
+});
+
+describe('libraryBadgeText', () => {
+  it('says "In library" when only one format is checked', () => {
+    expect(libraryBadgeText({ ebook: 'owned' })).toBe('In library');
+  });
+
+  it('names the formats held when both are checked', () => {
+    expect(libraryBadgeText({ ebook: 'owned', audiobook: 'owned' })).toBe('Have ebook + audio');
+    expect(libraryBadgeText({ ebook: null, audiobook: 'owned' })).toBe('Have audiobook');
+    expect(libraryBadgeText({ ebook: 'owned', audiobook: null })).toBe('Have ebook');
+  });
+
+  it('keeps the collection wording', () => {
+    expect(libraryBadgeText({ ebook: 'collection', audiobook: null })).toBe('In a collection');
+  });
+});
+
+describe('librarySourcesText', () => {
+  it('lists each library with the formats it holds', () => {
+    expect(
+      librarySourcesText({ ebook: ['Audiobookshelf', 'Calibre'], audiobook: ['Audiobookshelf'] }),
+    ).toBe('Audiobookshelf: ebook, audiobook; Calibre: ebook');
+    expect(librarySourcesText(undefined)).toBe('');
   });
 });

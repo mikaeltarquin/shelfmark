@@ -140,25 +140,61 @@ def book_matches_entries(book: BookMetadata, entries: list[LibraryEntry]) -> boo
     return match_entries(book, entries) is not None
 
 
+def _entries_of_type(provider: LibraryProvider, content_type: str | None) -> list[LibraryEntry]:
+    """A provider's entries that hold ``content_type`` (all of them for None)."""
+    entries = _entries_for(provider)
+    if content_type is None:
+        return entries
+    return [e for e in entries if e.content_types is None or content_type in e.content_types]
+
+
 def is_in_library(book: BookMetadata, content_type: str | None = None) -> bool:
     """True if an enabled library holding ``content_type`` already has ``book`` (fail-open).
 
     ``content_type`` None consults every enabled provider.
     """
     return any(
-        book_matches_entries(book, _entries_for(provider))
+        book_matches_entries(book, _entries_of_type(provider, content_type))
         for provider in _enabled_providers(content_type)
     )
 
 
+def _holdings(book: BookMetadata, content_type: str) -> dict[str, str]:
+    """How each enabled library holding ``content_type`` holds the book, by display name."""
+    holdings: dict[str, str] = {}
+    for provider in _enabled_providers(content_type):
+        kind = match_entries(book, _entries_of_type(provider, content_type))
+        if kind is not None:
+            holdings[provider.display_name] = kind
+    return holdings
+
+
 def _holding(book: BookMetadata, content_type: str) -> str | None:
     """Strongest holding across the enabled libraries for one content type."""
-    kinds = {
-        match_entries(book, _entries_for(provider)) for provider in _enabled_providers(content_type)
-    }
+    kinds = set(_holdings(book, content_type).values())
     if "owned" in kinds:
         return "owned"
     return "collection" if "collection" in kinds else None
+
+
+def ownership_sources(book: BookMetadata) -> dict[str, list[str]]:
+    """Which libraries hold the book, per format: ``{"audiobook": ["Audiobookshelf"]}``."""
+    sources = {
+        content_type: sorted(_holdings(book, content_type))
+        for content_type in ("ebook", "audiobook")
+        if _enabled_providers(content_type)
+    }
+    return {content_type: names for content_type, names in sources.items() if names}
+
+
+def owned_narrators(book: BookMetadata) -> set[str]:
+    """Narrators (casefolded) of the audiobooks of ``book`` already in a library."""
+    narrators: set[str] = set()
+    for provider in _enabled_providers("audiobook"):
+        for entry in _entries_of_type(provider, "audiobook"):
+            if entry.narrators and match_entries(book, [entry]) is not None:
+                narrators |= entry.narrators
+    return narrators
 
 
 def ownership(book: BookMetadata) -> dict[str, str | None] | None:

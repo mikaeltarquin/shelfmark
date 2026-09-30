@@ -21,6 +21,32 @@ database directly. No HTTP call, no API token, and nothing is ever written back.
 A result that matches the library then carries an **In library** badge in the card, list
 and compact views, and in the details dialog.
 
+## Audiobookshelf
+
+Shelfmark reads your Audiobookshelf book libraries through its API. Nothing is written back.
+
+1. In Audiobookshelf, open **Settings > API Keys** and create a key for a user that can
+   see the libraries you want checked.
+2. In Shelfmark's **Settings, General**, turn on **Mark books already in your Audiobookshelf
+   library**, and fill in **Audiobookshelf URL** (as Shelfmark reaches it, e.g.
+   `http://audiobookshelf:80`) and **Audiobookshelf API key**.
+3. Press **Test Audiobookshelf library**. It reports how many items it indexed and lists
+   the libraries with their IDs. To check only some of them, put their IDs, comma
+   separated, in **Audiobookshelf library IDs**; empty means every book library. Podcast
+   libraries are never read.
+
+An item counts for the formats it holds: the audiobook when it has audio files, the
+ebook when it has an ebook file, and both for an item that holds both (the folders
+**Keep Ebooks With Audiobooks** makes). With more than one format checked, the badge says
+which you have ("Have audiobook", "Have ebook + audio"), and its tooltip names the library.
+
+In the audiobook release list, a release whose narrator matches an audiobook of the book
+you already have is marked **Narration in library**, so a narration you don't have yet
+stands out.
+
+Matching uses the same rules as Calibre, below. Audiobookshelf has no cheap change token,
+so its items are re-read at most every ten minutes.
+
 ## How a match is decided
 
 In order of confidence:
@@ -37,7 +63,7 @@ In order of confidence:
   path degrades the badge, it never blocks a search.
 - **Results are cached** for ten minutes, and refreshed early when the database file
   changes, so a large library costs one read rather than one per search.
-- **Ebooks only.** A Calibre library holds ebooks, so the badge answers for ebooks. The
-  provider interface in `shelfmark/core/library_providers/` takes more libraries: add a
+- **Calibre is ebooks only.** A Calibre library holds ebooks, so it answers for ebooks;
+  Audiobookshelf answers for both. The provider interface in `shelfmark/core/library_providers/` takes more libraries: add a
   module with the `LibraryProvider` shape and list it in `all_providers()`. Nothing above
   that function knows which libraries exist.

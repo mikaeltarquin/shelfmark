@@ -558,6 +558,14 @@ const ReleaseRow = ({
             )}
           </p>
           {author && <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{author}</p>}
+          {release.extra?.in_library === true && (
+            <span
+              className="mt-0.5 inline-flex w-fit rounded-md bg-sky-600/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+              title="An audiobook with this narrator is already in your library"
+            >
+              Narration in library
+            </span>
+          )}
         </div>
 
         {/* Dynamic columns from schema */}

@@ -203,7 +203,11 @@ export const ListView = ({
                     {book.author || 'Unknown author'}
                     {book.year && <span className="sm:hidden"> • {book.year}</span>}
                   </p>
-                  <LibraryBadge library={book.library} className="mt-0.5" />
+                  <LibraryBadge
+                    library={book.library}
+                    sources={book.library_sources}
+                    className="mt-0.5"
+                  />
                 </div>
 
                 {/* Mobile universal mode info */}

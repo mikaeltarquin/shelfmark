@@ -31,6 +31,11 @@ class LibraryEntry:
     # Series and author words. Shelf titles often bake these in ("Alex Cross 25:
     # Cross Kill"), so the matcher must not read them as naming a different work.
     context_tokens: frozenset[str] = frozenset()
+    # Formats this entry holds when a library mixes them (an Audiobookshelf item can be
+    # audio, ebook or both); None means every format the provider covers.
+    content_types: frozenset[str] | None = None
+    # Narrator names, compared casefolded, for audiobooks.
+    narrators: frozenset[str] = frozenset()
 
 
 class LibraryProvider(Protocol):
@@ -68,6 +73,7 @@ def all_providers(overrides: Mapping[str, Any] | None = None) -> list[LibraryPro
     Adding a library means writing a module with the :class:`LibraryProvider` shape and
     listing it here. Nothing above this function knows which libraries exist.
     """
+    from shelfmark.core.library_providers.audiobookshelf import AudiobookshelfLibrary
     from shelfmark.core.library_providers.calibre import CalibreLibrary
 
-    return [CalibreLibrary(overrides)]
+    return [CalibreLibrary(overrides), AudiobookshelfLibrary(overrides)]

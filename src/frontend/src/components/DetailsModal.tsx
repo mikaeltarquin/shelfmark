@@ -296,7 +296,7 @@ export const DetailsModal = ({
                 {isMetadata && isInLibrary(book.library) && (
                   <div className={`${infoCardClass} space-y-1`}>
                     <p className={infoLabelClass}>Library</p>
-                    <LibraryBadge library={book.library} />
+                    <LibraryBadge library={book.library} sources={book.library_sources} />
                   </div>
                 )}
 
