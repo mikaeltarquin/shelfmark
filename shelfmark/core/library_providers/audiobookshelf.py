@@ -66,7 +66,7 @@ def _series_with_numbers(value: object) -> tuple[tuple[str, str | None], ...]:
 def _book_series(
     series: tuple[tuple[str, str | None], ...],
 ) -> tuple[tuple[str, str | None], ...]:
-    """A part's series numbers as the book's: part 1 of book 2 is filed as #2.1."""
+    """A part's series numbers as the book's: part 1 of book 2, filed as #2.1, is #2."""
     return tuple((name, number.split(".")[0] if number else number) for name, number in series)
 
 
