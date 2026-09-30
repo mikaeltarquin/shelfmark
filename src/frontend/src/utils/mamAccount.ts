@@ -40,6 +40,87 @@ export interface MamPurchaseResponse extends MamAccountResponse {
 
 export type UploadCreditAmount = number | 'max';
 
+export interface MamAutobuySettings {
+  ratio_enabled: boolean;
+  ratio_threshold: number;
+  ratio_amount: number;
+  buffer_enabled: boolean;
+  buffer_threshold_gb: number;
+  buffer_amount: number;
+  bonus_enabled: boolean;
+  bonus_threshold: number;
+  bonus_amount: number;
+  reserve_points: number;
+  interval_hours: number;
+}
+
+export interface MamCheckReport {
+  at: number;
+  trigger: string;
+  skipped: string | null;
+  purchases: { reason: string; amount_gb: number; success: boolean; error: string | null }[];
+  notes: string[];
+}
+
+export interface MamPurchaseRecord {
+  at: number;
+  reason: string;
+  requested: string;
+  amount_gb: number;
+  success: boolean;
+  seedbonus: number | null;
+  error: string | null;
+}
+
+export interface MamAutobuyResponse {
+  settings?: MamAutobuySettings;
+  last_check: MamCheckReport | null;
+  history: MamPurchaseRecord[];
+}
+
+/** One line per auto-buy mode that is on, e.g. "Ratio below 2 → buy 50 GB". */
+export const describeAutobuy = (settings: MamAutobuySettings): string[] => {
+  const lines: string[] = [];
+  if (settings.ratio_enabled) {
+    lines.push(`Ratio below ${settings.ratio_threshold} → buy ${settings.ratio_amount} GB`);
+  }
+  if (settings.buffer_enabled) {
+    lines.push(
+      `Buffer below ${settings.buffer_threshold_gb} GB → buy ${settings.buffer_amount} GB`,
+    );
+  }
+  if (settings.bonus_enabled) {
+    lines.push(
+      `Bonus points at ${formatPoints(settings.bonus_threshold)} or more → buy ${settings.bonus_amount} GB, repeatedly`,
+    );
+  }
+  if (lines.length > 0 && settings.reserve_points > 0) {
+    lines.push(`Always keeps ${formatPoints(settings.reserve_points)} points`);
+  }
+  return lines;
+};
+
+const REASON_LABELS: Record<string, string> = {
+  manual: 'Manual',
+  download: 'Before download',
+  ratio: 'Low ratio',
+  buffer: 'Low buffer',
+  bonus: 'Excess points',
+};
+
+export const purchaseReasonLabel = (reason: string): string => REASON_LABELS[reason] ?? reason;
+
+/** A report's outcome in one line. */
+export const describeCheck = (report: MamCheckReport): string => {
+  if (report.skipped) return report.skipped;
+  const bought = report.purchases.filter((p) => p.success).reduce((t, p) => t + p.amount_gb, 0);
+  const failed = report.purchases.find((p) => !p.success);
+  const parts = [bought > 0 ? `Bought ${bought} GB` : 'Nothing needed buying'];
+  if (failed) parts.push(`stopped: ${failed.error ?? 'purchase failed'}`);
+  parts.push(...report.notes);
+  return parts.join('; ');
+};
+
 export const UPLOAD_CREDIT_PRESETS_GB = [50, 100, 250, 500] as const;
 export const DEFAULT_POINTS_PER_GB = 500;
 export const DEFAULT_STEP_GB = 50;

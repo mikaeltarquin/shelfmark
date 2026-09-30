@@ -82,7 +82,7 @@ export const MamBufferModal = ({
     setIsBuying(true);
     setMessage(null);
     try {
-      const result = await buyMamUploadCredit(amount);
+      const result = await buyMamUploadCredit(amount, 'download');
       if (!result.success && result.amount_gb <= 0) {
         setMessage({ ok: false, text: result.error ?? 'Purchase failed.' });
         return;

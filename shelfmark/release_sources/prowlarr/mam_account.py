@@ -127,7 +127,8 @@ def parse_size_bytes(value: object) -> int | None:
     return int(float(match.group(1)) * _SIZE_UNITS[unit])
 
 
-def _parse_float(value: object) -> float | None:
+def parse_number(value: object) -> float | None:
+    """Read a number given as a number or text ("61,250", "Inf."); None if it isn't one."""
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, (int, float)):
@@ -159,8 +160,8 @@ def parse_stats(data: dict[str, Any]) -> MamStats:
         classname=str(classname) if classname else None,
         uploaded_bytes=uploaded,
         downloaded_bytes=downloaded,
-        ratio=_parse_float(data.get("ratio")),
-        seedbonus=_parse_float(data.get("seedbonus")) or 0.0,
+        ratio=parse_number(data.get("ratio")),
+        seedbonus=parse_number(data.get("seedbonus")) or 0.0,
         vip_until=str(vip_until) if vip_until else None,
     )
 
@@ -222,7 +223,7 @@ def parse_purchase_amount(value: object) -> int | str:
     """Validate a requested amount: MAX_AFFORDABLE, or whole GB in multiples of 50."""
     if isinstance(value, str) and value.strip().lower() == MAX_AFFORDABLE:
         return MAX_AFFORDABLE
-    number = _parse_float(value)  # None for booleans too
+    number = parse_number(value)  # None for booleans too
     if number is None or not math.isfinite(number) or number != int(number):
         msg = "Amount must be a whole number of GB or 'max'"
         raise ValueError(msg)
@@ -240,10 +241,10 @@ def _store_error(reply: dict[str, Any]) -> str:
 
 def _buy_once(client: MamClient, amount: str) -> tuple[bool, float, float | None, str | None]:
     reply = client.bonus_buy({"spendtype": "upload", "amount": amount})
-    seedbonus = _parse_float(reply.get("seedbonus"))
+    seedbonus = parse_number(reply.get("seedbonus"))
     if not reply.get("success"):
         return False, 0.0, seedbonus, _store_error(reply)
-    bought = _parse_float(reply.get("amount"))
+    bought = parse_number(reply.get("amount"))
     return True, bought or 0.0, seedbonus, None
 
 
@@ -427,6 +428,12 @@ def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
     )
 
 
+def warning_ratio() -> float:
+    """Where the ratio line turns amber: the auto-buy ratio threshold (2.0 by default)."""
+    value = parse_number(config.get("MAM_AUTOBUY_RATIO_THRESHOLD", RATIO_WARNING))
+    return value if value is not None and math.isfinite(value) else RATIO_WARNING
+
+
 def ratio_snapshot() -> dict[str, Any]:
     """What the projected-ratio line needs; no username or bonus points (all users see it)."""
     if not is_configured():
@@ -442,5 +449,5 @@ def ratio_snapshot() -> dict[str, Any]:
         "ratio": stats.ratio,
         "buffer_bytes": stats.buffer_bytes,
         "pending_bytes": pending_charge_bytes(),
-        "warning_ratio": RATIO_WARNING,
+        "warning_ratio": warning_ratio(),
     }
