@@ -39,6 +39,7 @@ from shelfmark.core.utils import get_destination
 from shelfmark.core.utils import is_audiobook as check_audiobook
 from shelfmark.download.fs import atomic_hardlink, run_blocking_io
 
+from .abs_metadata import OPF_FILENAME, write_book_opf
 from .policy import (
     get_file_organization,
     get_supported_formats,
@@ -66,7 +67,7 @@ _EXTRA_EBOOK_EXTENSIONS = frozenset({".epub", ".pdf", ".kepub"})
 # What Audiobookshelf writes into a book folder by itself; removing an emptied
 # ebook-only folder removes these too.
 _ABS_SIDECAR_NAMES = frozenset(
-    {"metadata.json", "cover.jpg", "cover.jpeg", "cover.png", "cover.webp"}
+    {"metadata.json", "cover.jpg", "cover.jpeg", "cover.png", "cover.webp", OPF_FILENAME}
 )
 
 
@@ -261,14 +262,16 @@ def _absorb_ebook_only_dir(
     ]
 
 
-def _companion_dirs(task: DownloadTask, layout: _BookLayout) -> list[Path]:
-    """Folders of the audiobooks queued with this ebook, whether or not they exist yet."""
-    dirs: list[Path] = []
+def _companion_dirs(task: DownloadTask, layout: _BookLayout) -> dict[Path, list[str]]:
+    """Folders of the audiobooks queued with this ebook, whether or not they exist yet.
+
+    Maps each folder to its audiobook's narrators, in queue order.
+    """
+    dirs: dict[Path, list[str]] = {}
     for narrators in task.companion_narrators or []:
         narrator = format_narrator(narrators, is_audiobook=True)
         directory = _render(task, layout.template, layout.root, narrator).parent
-        if directory not in dirs:
-            dirs.append(directory)
+        dirs.setdefault(directory, narrators)
     return dirs
 
 
@@ -278,10 +281,10 @@ def planned_ebook_path(task: DownloadTask, dest_path: Path) -> Path:
     `dest_path` is the ebook template's path. When that is the audiobook tree's
     ebook-only folder, the ebook goes into the first companion audiobook's folder
     instead, so Audiobookshelf never sees an ebook-only item it would later lose.
+    Either way, a folder in the audiobook tree gets its `metadata.opf` before the
+    ebook lands in it.
     """
-    if check_audiobook(task.content_type) or not task.companion_narrators:
-        return dest_path
-    if not is_enabled_for(task):
+    if check_audiobook(task.content_type) or not is_enabled_for(task):
         return dest_path
     try:
         layout = _book_layout(task)
@@ -292,8 +295,11 @@ def planned_ebook_path(task: DownloadTask, dest_path: Path) -> Path:
         logger.warning("Task %s: could not plan ebook folder: %s", task.task_id, exc)
         return dest_path
     if not companion_dirs:
+        write_book_opf(task, layout.ebook_only_dir, None)
         return dest_path
-    planned = companion_dirs[0] / f"{layout.file_stem}{dest_path.suffix}"
+    directory, narrators = next(iter(companion_dirs.items()))
+    write_book_opf(task, directory, narrators)
+    planned = directory / f"{layout.file_stem}{dest_path.suffix}"
     logger.info("Task %s: saving ebook in its audiobook's folder: %s", task.task_id, planned)
     return planned
 
@@ -306,6 +312,10 @@ def _colocate(task: DownloadTask, final_paths: list[Path]) -> list[Path]:
     extensions = _ebook_extensions()
     audiobook_dirs = _find_audiobook_dirs(layout)
     is_audiobook = check_audiobook(task.content_type)
+    # Narrators of the folders this download knows about, for their metadata.opf.
+    narrators_by_dir: dict[Path, list[str]] = (
+        {layout.own_dir: task.narrators or []} if is_audiobook else _companion_dirs(task, layout)
+    )
 
     if is_audiobook:
         if layout.own_dir not in audiobook_dirs and _has_audio(layout.own_dir):
@@ -322,17 +332,19 @@ def _colocate(task: DownloadTask, final_paths: list[Path]) -> list[Path]:
             sources.setdefault(path.suffix.lower(), path)
         sources = {ext: path for ext, path in sources.items() if ext in extensions}
         # Audiobooks still downloading count as present: their folders are made now.
-        audiobook_dirs += [d for d in _companion_dirs(task, layout) if d not in audiobook_dirs]
+        audiobook_dirs += [d for d in narrators_by_dir if d not in audiobook_dirs]
 
     if not sources:
         return final_paths
 
     if audiobook_dirs:
         for directory in audiobook_dirs:
+            write_book_opf(task, directory, narrators_by_dir.get(directory))
             _place(task, sources, directory, layout.file_stem)
         return _absorb_ebook_only_dir(task, layout, audiobook_dirs, extensions, final_paths)
 
     if not is_audiobook:
+        write_book_opf(task, layout.ebook_only_dir, None)
         _place(task, sources, layout.ebook_only_dir, layout.file_stem)
     return final_paths
 

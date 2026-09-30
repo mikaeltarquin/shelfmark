@@ -510,6 +510,7 @@ Audiobooks only. AudiobookBay lists it for most releases. In Prowlarr results it
 | `TEMPLATE_AUDIOBOOK_ORGANIZE` | Use / to create folders. Variables: {Author}, {FirstAuthor} (first of several authors), {Title}, {Year}, {Language}, {User}, {OriginalName} (source filename without extension), {Series}, {SeriesPosition}, {Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: {Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. Braces inside a block are kept: {Title} {{Narrator}} outputs 'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. {Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'. | string | `{Author}/{Title}/{Title}` |
 | `NARRATOR_SEPARATOR` | How {Narrator} joins several narrators. | string (choice) | `&` |
 | `EBOOKS_WITH_AUDIOBOOKS` | Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart. | boolean | `false` |
+| `WRITE_AUDIOBOOKSHELF_OPF` | Save a metadata.opf with Shelfmark's title, authors, narrators, year and series into each audiobook folder (and the ebooks kept with them) before the files arrive. Audiobookshelf prefers it over the release's own tags, so every book of a series imports with the same series name and number. Edits made in Audiobookshelf still take precedence. Folders that already have an .opf are left alone. | boolean | `false` |
 | `HARDLINK_TORRENTS_AUDIOBOOK` | Create hardlinks instead of copying. Preserves seeding but archives won't be extracted. Don't use if destination is a library ingest folder. | boolean | `true` |
 | `AUTO_OPEN_DOWNLOADS_SIDEBAR` | Automatically open the downloads sidebar when a new download is queued. | boolean | `false` |
 | `DOWNLOAD_TO_BROWSER_CONTENT_TYPES` | Automatically download completed files to your browser for the selected content types. | string (comma-separated) | _empty list_ |
@@ -801,6 +802,15 @@ How {Narrator} joins several narrators.
 **Keep Ebooks With Audiobooks**
 
 Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart.
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `WRITE_AUDIOBOOKSHELF_OPF`
+
+**Write Audiobookshelf Metadata**
+
+Save a metadata.opf with Shelfmark's title, authors, narrators, year and series into each audiobook folder (and the ebooks kept with them) before the files arrive. Audiobookshelf prefers it over the release's own tags, so every book of a series imports with the same series name and number. Edits made in Audiobookshelf still take precedence. Folders that already have an .opf are left alone.
 
 - **Type:** boolean
 - **Default:** `false`
