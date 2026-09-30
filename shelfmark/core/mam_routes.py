@@ -7,35 +7,21 @@ its bonus points.
 from __future__ import annotations
 
 from dataclasses import asdict
-from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 from flask import jsonify, request, session
 
 from shelfmark.core.auth_modes import load_active_auth_mode
 from shelfmark.core.logger import setup_logger
+from shelfmark.core.route_guards import admin_only
 from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy, mam_points
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from flask import Flask, Response
-    from flask.typing import ResponseReturnValue
 
 logger = setup_logger(__name__)
-
-
-def _admin_only(f: Callable[..., ResponseReturnValue]) -> Callable[..., ResponseReturnValue]:
-    @wraps(f)
-    def decorated(*args: Any, **kwargs: Any) -> ResponseReturnValue:
-        if load_active_auth_mode() != "none":
-            if "user_id" not in session:
-                return jsonify({"error": "Authentication required"}), 401
-            if not session.get("is_admin", False):
-                return jsonify({"error": "Admin access required"}), 403
-        return f(*args, **kwargs)
-
-    return decorated
 
 
 def _account_payload(*, refresh: bool) -> dict[str, Any]:
@@ -71,7 +57,7 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
 
     @app.route("/api/mam/account", methods=["GET"])
     @login_required
-    @_admin_only
+    @admin_only
     def api_mam_account() -> Response | tuple[Response, int]:
         refresh = request.args.get("refresh", "").lower() in {"1", "true", "yes"}
         return jsonify(
@@ -99,7 +85,7 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
 
     @app.route("/api/mam/autobuy", methods=["GET"])
     @login_required
-    @_admin_only
+    @admin_only
     def api_mam_autobuy() -> Response:
         settings = mam_autobuy.load_settings()
         return jsonify(
@@ -112,20 +98,20 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
 
     @app.route("/api/mam/autobuy/run", methods=["POST"])
     @login_required
-    @_admin_only
+    @admin_only
     def api_mam_autobuy_run() -> Response:
         report = mam_autobuy.run_check("manual")
         return jsonify({"last_check": report.to_dict(), "history": mam_autobuy.load_history()[:10]})
 
     @app.route("/api/mam/status", methods=["GET"])
     @login_required
-    @_admin_only
+    @admin_only
     def api_mam_status() -> Response:
         return jsonify(mam_account.connection_status())
 
     @app.route("/api/mam/upload-credit", methods=["POST"])
     @login_required
-    @_admin_only
+    @admin_only
     def api_mam_buy_upload_credit() -> Response | tuple[Response, int]:
         data = request.get_json(silent=True) or {}
         try:

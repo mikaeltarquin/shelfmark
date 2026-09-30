@@ -313,6 +313,7 @@ export interface AppConfig {
   show_combined_selector: boolean;
   force_combined_search: boolean;
   mam_account_available?: boolean; // A MyAnonamouse session ID is set
+  library_browser_available?: boolean; // A library check is on, so the library browser has books
   books_output_mode: BooksOutputMode;
   auto_open_downloads_sidebar: boolean; // Auto-open sidebar when download is queued
   hardcover_auto_remove_on_download: boolean; // Auto-remove from active Hardcover list on download
@@ -545,4 +546,31 @@ export interface SearchStatusData {
   book_id: string; // Book ID (may be empty)
   message: string; // Human-readable status message
   phase: 'connecting' | 'searching' | 'downloading' | 'parsing' | 'complete' | 'error';
+}
+
+// Library browser: one book in the user's own libraries
+export type LibraryFormat = 'ebook' | 'audiobook';
+
+export interface LibrarySeriesRef {
+  name: string;
+  number: string | null;
+}
+
+export interface LibraryBook {
+  id: string;
+  title: string;
+  authors: string[];
+  series: LibrarySeriesRef[];
+  formats: LibraryFormat[];
+  narrators: string[];
+  added_at: number | null;
+  year: number | null;
+  cover: string; // API path serving the cover
+  sources: string[];
+}
+
+export interface LibraryBooksResponse {
+  enabled: boolean;
+  sources: Array<{ name: string; display_name: string }>;
+  books: LibraryBook[];
 }

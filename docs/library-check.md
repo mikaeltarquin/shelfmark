@@ -48,6 +48,21 @@ stands out.
 Matching uses the same rules as Calibre, below. Audiobookshelf has no cheap change token,
 so its items are re-read at most every ten minutes.
 
+## Browsing the library
+
+With a library connected, admins get a **Library** button in the header. It shows every
+book in the connected libraries as a cover grid, with a filter (title, author, series or
+narrator), a format filter (ebook, audiobook, or both) and sorting by title, author or
+recently added. A book held by both libraries, say the ebook in Calibre and the audiobook
+in Audiobookshelf, is one book with both format badges.
+
+Covers come from the library that holds the book. Calibre's covers live in each book's
+folder, so they show when the whole Calibre library is mounted, not just `metadata.db`.
+A book without a library cover gets one from the metadata provider (Hardcover, for
+example), looked up by ISBN or by title and author, the way search results show them.
+Found covers are remembered in `library_covers.json` in the config folder; a book with no
+cover anywhere is looked up again after a week.
+
 ## How a match is decided
 
 In order of confidence:

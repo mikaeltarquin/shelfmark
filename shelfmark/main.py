@@ -55,6 +55,7 @@ from shelfmark.core.config import config as app_config
 from shelfmark.core.cwa_user_sync import upsert_cwa_user
 from shelfmark.core.download_history_service import DownloadHistoryService
 from shelfmark.core.external_user_linking import upsert_external_user
+from shelfmark.core.library_routes import register_library_routes
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.mam_routes import buffer_check_payload, register_mam_routes
 from shelfmark.core.models import TERMINAL_QUEUE_STATUSES, QueueStatus, SearchFilters
@@ -1145,6 +1146,13 @@ def _serialize_release(release: Release) -> dict:
 
 register_release_inspect_routes(app, login_required)
 register_mam_routes(app, login_required)
+register_library_routes(app, login_required)
+
+
+def _library_browser_available() -> bool:
+    from shelfmark.core import library_index
+
+    return library_index.any_provider_enabled()
 
 
 @app.route("/api/releases/download", methods=["POST"])
@@ -1319,6 +1327,8 @@ def api_config() -> Response | tuple[Response, int]:
             "mam_account_available": bool(
                 normalize_optional_text(app_config.get("PROWLARR_MAM_ID", ""))
             ),
+            # Whether the library browser has a library to show (admins only, like its API).
+            "library_browser_available": _library_browser_available(),
             "auto_open_downloads_sidebar": app_config.get("AUTO_OPEN_DOWNLOADS_SIDEBAR", True),
             "hardcover_auto_remove_on_download": app_config.get(
                 "HARDCOVER_AUTO_REMOVE_ON_DOWNLOAD", True

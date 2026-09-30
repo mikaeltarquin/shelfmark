@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import requests
 
 from shelfmark.core.config import config as app_config
-from shelfmark.core.library_providers import LibraryEntry, setting
+from shelfmark.core.library_providers import LibraryEntry, LibraryItem, setting
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.text_match import isbn_variants, tokens
 
@@ -53,6 +53,24 @@ def _series_names(value: object) -> list[str]:
     return [_SERIES_NUMBER.sub("", name) for name in _split_names(value)]
 
 
+def _series_with_numbers(value: object) -> tuple[tuple[str, str | None], ...]:
+    """("Name", "3") pairs from "Name #3, Other Series"."""
+    pairs: list[tuple[str, str | None]] = []
+    for part in _split_names(value):
+        name, _, number = part.partition(" #")
+        pairs.append((name.strip(), number.strip() or None))
+    return tuple(pairs)
+
+
+def _year(value: object) -> int | None:
+    match = re.match(r"\s*(\d{4})", str(value or ""))
+    return int(match.group(1)) if match else None
+
+
+def _added_at(value: object) -> float | None:
+    return value / 1000 if isinstance(value, (int, float)) and value > 0 else None
+
+
 def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
     """A matchable entry for one minified library item, or None when it holds no book."""
     media = item.get("media")
@@ -81,6 +99,25 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
     ]:
         context_tok |= set(tokens(name))
     asin = str(metadata.get("asin") or "").strip().upper()
+    isbn = str(metadata.get("isbn") or "").strip()
+    narrator_names = _split_names(metadata.get("narratorName"))
+    item_id = str(item.get("id") or "")
+    display = (
+        LibraryItem(
+            source="audiobookshelf",
+            item_id=item_id,
+            title=title,
+            authors=tuple(_split_names(metadata.get("authorName"))),
+            series=_series_with_numbers(metadata.get("seriesName")),
+            narrators=tuple(narrator_names),
+            added_at=_added_at(item.get("addedAt")),
+            year=_year(metadata.get("publishedYear")),
+            has_cover=bool(media.get("coverPath")),
+            isbn=isbn or None,
+        )
+        if item_id
+        else None
+    )
     return LibraryEntry(
         tokens=frozenset(title_tok | context_tok),
         isbns=isbn_variants(metadata.get("isbn")),
@@ -88,9 +125,8 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
         title_tokens=frozenset(title_tok),
         context_tokens=frozenset(context_tok),
         content_types=frozenset(content_types),
-        narrators=frozenset(
-            normalize_narrator(name) for name in _split_names(metadata.get("narratorName"))
-        ),
+        narrators=frozenset(normalize_narrator(name) for name in narrator_names),
+        item=display,
     )
 
 
@@ -163,6 +199,27 @@ class AudiobookshelfLibrary:
             raise AudiobookshelfError(msg)
         response.raise_for_status()
         return response.json()
+
+    def cover(self, item_id: str, width: int = 400) -> tuple[bytes, str]:
+        """An item's cover image and its content type."""
+        base = _base_url(self._overrides)
+        key = _api_key(self._overrides)
+        if not base or not key:
+            msg = "Audiobookshelf URL and API key are required"
+            raise AudiobookshelfError(msg)
+        from shelfmark.download.network import get_proxies, get_ssl_verify
+
+        url = f"{base}/api/items/{item_id}/cover"
+        response = requests.get(
+            url,
+            params={"width": width},
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=_TIMEOUT_SECONDS,
+            proxies=get_proxies(url),
+            verify=get_ssl_verify(url),
+        )
+        response.raise_for_status()
+        return response.content, response.headers.get("Content-Type", "image/jpeg")
 
     def libraries(self, timeout: float = _TIMEOUT_SECONDS) -> list[dict[str, Any]]:
         """The server's book libraries (podcast libraries are left out)."""

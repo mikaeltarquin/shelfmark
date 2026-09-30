@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { ActivitySidebar } from './components/activity';
 import { AdvancedFilters } from './components/AdvancedFilters';
@@ -8,6 +8,7 @@ import { ConfigSetupBanner } from './components/ConfigSetupBanner';
 import { DetailsModal } from './components/DetailsModal';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
+import { LibraryPage } from './components/library/LibraryPage';
 import { MamAccountModal } from './components/MamAccountModal';
 import { MamBufferModal } from './components/MamBufferModal';
 import { MetadataConfigSession } from './components/MetadataConfigSession';
@@ -274,6 +275,9 @@ const AdminSettingsWarmupMount = () => {
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const isLibraryRoute =
+    location.pathname === '/library' || location.pathname.startsWith('/library/');
   const { toasts, showToast, removeToast } = useToast();
   const { socket } = useSocket();
 
@@ -2524,6 +2528,11 @@ function App() {
           onSearchChange={handleActiveQueryValueChange}
           onDownloadsClick={toggleDownloadsSidebar}
           onSettingsClick={handleSettingsClick}
+          onLibraryClick={
+            (requestRoleIsAdmin || !authRequired) && config?.library_browser_available
+              ? () => void navigate('/library')
+              : undefined
+          }
           onMamAccountClick={
             // Without login everyone is an admin, as the backend's admin check treats them.
             (requestRoleIsAdmin || !authRequired) && config?.mam_account_available
@@ -2543,6 +2552,7 @@ function App() {
           onLoadAdminUsers={loadAdminUsers}
           statusCounts={statusCounts}
           onLogoClick={() => {
+            if (isLibraryRoute) void navigate('/');
             handleResetSearch(config);
             setActiveQueryTarget('general');
             setActiveResultsSort('');
@@ -2552,7 +2562,11 @@ function App() {
           onLogout={() => {
             void handleLogoutWithCleanup();
           }}
-          onSearch={handleSearchDispatch}
+          onSearch={() => {
+            // Searching from the library page shows the results on the search page.
+            if (isLibraryRoute) void navigate('/');
+            handleSearchDispatch();
+          }}
           onAdvancedToggle={
             hasAdvancedContent ? () => setShowAdvanced(!effectiveShowAdvanced) : undefined
           }
@@ -2622,90 +2636,96 @@ function App() {
               : undefined
           }
         >
-          <SearchSection
-            onSearch={handleSearchDispatch}
-            isLoading={isSearching}
-            isInitialState={isInitialState}
-            searchPageTitle={config?.search_page_title || 'Shelfmark'}
-            bookLanguages={bookLanguages}
-            defaultLanguage={defaultLanguageCodes}
-            logoUrl={logoUrl}
-            queryValue={activeQueryValue}
-            queryValueLabel={activeQueryValueLabel}
-            onQueryValueChange={handleActiveQueryValueChange}
-            queryTargets={queryTargets}
-            activeQueryTarget={effectiveActiveQueryTarget}
-            onQueryTargetChange={handleQueryTargetChange}
-            showAdvanced={effectiveShowAdvanced}
-            onAdvancedToggle={
-              hasAdvancedContent ? () => setShowAdvanced(!effectiveShowAdvanced) : undefined
-            }
-            advancedFilters={advancedFilters}
-            onAdvancedFiltersChange={updateAdvancedFilters}
-            contentType={effectiveContentType}
-            onContentTypeChange={setContentType}
-            allowedContentTypes={allowedContentTypes}
-            combinedMode={effectiveCombinedMode}
-            combinedModeLocked={combinedModeLocked}
-            onCombinedModeChange={combinedModeAllowed ? setCombinedMode : undefined}
-            activeQueryField={activeQueryField}
-            searchMode={effectiveSearchMode}
-            onSearchModeChange={handleSearchModeChange}
-            metadataProviders={metadataProviders}
-            activeMetadataProvider={effectiveMetadataProvider}
-            onMetadataProviderChange={handleMetadataProviderChange}
-            isAdmin={requestRoleIsAdmin}
-          />
+          {isLibraryRoute ? (
+            <LibraryPage onBack={() => void navigate('/')} />
+          ) : (
+            <>
+              <SearchSection
+                onSearch={handleSearchDispatch}
+                isLoading={isSearching}
+                isInitialState={isInitialState}
+                searchPageTitle={config?.search_page_title || 'Shelfmark'}
+                bookLanguages={bookLanguages}
+                defaultLanguage={defaultLanguageCodes}
+                logoUrl={logoUrl}
+                queryValue={activeQueryValue}
+                queryValueLabel={activeQueryValueLabel}
+                onQueryValueChange={handleActiveQueryValueChange}
+                queryTargets={queryTargets}
+                activeQueryTarget={effectiveActiveQueryTarget}
+                onQueryTargetChange={handleQueryTargetChange}
+                showAdvanced={effectiveShowAdvanced}
+                onAdvancedToggle={
+                  hasAdvancedContent ? () => setShowAdvanced(!effectiveShowAdvanced) : undefined
+                }
+                advancedFilters={advancedFilters}
+                onAdvancedFiltersChange={updateAdvancedFilters}
+                contentType={effectiveContentType}
+                onContentTypeChange={setContentType}
+                allowedContentTypes={allowedContentTypes}
+                combinedMode={effectiveCombinedMode}
+                combinedModeLocked={combinedModeLocked}
+                onCombinedModeChange={combinedModeAllowed ? setCombinedMode : undefined}
+                activeQueryField={activeQueryField}
+                searchMode={effectiveSearchMode}
+                onSearchModeChange={handleSearchModeChange}
+                metadataProviders={metadataProviders}
+                activeMetadataProvider={effectiveMetadataProvider}
+                onMetadataProviderChange={handleMetadataProviderChange}
+                isAdmin={requestRoleIsAdmin}
+              />
 
-          <ResultsSection
-            books={books}
-            visible={hasResults}
-            onDetails={handleShowDetails}
-            onDownload={handleDownload}
-            onGetReleases={handleGetReleases}
-            getButtonState={getDirectActionButtonState}
-            getUniversalButtonState={getUniversalActionButtonState}
-            sortValue={visibleResultsSort}
-            showSortControl={
-              !activeQueryUsesSeriesBrowse && !activeQueryUsesListBrowse && !resultsSourceUrl
-            }
-            onSortChange={(value) => {
-              const request = buildCurrentSearchRequest(value);
-              const shouldPersistAppliedSort = !(
-                effectiveSearchMode === 'universal' &&
-                activeQueryUsesSeriesBrowse &&
-                request.appliedSort === seriesBrowseCapability?.sort
-              );
-              if (shouldPersistAppliedSort) {
-                updateAdvancedFilters({ sort: request.appliedSort });
-              }
-              setActiveResultsSort(request.appliedSort);
+              <ResultsSection
+                books={books}
+                visible={hasResults}
+                onDetails={handleShowDetails}
+                onDownload={handleDownload}
+                onGetReleases={handleGetReleases}
+                getButtonState={getDirectActionButtonState}
+                getUniversalButtonState={getUniversalActionButtonState}
+                sortValue={visibleResultsSort}
+                showSortControl={
+                  !activeQueryUsesSeriesBrowse && !activeQueryUsesListBrowse && !resultsSourceUrl
+                }
+                onSortChange={(value) => {
+                  const request = buildCurrentSearchRequest(value);
+                  const shouldPersistAppliedSort = !(
+                    effectiveSearchMode === 'universal' &&
+                    activeQueryUsesSeriesBrowse &&
+                    request.appliedSort === seriesBrowseCapability?.sort
+                  );
+                  if (shouldPersistAppliedSort) {
+                    updateAdvancedFilters({ sort: request.appliedSort });
+                  }
+                  setActiveResultsSort(request.appliedSort);
 
-              // "Most downloads" is a client-side sort — just re-sort existing books
-              if (request.appliedSort === 'downloads' && effectiveSearchMode === 'direct') {
-                reSortByDownloads();
-                return;
-              }
+                  // "Most downloads" is a client-side sort — just re-sort existing books
+                  if (request.appliedSort === 'downloads' && effectiveSearchMode === 'direct') {
+                    reSortByDownloads();
+                    return;
+                  }
 
-              runSearchWithPolicyRefresh({
-                query: request.query,
-                fieldValues: request.fieldValues,
-                searchModeOverride: effectiveSearchMode,
-                providerOverride: request.providerOverride,
-                sort: request.appliedSort,
-              });
-            }}
-            metadataSortOptions={resolvedMetadataSortOptions}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={() => {
-              void loadMore(config, effectiveSearchMode);
-            }}
-            totalFound={totalFound}
-            directTotalResults={directTotalResults}
-            onShowToast={showToast}
-            resultsSourceUrl={resultsSourceUrl}
-          />
+                  runSearchWithPolicyRefresh({
+                    query: request.query,
+                    fieldValues: request.fieldValues,
+                    searchModeOverride: effectiveSearchMode,
+                    providerOverride: request.providerOverride,
+                    sort: request.appliedSort,
+                  });
+                }}
+                metadataSortOptions={resolvedMetadataSortOptions}
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                onLoadMore={() => {
+                  void loadMore(config, effectiveSearchMode);
+                }}
+                totalFound={totalFound}
+                directTotalResults={directTotalResults}
+                onShowToast={showToast}
+                resultsSourceUrl={resultsSourceUrl}
+              />
+            </>
+          )}
 
           {selectedBook && (
             <DetailsModal

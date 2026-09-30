@@ -94,6 +94,16 @@ def _enabled_providers(content_type: str | None) -> list[LibraryProvider]:
     ]
 
 
+def enabled_providers() -> list[LibraryProvider]:
+    """Every enabled library provider."""
+    return _enabled_providers(None)
+
+
+def provider_entries(provider: LibraryProvider) -> list[LibraryEntry]:
+    """One provider's cached entries (fail-open: stale or empty when it can't be read)."""
+    return _entries_for(provider)
+
+
 def any_provider_enabled() -> bool:
     return any(provider.is_enabled() for provider in all_providers())
 
