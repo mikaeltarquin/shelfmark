@@ -125,6 +125,9 @@ class DownloadTask:
     # Ebooks only: the narrators of each audiobook queued together with this ebook, so
     # the ebook can go straight into those audiobooks' folders (see postprocess.companions).
     companion_narrators: list[list[str]] | None = None
+    # Bytes this download adds to the MyAnonamouse account's downloaded total (a
+    # non-freeleech MAM torrent's size), counted against the buffer while it is active.
+    mam_charge_bytes: int | None = None
 
     # Hardlinking support
     original_download_path: str | None = None  # Path in download client (for hardlinking)

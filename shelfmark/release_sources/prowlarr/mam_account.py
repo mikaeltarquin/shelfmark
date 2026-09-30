@@ -24,8 +24,12 @@ from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.request_helpers import normalize_optional_text
 from shelfmark.release_sources.prowlarr.mam import MamClient, MamError
+from shelfmark.release_sources.prowlarr.mam_charge import mam_charge_bytes_for_release
 
 logger = setup_logger(__name__)
+
+# Below this the ratio line warns: MAM's minimum for renewing VIP.
+RATIO_WARNING = 2.0
 
 UPLOAD_CREDIT_POINTS_PER_GB = 500
 UPLOAD_CREDIT_STEP_GB = 50
@@ -341,3 +345,102 @@ def connection_status() -> dict[str, Any]:
                 "message": f"Connected as {stats.username}" if stats.username else "Connected",
             }
     return {"mam": mam, "torrent_client": _torrent_client_status()}
+
+
+def buffer_check_enabled() -> bool:
+    """Whether MAM downloads larger than the buffer are held back."""
+    return bool(config.get("MAM_BLOCK_ON_LOW_BUFFER", True)) and is_configured()
+
+
+def pending_charge_bytes() -> int:
+    """What Shelfmark's still-active MAM downloads will add to the downloaded total.
+
+    Counted in full: MAM's stats only include what a torrent has downloaded so far,
+    so this errs on the side of a smaller buffer.
+    """
+    from shelfmark.core.models import ACTIVE_QUEUE_STATUSES
+    from shelfmark.core.queue import book_queue
+
+    total = 0
+    for status, tasks in book_queue.get_status().items():
+        if status not in ACTIVE_QUEUE_STATUSES:
+            continue
+        total += sum(task.mam_charge_bytes or 0 for task in tasks.values())
+    return total
+
+
+def recommended_purchase_gb(missing_bytes: int) -> int:
+    """The smallest amount MAM sells that covers `missing_bytes`."""
+    missing_gb = max(missing_bytes, 0) / _GIB
+    steps = max(1, math.ceil(missing_gb / UPLOAD_CREDIT_STEP_GB))
+    return steps * UPLOAD_CREDIT_STEP_GB
+
+
+@dataclass(frozen=True)
+class BufferCheck:
+    """Whether some MAM downloads fit in the buffer, and what to buy if not."""
+
+    ok: bool
+    checked: bool  # False when disabled, or the stats could not be read (never blocks)
+    request_bytes: int
+    pending_bytes: int = 0
+    buffer_bytes: int | None = None
+    missing_bytes: int = 0
+    recommended_gb: int = 0
+    recommended_cost: int = 0
+    seedbonus: float | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize for the API."""
+        return asdict(self)
+
+
+def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
+    """Check that `releases` plus the active MAM downloads fit in the account's buffer.
+
+    Fails open: when the check is off or MAM can't be read, downloads go ahead.
+    """
+    request_bytes = sum(mam_charge_bytes_for_release(release) for release in releases)
+    if request_bytes <= 0 or not buffer_check_enabled():
+        return BufferCheck(ok=True, checked=False, request_bytes=request_bytes)
+    try:
+        stats = get_stats()
+    except MAM_ERRORS as exc:
+        logger.warning("Could not check the MAM buffer, downloading anyway: %s", exc)
+        return BufferCheck(
+            ok=True, checked=False, request_bytes=request_bytes, error=describe_error(exc)
+        )
+    pending = pending_charge_bytes()
+    missing = request_bytes + pending - stats.buffer_bytes
+    recommended = recommended_purchase_gb(missing) if missing > 0 else 0
+    return BufferCheck(
+        ok=missing <= 0,
+        checked=True,
+        request_bytes=request_bytes,
+        pending_bytes=pending,
+        buffer_bytes=stats.buffer_bytes,
+        missing_bytes=max(missing, 0),
+        recommended_gb=recommended,
+        recommended_cost=recommended * UPLOAD_CREDIT_POINTS_PER_GB,
+        seedbonus=stats.seedbonus,
+    )
+
+
+def ratio_snapshot() -> dict[str, Any]:
+    """What the projected-ratio line needs; no username or bonus points (all users see it)."""
+    if not is_configured():
+        return {"available": False}
+    try:
+        stats = get_stats()
+    except MAM_ERRORS as exc:
+        return {"available": False, "error": describe_error(exc)}
+    return {
+        "available": True,
+        "uploaded_bytes": stats.uploaded_bytes,
+        "downloaded_bytes": stats.downloaded_bytes,
+        "ratio": stats.ratio,
+        "buffer_bytes": stats.buffer_bytes,
+        "pending_bytes": pending_charge_bytes(),
+        "warning_ratio": RATIO_WARNING,
+    }

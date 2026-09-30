@@ -1330,6 +1330,7 @@ How long to cache individual book details. Default: 600 (10 minutes). Max: 60480
 | `PROWLARR_COLLAPSE_DUPLICATES` | Collapse a release that several indexer entries returned down to a single row, keeping the entry with the best Prowlarr priority. Turn this off to see every entry that carried it, which is what makes results from filter-specific entries (freeleech and the like) visible. | boolean | `true` |
 | `PROWLARR_USE_SEED_PREFERENCES` | Apply per-indexer seed time and ratio preferences from Prowlarr when sending torrents to the download client | boolean | `false` |
 | `PROWLARR_MAM_ID` | The mam_id value MyAnonamouse shows when you create a session. MAM locks each session to one IP or ASN, so reusing Prowlarr's or another client's session often fails with a 403: you will likely need a separate session for Shelfmark if it reaches MAM from another IP (different host, VPN or proxy) or the existing session is ASN-locked to another network. Leave empty to turn enrichment off. | string (secret) | _none_ |
+| `MAM_BLOCK_ON_LOW_BUFFER` | Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead. | boolean | `true` |
 
 <details>
 <summary>Detailed descriptions</summary>
@@ -1417,6 +1418,15 @@ The mam_id value MyAnonamouse shows when you create a session. MAM locks each se
 
 - **Type:** string (secret)
 - **Default:** _none_
+
+#### `MAM_BLOCK_ON_LOW_BUFFER`
+
+**Hold Back Downloads Larger Than the Buffer**
+
+Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead.
+
+- **Type:** boolean
+- **Default:** `true`
 
 </details>
 

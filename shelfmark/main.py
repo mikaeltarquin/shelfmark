@@ -55,7 +55,7 @@ from shelfmark.core.cwa_user_sync import upsert_cwa_user
 from shelfmark.core.download_history_service import DownloadHistoryService
 from shelfmark.core.external_user_linking import upsert_external_user
 from shelfmark.core.logger import setup_logger
-from shelfmark.core.mam_routes import register_mam_routes
+from shelfmark.core.mam_routes import buffer_check_payload, register_mam_routes
 from shelfmark.core.models import TERMINAL_QUEUE_STATUSES, QueueStatus, SearchFilters
 from shelfmark.core.notifications import (
     NotificationContext,
@@ -1202,6 +1202,18 @@ def api_download_release() -> Response | tuple[Response, int]:
         )
         if on_behalf_error:
             return on_behalf_error
+        # A MyAnonamouse torrent must fit in the account's buffer (the UI checks first
+        # and offers upload credit; this catches anything that skipped that).
+        buffer_check = buffer_check_payload([release_payload])
+        if not buffer_check["ok"]:
+            return jsonify(
+                {
+                    **buffer_check,
+                    "code": "insufficient_mam_buffer",
+                    "error": "Not enough MyAnonamouse buffer for this download",
+                }
+            ), 409
+
         success, error_msg = backend.queue_release(
             release_payload,
             priority,

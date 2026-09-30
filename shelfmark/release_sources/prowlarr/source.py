@@ -670,6 +670,8 @@ def _prowlarr_result_to_release(
             "indexer_flags": indexer_flags,
             "vip": is_vip,
             "freeleech": is_freeleech,
+            # Set for MyAnonamouse torrents: they count against the MAM account's buffer.
+            "mam_torrent_id": mam_torrent_id(result.get("infoUrl") or result.get("guid")),
             "download_volume_factor": result.get("downloadVolumeFactor"),
             "upload_volume_factor": result.get("uploadVolumeFactor"),
             "configured_ratio_limit": result.get("configuredRatioLimit"),

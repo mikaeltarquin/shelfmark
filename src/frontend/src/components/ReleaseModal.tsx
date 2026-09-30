@@ -32,6 +32,8 @@ import {
   releaseLanguageMatchesFilter,
   buildLanguageNormalizer,
 } from '../utils/languageFilters';
+import { formatGib, formatRatio } from '../utils/mamAccount';
+import { projectRatio, type MamRatioSnapshot, type RatioProjection } from '../utils/mamRatio';
 import { getNestedValue, toComparableText, toStringValue } from '../utils/objectHelpers';
 import { toBookPlanPayload } from '../utils/packReview';
 import { getReleaseFormats } from '../utils/releaseFormats';
@@ -189,6 +191,8 @@ interface ReleaseModalProps {
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
   // Combined mode (ebook + audiobook in one transaction)
   combinedMode?: CombinedModeConfig | null;
+  // MyAnonamouse account figures, for the projected-ratio line in combined mode.
+  mamRatio?: MamRatioSnapshot | null;
 }
 
 const STAR_POSITIONS = [0, 1, 2, 3, 4] as const;
@@ -336,6 +340,26 @@ const RadioIndicator = ({
       )}
     </div>
   </div>
+);
+
+const RATIO_LINE_TONES = {
+  ok: 'text-zinc-500 dark:text-zinc-400',
+  warn: 'text-amber-600 dark:text-amber-400',
+  bad: 'text-red-600 dark:text-red-400',
+} as const;
+
+// What the MyAnonamouse ratio and buffer become once the picked releases download.
+const MamRatioLine = ({ projection }: { projection: RatioProjection }) => (
+  <p
+    className={`mt-3 text-xs tabular-nums ${RATIO_LINE_TONES[projection.tone]}`}
+    data-testid="mam-ratio-line"
+  >
+    MAM ratio {formatRatio(projection.currentRatio)} → {formatRatio(projection.projectedRatio)}
+    {' · '}buffer {formatGib(projection.currentBuffer)} → {formatGib(projection.projectedBuffer)}
+    {projection.selectedBytes === 0 && ' · freeleech'}
+    {projection.pendingBytes > 0 &&
+      ` · includes ${formatGib(projection.pendingBytes)} still downloading`}
+  </p>
 );
 
 // Phase indicator chip for combined mode footer
@@ -800,6 +824,7 @@ const ReleaseModalSession = ({
   showReleaseSourceLinks = true,
   onShowToast,
   combinedMode = null,
+  mamRatio = null,
   isClosing,
   animateEnter,
 }: ReleaseModalSessionProps) => {
@@ -1429,6 +1454,15 @@ const ReleaseModalSession = ({
         onCombinedClearSelection?.('audiobook');
       }
     : undefined;
+
+  // Everything that would download: the book and audiobook picks from both steps.
+  const mamProjection =
+    isCombinedMode && mamRatio
+      ? projectRatio(mamRatio, [
+          ...(combinedPhase === 'ebook' ? selectedReleases : releasesOf(stagedEbookRelease)),
+          ...(combinedPhase === 'audiobook' ? selectedReleases : stagedAudiobookReleases),
+        ])
+      : null;
 
   const modal = (
     <div className="modal-overlay active sm:px-6 sm:py-6">
@@ -2520,6 +2554,7 @@ const ReleaseModalSession = ({
                   )}
                 </div>
               </div>
+              {mamProjection && <MamRatioLine projection={mamProjection} />}
             </div>
           )}
         </div>
