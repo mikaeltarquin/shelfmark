@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 
 import type { LibraryBook } from '../../types';
+import { firstLastName } from '../../utils/authorNames';
 import {
   authorSeriesSections,
   booksByAuthor,
   groupBySeries,
+  sameAuthor,
   sameName,
   seriesRangeLabel,
 } from '../../utils/libraryGroups';
@@ -46,9 +48,9 @@ export const LibraryAuthorPage = ({
   const sections = useMemo(() => authorSeriesSections(own), [own]);
   const hasSeries = sections.some((section) => section.series !== null);
   const [mode, setMode] = useState<AuthorMode>(hasSeries ? 'series' : 'all');
-  const name = own[0]?.authors.find((known) => sameName(known, author)) ?? author;
+  const name = firstLastName(own[0]?.authors.find((known) => sameAuthor(known, author)) ?? author);
   const otherAuthor = (clicked: string) => {
-    if (!sameName(clicked, author)) onAuthorClick(clicked);
+    if (!sameAuthor(clicked, author)) onAuthorClick(clicked);
   };
 
   if (own.length === 0) {

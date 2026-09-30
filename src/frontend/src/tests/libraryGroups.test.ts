@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { LibraryBook } from '../types';
 import {
   authorSeriesSections,
+  sortAuthorGroups,
   booksByAuthor,
   groupByAuthor,
   groupBySeries,
@@ -108,5 +109,42 @@ describe('helpers', () => {
     const path = libraryPath('authors', 'Ursula K. Le Guin / AC/DC');
     expect(parseLibraryRoute(path)).toEqual({ tab: 'authors', name: 'Ursula K. Le Guin / AC/DC' });
     expect(parseLibraryRoute('/library/nonsense')).toEqual({ tab: 'all', name: null });
+  });
+});
+
+describe('author sorting', () => {
+  const weir = book('Project Hail Mary', { authors: ['Weir, Andy'], added_at: 300 });
+  const groups = groupByAuthor([...all, weir]);
+
+  it('merges "Last, First" with "First Last"', () => {
+    const andy = groups.find((g) => g.name === 'Andy Weir');
+    expect(andy?.books.map((b) => b.title).toSorted()).toEqual([
+      'Project Hail Mary',
+      'The Martian',
+    ]);
+    expect(andy?.latestAdded).toBe(300);
+    expect(groups.filter((g) => g.name.includes('Weir'))).toHaveLength(1);
+  });
+
+  const names = (field: Parameters<typeof sortAuthorGroups>[1], dir: 'asc' | 'desc') =>
+    sortAuthorGroups(groups, field, dir).map((g) => g.name);
+
+  it('sorts by first name, last name, counts and direction', () => {
+    expect(names('first', 'asc')).toEqual([
+      'Andy Weir',
+      'Brandon Sanderson',
+      'Neil Gaiman',
+      'Terry Pratchett',
+    ]);
+    expect(names('last', 'asc')).toEqual([
+      'Neil Gaiman',
+      'Terry Pratchett',
+      'Brandon Sanderson',
+      'Andy Weir',
+    ]);
+    expect(names('last', 'desc')[0]).toBe('Andy Weir');
+    expect(names('books', 'desc')[0]).toBe('Brandon Sanderson');
+    expect(names('books', 'asc')[0]).toBe('Neil Gaiman');
+    expect(names('added', 'desc')[0]).toBe('Andy Weir');
   });
 });

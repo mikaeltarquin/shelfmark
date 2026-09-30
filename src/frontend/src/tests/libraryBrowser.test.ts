@@ -81,7 +81,7 @@ describe('sortLibraryBooks', () => {
 
 describe('helpers', () => {
   it('author sort key puts the surname first', () => {
-    expect(authorSortKey('Andy Weir')).toBe('weir andy');
+    expect(authorSortKey('Andy Weir')).toBe('weir, andy');
     expect(authorSortKey('Plato')).toBe('plato');
   });
 

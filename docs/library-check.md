@@ -56,7 +56,11 @@ narrator), a format filter (ebook, audiobook, or both) and sorting by title, aut
 recently added. A book held by both libraries, say the ebook in Calibre and the audiobook
 in Audiobookshelf, is one book with both format badges.
 
-The **Authors** and **Series** tabs list every author and series with a count. An author's
+The **Authors** and **Series** tabs list every author and series with a count. Authors sort
+by **First Last** (the default), **Last, First** (which also shows names that way), number
+of books or series, or most recently added, ascending or descending, and show as cards or
+as a **table** (click a column heading to sort by it). These choices are remembered in
+the browser. "Weir, Andy" and "Andy Weir" count as the same author. An author's
 page shows all their books, or groups them by series (**All books** / **By series**); a
 series page shows the books in reading order with their numbers. Clicking an author or
 series name anywhere opens its page, and each page has its own address

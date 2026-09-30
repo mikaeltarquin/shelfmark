@@ -2,10 +2,8 @@ import { useMemo, useState } from 'react';
 
 import type { LibraryBook } from '../../types';
 import {
-  groupByAuthor,
   groupBySeries,
   seriesRangeLabel,
-  type LibraryAuthorGroup,
   type LibrarySeriesGroup,
 } from '../../utils/libraryGroups';
 import { LibraryGroupCard } from './LibraryGroupCard';
@@ -60,54 +58,6 @@ const sortGroups = <T extends { name: string; books: LibraryBook[] }>(
   groups: T[],
   sort: GroupSort,
 ): T[] => (sort === 'count' ? groups.toSorted((a, b) => b.books.length - a.books.length) : groups);
-
-export const LibraryAuthorsView = ({
-  books,
-  onOpen,
-}: {
-  books: LibraryBook[];
-  onOpen: (author: string) => void;
-}) => {
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<GroupSort>('name');
-  const groups: LibraryAuthorGroup[] = useMemo(() => groupByAuthor(books), [books]);
-  const visible = sortGroups(
-    groups.filter((group) => fold(group.name).includes(fold(query.trim()))),
-    sort,
-  );
-
-  return (
-    <div className="space-y-5">
-      <GroupsToolbar
-        query={query}
-        onQuery={setQuery}
-        sort={sort}
-        onSort={setSort}
-        placeholder="Filter authors"
-      />
-      {visible.length === 0 ? (
-        <p className="text-sm opacity-60">No authors match.</p>
-      ) : (
-        <div className={gridClass}>
-          {visible.map((group) => (
-            <LibraryGroupCard
-              key={group.name}
-              title={group.name}
-              detail={
-                group.seriesCount > 0
-                  ? `${plural(group.books.length, 'book')} · ${group.seriesCount} series`
-                  : plural(group.books.length, 'book')
-              }
-              books={group.books}
-              formats={group.formats}
-              onOpen={() => onOpen(group.name)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export const LibrarySeriesView = ({
   books,
