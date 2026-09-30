@@ -47,6 +47,9 @@ def setup(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(mam_account, "session_id", lambda: "session")
     monkeypatch.setattr(mam_autobuy, "_history_path", lambda: tmp_path / "history.json")
+    from shelfmark.release_sources.prowlarr import mam_points
+
+    monkeypatch.setattr(mam_points, "_path", lambda: tmp_path / "points.json")
     fake = StoreMam(user=_user(300, 100, 100000))
     monkeypatch.setattr(mam_account, "MamClient", fake)
     mam_account.invalidate_stats()

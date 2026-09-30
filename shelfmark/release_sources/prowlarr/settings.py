@@ -303,6 +303,28 @@ def prowlarr_config_settings() -> list[SettingsField]:
             default=True,
             show_when={"field": "PROWLARR_ENABLED", "value": True},
         ),
+        CheckboxField(
+            key="MAM_BLOCK_ON_UNSAT_LIMIT",
+            label="Hold Back Downloads at the Unsatisfied Limit",
+            description=(
+                "MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 "
+                "hours) at once, by user class. Before queueing MAM torrents (freeleech too), "
+                "check that they, plus Shelfmark's MAM downloads not yet started, leave the "
+                "slots below free. Buying upload credit doesn't help here; wait for torrents "
+                "to finish seeding."
+            ),
+            default=True,
+            show_when={"field": "PROWLARR_ENABLED", "value": True},
+        ),
+        NumberField(
+            key="MAM_UNSAT_RESERVE_SLOTS",
+            label="Unsatisfied Slots to Keep Free",
+            description="Hold back downloads that would leave fewer free unsatisfied slots than this.",
+            default=5,
+            min_value=0,
+            step=1,
+            show_when={"field": "MAM_BLOCK_ON_UNSAT_LIMIT", "value": True},
+        ),
         HeadingField(
             key="prowlarr_mam_autobuy_heading",
             title="Upload Credit Auto-Buy",

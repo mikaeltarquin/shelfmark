@@ -24,7 +24,10 @@ from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.request_helpers import normalize_optional_text
 from shelfmark.release_sources.prowlarr.mam import MamClient, MamError
-from shelfmark.release_sources.prowlarr.mam_charge import mam_charge_bytes_for_release
+from shelfmark.release_sources.prowlarr.mam_charge import (
+    mam_charge_bytes_for_release,
+    mam_torrent_id_for_release,
+)
 
 logger = setup_logger(__name__)
 
@@ -75,6 +78,9 @@ class MamStats:
     ratio: float | None  # None when MAM reports none (nothing downloaded yet)
     seedbonus: float
     vip_until: str | None
+    # Torrents not yet seeded for MAM's required 72 hours, and how many the class allows.
+    unsat_count: int | None = None
+    unsat_limit: int | None = None
     fetched_at: float = field(default_factory=time.time)
 
     @property
@@ -144,6 +150,22 @@ def parse_number(value: object) -> float | None:
         return None
 
 
+def _whole(value: object) -> int | None:
+    number = parse_number(value)
+    return int(number) if number is not None and math.isfinite(number) else None
+
+
+def _unsat_summary(data: dict[str, Any]) -> dict[str, Any]:
+    """The "unsat" snatch summary: nested under "snatch_summary" since September 2026,
+    at the top level before that."""
+    nested = data.get("snatch_summary")
+    for container in (nested if isinstance(nested, dict) else {}, data):
+        unsat = container.get("unsat")
+        if isinstance(unsat, dict):
+            return unsat
+    return {}
+
+
 def parse_stats(data: dict[str, Any]) -> MamStats:
     """Build MamStats from a jsonLoad.php reply, preferring its exact byte counts."""
     uploaded = parse_size_bytes(data.get("uploaded_bytes"))
@@ -155,6 +177,7 @@ def parse_stats(data: dict[str, Any]) -> MamStats:
     username = data.get("username")
     classname = data.get("classname")
     vip_until = data.get("vip_until")
+    unsat = _unsat_summary(data)
     return MamStats(
         username=str(username) if username else None,
         classname=str(classname) if classname else None,
@@ -163,6 +186,8 @@ def parse_stats(data: dict[str, Any]) -> MamStats:
         ratio=parse_number(data.get("ratio")),
         seedbonus=parse_number(data.get("seedbonus")) or 0.0,
         vip_until=str(vip_until) if vip_until else None,
+        unsat_count=_whole(unsat.get("count")),
+        unsat_limit=_whole(unsat.get("limit")),
     )
 
 
@@ -196,6 +221,9 @@ def get_stats(*, refresh: bool = False) -> MamStats:
     stats = parse_stats(client.get_user_data())
     with _cache_lock:
         _cached = (mam_id, stats)
+    from shelfmark.release_sources.prowlarr import mam_points
+
+    mam_points.record_sample(stats.seedbonus, at=stats.fetched_at)
     return stats
 
 
@@ -353,21 +381,50 @@ def buffer_check_enabled() -> bool:
     return bool(config.get("MAM_BLOCK_ON_LOW_BUFFER", True)) and is_configured()
 
 
+def unsat_check_enabled() -> bool:
+    """Whether MAM downloads that would use up the unsatisfied slots are held back."""
+    return bool(config.get("MAM_BLOCK_ON_UNSAT_LIMIT", True)) and is_configured()
+
+
+def unsat_reserve_slots() -> int:
+    """Unsatisfied slots to keep free (5 by default)."""
+    value = parse_number(config.get("MAM_UNSAT_RESERVE_SLOTS", 5))
+    return max(0, int(value)) if value is not None and math.isfinite(value) else 5
+
+
+def _active_mam_tasks() -> list[tuple[Any, Any]]:
+    from shelfmark.core.models import ACTIVE_QUEUE_STATUSES
+    from shelfmark.core.queue import book_queue
+
+    return [
+        (status, task)
+        for status, tasks in book_queue.get_status().items()
+        if status in ACTIVE_QUEUE_STATUSES
+        for task in tasks.values()
+    ]
+
+
 def pending_charge_bytes() -> int:
     """What Shelfmark's still-active MAM downloads will add to the downloaded total.
 
     Counted in full: MAM's stats only include what a torrent has downloaded so far,
     so this errs on the side of a smaller buffer.
     """
-    from shelfmark.core.models import ACTIVE_QUEUE_STATUSES
-    from shelfmark.core.queue import book_queue
+    return sum(task.mam_charge_bytes or 0 for _status, task in _active_mam_tasks())
 
-    total = 0
-    for status, tasks in book_queue.get_status().items():
-        if status not in ACTIVE_QUEUE_STATUSES:
-            continue
-        total += sum(task.mam_charge_bytes or 0 for task in tasks.values())
-    return total
+
+def pending_unsat_count() -> int:
+    """Shelfmark's MAM downloads not yet handed to the torrent client.
+
+    MAM counts a torrent as unsatisfied from when it is snatched, so the ones already
+    downloading are in its count; the queued ones are not yet.
+    """
+    from shelfmark.core.models import QueueStatus
+
+    not_started = {QueueStatus.QUEUED, QueueStatus.RESOLVING}
+    return sum(
+        1 for status, task in _active_mam_tasks() if task.mam_torrent_id and status in not_started
+    )
 
 
 def recommended_purchase_gb(missing_bytes: int) -> int:
@@ -379,7 +436,11 @@ def recommended_purchase_gb(missing_bytes: int) -> int:
 
 @dataclass(frozen=True)
 class BufferCheck:
-    """Whether some MAM downloads fit in the buffer, and what to buy if not."""
+    """Whether some MAM downloads fit in the buffer and the unsatisfied slots.
+
+    `buffer_ok` can be fixed by buying upload credit; `unsat_ok` only by waiting for
+    torrents to finish seeding.
+    """
 
     ok: bool
     checked: bool  # False when disabled, or the stats could not be read (never blocks)
@@ -391,6 +452,13 @@ class BufferCheck:
     recommended_cost: int = 0
     seedbonus: float | None = None
     error: str | None = None
+    buffer_ok: bool = True
+    unsat_ok: bool = True
+    request_count: int = 0
+    unsat_count: int | None = None
+    unsat_limit: int | None = None
+    unsat_pending: int = 0
+    unsat_reserve: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for the API."""
@@ -398,25 +466,44 @@ class BufferCheck:
 
 
 def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
-    """Check that `releases` plus the active MAM downloads fit in the account's buffer.
+    """Check that `releases` plus the active MAM downloads fit the account.
 
-    Fails open: when the check is off or MAM can't be read, downloads go ahead.
+    Two limits: the buffer (non-freeleech sizes), and the unsatisfied torrent limit less
+    the slots to keep free (every MAM torrent). Fails open: when a check is off or MAM
+    can't be read, downloads go ahead.
     """
     request_bytes = sum(mam_charge_bytes_for_release(release) for release in releases)
-    if request_bytes <= 0 or not buffer_check_enabled():
-        return BufferCheck(ok=True, checked=False, request_bytes=request_bytes)
+    request_count = sum(1 for release in releases if mam_torrent_id_for_release(release))
+    check_buffer_size = request_bytes > 0 and buffer_check_enabled()
+    check_unsat = request_count > 0 and unsat_check_enabled()
+    if not (check_buffer_size or check_unsat):
+        return BufferCheck(
+            ok=True, checked=False, request_bytes=request_bytes, request_count=request_count
+        )
     try:
         stats = get_stats()
     except MAM_ERRORS as exc:
-        logger.warning("Could not check the MAM buffer, downloading anyway: %s", exc)
+        logger.warning("Could not check the MAM account, downloading anyway: %s", exc)
         return BufferCheck(
-            ok=True, checked=False, request_bytes=request_bytes, error=describe_error(exc)
+            ok=True,
+            checked=False,
+            request_bytes=request_bytes,
+            request_count=request_count,
+            error=describe_error(exc),
         )
+
     pending = pending_charge_bytes()
-    missing = request_bytes + pending - stats.buffer_bytes
+    missing = request_bytes + pending - stats.buffer_bytes if check_buffer_size else 0
     recommended = recommended_purchase_gb(missing) if missing > 0 else 0
+
+    unsat_pending = pending_unsat_count()
+    reserve = unsat_reserve_slots()
+    unsat_ok = True
+    if check_unsat and stats.unsat_count is not None and stats.unsat_limit is not None:
+        unsat_ok = stats.unsat_count + unsat_pending + request_count <= stats.unsat_limit - reserve
+
     return BufferCheck(
-        ok=missing <= 0,
+        ok=missing <= 0 and unsat_ok,
         checked=True,
         request_bytes=request_bytes,
         pending_bytes=pending,
@@ -425,6 +512,13 @@ def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
         recommended_gb=recommended,
         recommended_cost=recommended * UPLOAD_CREDIT_POINTS_PER_GB,
         seedbonus=stats.seedbonus,
+        buffer_ok=missing <= 0,
+        unsat_ok=unsat_ok,
+        request_count=request_count,
+        unsat_count=stats.unsat_count,
+        unsat_limit=stats.unsat_limit,
+        unsat_pending=unsat_pending,
+        unsat_reserve=reserve,
     )
 
 
@@ -450,4 +544,8 @@ def ratio_snapshot() -> dict[str, Any]:
         "buffer_bytes": stats.buffer_bytes,
         "pending_bytes": pending_charge_bytes(),
         "warning_ratio": warning_ratio(),
+        "unsat_count": stats.unsat_count,
+        "unsat_limit": stats.unsat_limit,
+        "unsat_pending": pending_unsat_count(),
+        "unsat_reserve": unsat_reserve_slots(),
     }

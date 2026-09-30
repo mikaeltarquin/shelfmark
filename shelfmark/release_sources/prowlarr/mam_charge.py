@@ -20,6 +20,12 @@ def _positive_int(value: object) -> int | None:
     return None
 
 
+def mam_torrent_id_for_release(release_data: dict[str, Any]) -> int | None:
+    """The MAM torrent ID of a release payload, or None when it isn't a MAM torrent."""
+    extra = release_data.get("extra")
+    return _positive_int(extra.get("mam_torrent_id")) if isinstance(extra, dict) else None
+
+
 def is_mam_release(release_data: dict[str, Any]) -> bool:
     """Whether a release payload is a MyAnonamouse torrent (tagged at search time)."""
     extra = release_data.get("extra")

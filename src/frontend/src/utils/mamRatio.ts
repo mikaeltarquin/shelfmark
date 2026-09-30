@@ -11,6 +11,10 @@ export interface MamRatioSnapshot {
   buffer_bytes?: number;
   pending_bytes?: number; // Shelfmark's MAM downloads still active
   warning_ratio?: number;
+  unsat_count?: number | null;
+  unsat_limit?: number | null;
+  unsat_pending?: number; // Shelfmark's MAM downloads not yet started
+  unsat_reserve?: number; // Slots kept free
 }
 
 export interface MamBufferCheck {
@@ -25,6 +29,13 @@ export interface MamBufferCheck {
   seedbonus: number | null;
   error: string | null;
   can_buy: boolean;
+  buffer_ok: boolean;
+  unsat_ok: boolean;
+  request_count: number;
+  unsat_count: number | null;
+  unsat_limit: number | null;
+  unsat_pending: number;
+  unsat_reserve: number;
 }
 
 const positive = (value: unknown): number =>
@@ -47,6 +58,8 @@ export interface RatioProjection {
   projectedBuffer: number;
   pendingBytes: number;
   selectedBytes: number;
+  // Unsatisfied torrents now, and once the picks and queued downloads are added.
+  unsat: { current: number; projected: number; limit: number; blocked: boolean } | null;
   tone: 'ok' | 'warn' | 'bad';
 }
 
@@ -69,8 +82,24 @@ export const projectRatio = (
   const projectedBuffer = currentBuffer - pending - selected;
   const warning = snapshot.warning_ratio ?? 2;
 
+  let unsat: RatioProjection['unsat'] = null;
+  if (typeof snapshot.unsat_count === 'number' && typeof snapshot.unsat_limit === 'number') {
+    const picked = releases.filter(isMamRelease).length;
+    const projected = snapshot.unsat_count + (snapshot.unsat_pending ?? 0) + picked;
+    unsat = {
+      current: snapshot.unsat_count,
+      projected,
+      limit: snapshot.unsat_limit,
+      blocked: projected > snapshot.unsat_limit - (snapshot.unsat_reserve ?? 0),
+    };
+  }
+
   let tone: RatioProjection['tone'] = 'ok';
-  if (projectedBuffer < 0 || (projectedRatio !== null && projectedRatio < 1)) {
+  if (
+    projectedBuffer < 0 ||
+    (projectedRatio !== null && projectedRatio < 1) ||
+    unsat?.blocked === true
+  ) {
     tone = 'bad';
   } else if (projectedRatio !== null && projectedRatio < warning) {
     tone = 'warn';
@@ -82,6 +111,7 @@ export const projectRatio = (
     projectedBuffer,
     pendingBytes: pending,
     selectedBytes: selected,
+    unsat,
     tone,
   };
 };

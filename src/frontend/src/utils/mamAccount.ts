@@ -9,6 +9,8 @@ export interface MamStats {
   ratio: number | null;
   seedbonus: number;
   vip_until: string | null;
+  unsat_count: number | null; // Torrents not yet seeded 72 hours
+  unsat_limit: number | null; // How many the user class allows
   fetched_at: number;
 }
 
@@ -18,6 +20,8 @@ export interface MamAccountResponse {
   error: string | null;
   points_per_gb?: number;
   step_gb?: number;
+  // Estimated from Shelfmark's own balance readings; MAM's API has no rate.
+  points_per_hour?: { per_hour: number; hours: number } | null;
 }
 
 export interface MamConnection {

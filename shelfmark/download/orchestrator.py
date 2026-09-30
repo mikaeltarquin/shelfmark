@@ -35,7 +35,10 @@ from shelfmark.release_sources import (
     get_source,
     get_source_display_name,
 )
-from shelfmark.release_sources.prowlarr.mam_charge import mam_charge_bytes_for_release
+from shelfmark.release_sources.prowlarr.mam_charge import (
+    mam_charge_bytes_for_release,
+    mam_torrent_id_for_release,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -274,6 +277,7 @@ def queue_release(
             else _companion_narrators(release_data.get("companion_audiobook_narrators"))
         )
         mam_charge_bytes = mam_charge_bytes_for_release(release_data) or None
+        mam_torrent_id = mam_torrent_id_for_release(release_data)
         narrators = narrator_list(
             release_data.get("narrators")
             or extra.get("narrators")
@@ -321,6 +325,7 @@ def queue_release(
             narrators=narrators or None,
             companion_narrators=companion_narrators,
             mam_charge_bytes=mam_charge_bytes,
+            mam_torrent_id=mam_torrent_id,
             multi_book=multi_book or book_plan is not None,
             book_plan=book_plan,
             search_mode=search_mode,
@@ -337,7 +342,7 @@ def queue_release(
             logger.info("Release already in queue: %s", task.title)
             return False, "Release is already in the download queue"
 
-        if task.mam_charge_bytes:
+        if task.mam_torrent_id:
             # A MAM download lowers the buffer: let auto-buy look soon.
             from shelfmark.release_sources.prowlarr import mam_autobuy
 
@@ -539,6 +544,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "narrators": list(getattr(task, "narrators", None) or []),
         "companion_narrators": getattr(task, "companion_narrators", None),
         "mam_charge_bytes": getattr(task, "mam_charge_bytes", None),
+        "mam_torrent_id": getattr(task, "mam_torrent_id", None),
         "search_mode": search_mode,
         "multi_book": bool(getattr(task, "multi_book", False)),
         "book_plan": _normalize_book_plan(getattr(task, "book_plan", None)),
@@ -603,6 +609,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         narrators=narrator_list(payload.get("narrators")) or None,
         companion_narrators=_companion_narrators(payload.get("companion_narrators")),
         mam_charge_bytes=normalize_positive_int(payload.get("mam_charge_bytes")),
+        mam_torrent_id=normalize_positive_int(payload.get("mam_torrent_id")),
         search_mode=search_mode,
         multi_book=bool(payload.get("multi_book", False)),
         book_plan=_normalize_book_plan(payload.get("book_plan")),

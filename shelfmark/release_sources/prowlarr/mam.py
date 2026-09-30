@@ -292,7 +292,8 @@ class MamClient:
 
     def get_user_data(self) -> dict[str, Any]:
         """Return the session's account details (ratio, bonus points, ...) as MAM sends them."""
-        data = self._get(_USER_PATH)
+        # snatch_summary adds the torrent counts, the unsatisfied count and limit among them.
+        data = self._get(_USER_PATH, {"snatch_summary": ""})
         return data if isinstance(data, dict) else {}
 
     def bonus_buy(self, params: Mapping[str, str]) -> dict[str, Any]:

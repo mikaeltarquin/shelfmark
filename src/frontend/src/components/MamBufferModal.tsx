@@ -97,7 +97,11 @@ export const MamBufferModal = ({
       const bought = result.amount_gb > 0 ? `Added ${result.amount_gb} GB. ` : '';
       setMessage({
         ok: false,
-        text: `${bought}${result.error ? `${result.error}. ` : ''}Still ${formatGib(recheck.missing_bytes)} short.`,
+        text: `${bought}${result.error ? `${result.error}. ` : ''}${
+          recheck.buffer_ok
+            ? 'The downloads are still held back.'
+            : `Still ${formatGib(recheck.missing_bytes)} short.`
+        }`,
       });
     } catch (error) {
       setMessage({ ok: false, text: errorText(error) });
@@ -112,6 +116,14 @@ export const MamBufferModal = ({
   };
 
   const titleId = 'mam-buffer-modal-title';
+  // Upload credit only fixes the buffer; at the unsatisfied limit it would be wasted.
+  const offerPurchase = check.can_buy && check.unsat_ok && !check.buffer_ok;
+  let title = 'Not enough MyAnonamouse buffer';
+  if (!check.unsat_ok) {
+    title = check.buffer_ok
+      ? 'MyAnonamouse unsatisfied limit'
+      : 'Unsatisfied limit and not enough buffer';
+  }
   const buyLabel = amount === 'max' ? 'max affordable' : `${amount ?? ''} GB`;
 
   return (
@@ -132,29 +144,49 @@ export const MamBufferModal = ({
       >
         <header className="border-b border-(--border-muted) px-6 py-4">
           <h3 id={titleId} className="text-lg font-semibold">
-            Not enough MyAnonamouse buffer
+            {title}
           </h3>
         </header>
 
         <div className="space-y-4 px-6 py-5 text-sm">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
-            <dt className="opacity-70">These downloads</dt>
-            <dd className="text-right tabular-nums">{formatGib(check.request_bytes)}</dd>
-            {check.pending_bytes > 0 && (
-              <>
-                <dt className="opacity-70">Still downloading</dt>
-                <dd className="text-right tabular-nums">{formatGib(check.pending_bytes)}</dd>
-              </>
-            )}
-            <dt className="opacity-70">Buffer</dt>
-            <dd className="text-right tabular-nums">{formatGib(check.buffer_bytes ?? 0)}</dd>
-            <dt className="font-medium">Short by</dt>
-            <dd className="text-right font-medium text-red-600 tabular-nums dark:text-red-400">
-              {formatGib(check.missing_bytes)}
-            </dd>
-          </dl>
+          {!check.unsat_ok && (
+            <div className="space-y-1">
+              <p>
+                MyAnonamouse allows {check.unsat_limit} unsatisfied torrents (not yet seeded 72
+                hours) at once. You have {check.unsat_count}
+                {check.unsat_pending > 0 && `, ${check.unsat_pending} more queued in Shelfmark`},
+                and these would add {check.request_count}
+                {check.unsat_reserve > 0 &&
+                  `, leaving fewer than the ${check.unsat_reserve} slots kept free`}
+                .
+              </p>
+              <p className="opacity-80">
+                Wait for some torrents to finish seeding, or pick fewer. Upload credit doesn&apos;t
+                help here.
+              </p>
+            </div>
+          )}
 
-          {check.can_buy ? (
+          {!check.buffer_ok && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+              <dt className="opacity-70">These downloads</dt>
+              <dd className="text-right tabular-nums">{formatGib(check.request_bytes)}</dd>
+              {check.pending_bytes > 0 && (
+                <>
+                  <dt className="opacity-70">Still downloading</dt>
+                  <dd className="text-right tabular-nums">{formatGib(check.pending_bytes)}</dd>
+                </>
+              )}
+              <dt className="opacity-70">Buffer</dt>
+              <dd className="text-right tabular-nums">{formatGib(check.buffer_bytes ?? 0)}</dd>
+              <dt className="font-medium">Short by</dt>
+              <dd className="text-right font-medium text-red-600 tabular-nums dark:text-red-400">
+                {formatGib(check.missing_bytes)}
+              </dd>
+            </dl>
+          )}
+
+          {offerPurchase && (
             <div>
               <p className="font-medium">Buy upload credit and download</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -195,7 +227,8 @@ export const MamBufferModal = ({
                 {choice === 'custom' && customError ? customError : costLine}
               </p>
             </div>
-          ) : (
+          )}
+          {check.unsat_ok && !check.buffer_ok && !check.can_buy && (
             <p className="opacity-80">
               Ask an admin to add upload credit to the MyAnonamouse account, then try again.
             </p>
@@ -222,9 +255,9 @@ export const MamBufferModal = ({
             disabled={isBuying}
             className="rounded-lg border border-(--border-muted) bg-(--bg-soft) px-4 py-2 text-sm font-medium transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {check.can_buy ? 'Cancel' : 'Close'}
+            {offerPurchase ? 'Cancel' : 'Close'}
           </button>
-          {check.can_buy && (
+          {offerPurchase && (
             <button
               type="button"
               onClick={() => void buyAndContinue()}

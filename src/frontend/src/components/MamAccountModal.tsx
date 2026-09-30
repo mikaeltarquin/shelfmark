@@ -40,8 +40,21 @@ type Choice = number | 'max' | 'custom';
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : 'Request failed';
 
-const Stat = ({ label, value, tone }: { label: string; value: string; tone?: string }) => (
-  <div className="rounded-xl border border-(--border-muted) bg-(--bg-soft) px-3 py-2.5">
+const Stat = ({
+  label,
+  value,
+  tone,
+  title,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+  title?: string;
+}) => (
+  <div
+    className="rounded-xl border border-(--border-muted) bg-(--bg-soft) px-3 py-2.5"
+    title={title}
+  >
     <p className="text-xs tracking-wide uppercase opacity-60">{label}</p>
     <p className={`mt-0.5 text-base font-semibold tabular-nums ${tone ?? ''}`}>{value}</p>
   </div>
@@ -77,6 +90,13 @@ const chipClass = (selected: boolean) =>
       ? 'border-emerald-600 bg-emerald-600 text-white'
       : 'border-(--border-muted) bg-(--bg-soft) hover:bg-(--hover-surface)'
   }`;
+
+const unsatTone = (count: number | null, limit: number | null): string | undefined => {
+  if (count === null || limit === null) return undefined;
+  if (count >= limit) return 'text-red-600 dark:text-red-400';
+  if (count >= limit * 0.9) return 'text-amber-600 dark:text-amber-400';
+  return undefined;
+};
 
 const ratioTone = (ratio: number | null): string | undefined => {
   if (ratio === null || !Number.isFinite(ratio)) return undefined;
@@ -155,6 +175,7 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
   useEscapeKey(true, handleClose);
 
   const stats = account?.stats ?? null;
+  const pointsRate = account?.points_per_hour ?? null;
   const pointsPerGb = account?.points_per_gb ?? DEFAULT_POINTS_PER_GB;
   const stepGb = account?.step_gb ?? DEFAULT_STEP_GB;
   const maxGb = stats ? maxAffordableGb(stats.seedbonus, pointsPerGb, stepGb) : 0;
@@ -305,6 +326,24 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               <Stat
                 label="VIP until"
                 value={stats ? (stats.vip_until?.slice(0, 10) ?? '—') : '…'}
+              />
+              <Stat
+                label="Unsatisfied"
+                value={
+                  stats && stats.unsat_count !== null
+                    ? `${stats.unsat_count}${stats.unsat_limit !== null ? ` / ${stats.unsat_limit}` : ''}`
+                    : '—'
+                }
+                tone={stats ? unsatTone(stats.unsat_count, stats.unsat_limit) : undefined}
+              />
+              <Stat
+                label="Points / hour"
+                value={pointsRate ? `~${Math.round(pointsRate.per_hour)}` : '—'}
+                title={
+                  pointsRate
+                    ? `Estimated from Shelfmark's readings over ${pointsRate.hours.toFixed(0)} hours`
+                    : 'Shelfmark needs a few hours of readings to estimate this'
+                }
               />
               <Stat label="Uploaded" value={stats ? formatGib(stats.uploaded_bytes) : '…'} />
               <Stat label="Downloaded" value={stats ? formatGib(stats.downloaded_bytes) : '…'} />

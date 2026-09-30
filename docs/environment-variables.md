@@ -1331,6 +1331,8 @@ How long to cache individual book details. Default: 600 (10 minutes). Max: 60480
 | `PROWLARR_USE_SEED_PREFERENCES` | Apply per-indexer seed time and ratio preferences from Prowlarr when sending torrents to the download client | boolean | `false` |
 | `PROWLARR_MAM_ID` | The mam_id value MyAnonamouse shows when you create a session. MAM locks each session to one IP or ASN, so reusing Prowlarr's or another client's session often fails with a 403: you will likely need a separate session for Shelfmark if it reaches MAM from another IP (different host, VPN or proxy) or the existing session is ASN-locked to another network. Leave empty to turn enrichment off. | string (secret) | _none_ |
 | `MAM_BLOCK_ON_LOW_BUFFER` | Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead. | boolean | `true` |
+| `MAM_BLOCK_ON_UNSAT_LIMIT` | MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding. | boolean | `true` |
+| `MAM_UNSAT_RESERVE_SLOTS` | Hold back downloads that would leave fewer free unsatisfied slots than this. | number | `5` |
 | `MAM_AUTOBUY_RATIO_ENABLED` | Buy once per check while the ratio is below the threshold. | boolean | `false` |
 | `MAM_AUTOBUY_RATIO_THRESHOLD` | Buy when the ratio is below this. 2.0 is MAM's minimum for renewing VIP; 1.0 is the site minimum. | number | `2.0` |
 | `MAM_AUTOBUY_RATIO_AMOUNT` | How much to buy each time, in multiples of 50 GB. | number | `50` |
@@ -1438,6 +1440,25 @@ Before queueing MyAnonamouse torrents, check that they fit in the account's buff
 
 - **Type:** boolean
 - **Default:** `true`
+
+#### `MAM_BLOCK_ON_UNSAT_LIMIT`
+
+**Hold Back Downloads at the Unsatisfied Limit**
+
+MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding.
+
+- **Type:** boolean
+- **Default:** `true`
+
+#### `MAM_UNSAT_RESERVE_SLOTS`
+
+**Unsatisfied Slots to Keep Free**
+
+Hold back downloads that would leave fewer free unsatisfied slots than this.
+
+- **Type:** number
+- **Default:** `5`
+- **Constraints:** min: 0
 
 #### `MAM_AUTOBUY_RATIO_ENABLED`
 
