@@ -995,8 +995,14 @@ function App() {
   }, [loadConfig]);
 
   // Show book details
-  const handleShowDetails = async (id: string): Promise<void> => {
-    const book = books.find((entry) => entry.id === id);
+  const handleShowDetails = async (id: string): Promise<void> =>
+    showBookDetails(
+      books.find((entry) => entry.id === id),
+      id,
+    );
+
+  // Also used by the library browser, whose "missing" books are not search results.
+  const showBookDetails = async (book: Book | undefined, id: string): Promise<void> => {
     const metadataBook = book && isMetadataBook(book) ? book : null;
 
     if (metadataBook) {
@@ -2637,7 +2643,18 @@ function App() {
           }
         >
           {isLibraryRoute ? (
-            <LibraryPage onBack={() => void navigate('/')} />
+            <LibraryPage
+              onBack={() => void navigate('/')}
+              actions={{
+                contentType: effectiveContentType,
+                allowedContentTypes,
+                onContentTypeChange: setContentType,
+                onShowDetails: (book) => showBookDetails(book, book.id),
+                onGetReleases: handleGetReleases,
+                getButtonState: getUniversalActionButtonState,
+                onShowToast: showToast,
+              }}
+            />
           ) : (
             <>
               <SearchSection

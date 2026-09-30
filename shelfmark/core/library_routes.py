@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from flask import Response, jsonify, redirect, send_file
+from flask import Response, jsonify, redirect, request, send_file
 
-from shelfmark.core import library_catalog, library_index
+from shelfmark.core import library_catalog, library_index, library_missing
 from shelfmark.core.library_providers.audiobookshelf import AudiobookshelfLibrary
 from shelfmark.core.library_providers.calibre import CalibreLibrary
 from shelfmark.core.logger import setup_logger
@@ -78,3 +78,20 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
     @admin_only
     def api_library_cover(source: str, item_id: str) -> ResponseReturnValue:
         return library_cover(source, item_id)
+
+    @app.route("/api/library/missing", methods=["GET"])
+    @login_required
+    @admin_only
+    def api_library_missing() -> ResponseReturnValue:
+        kind = request.args.get("kind", "")
+        name = request.args.get("name", "").strip()
+        content_type = request.args.get("content_type", "ebook")
+        if kind not in {"author", "series"} or not name:
+            return jsonify({"error": "kind (author or series) and name are required"}), 400
+        if content_type not in {"ebook", "audiobook"}:
+            content_type = "ebook"
+        try:
+            return jsonify(library_missing.candidates(kind, name, content_type))
+        except Exception as exc:  # noqa: BLE001 - shown on the page
+            logger.warning("Missing books for %s %s failed: %s", kind, name, exc)
+            return jsonify({"error": f"The metadata provider could not be reached: {exc}"}), 502

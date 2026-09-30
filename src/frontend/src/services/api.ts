@@ -605,6 +605,33 @@ export const getStatus = async (): Promise<StatusData> => {
   return fetchJSON<StatusData>(API.status);
 };
 
+interface LibraryMissingResponse {
+  supported: boolean;
+  reason: string | null;
+  provider: string | null;
+  books: MetadataBookData[];
+}
+
+export interface LibraryMissingResult {
+  supported: boolean;
+  reason: string | null;
+  provider: string | null;
+  books: Book[];
+}
+
+/** What the metadata provider lists for an author or series, with library ownership flags. */
+export const getLibraryMissing = async (
+  kind: 'author' | 'series',
+  name: string,
+  contentType: 'ebook' | 'audiobook',
+): Promise<LibraryMissingResult> => {
+  const params = new URLSearchParams({ kind, name, content_type: contentType });
+  const response = await fetchJSON<LibraryMissingResponse>(
+    `${API_BASE}/library/missing?${params.toString()}`,
+  );
+  return { ...response, books: response.books.map(transformMetadataToBook) };
+};
+
 export const getLibraryBooks = async (): Promise<LibraryBooksResponse> =>
   fetchJSON<LibraryBooksResponse>(`${API_BASE}/library/books`);
 

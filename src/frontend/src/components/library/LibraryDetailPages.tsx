@@ -9,6 +9,7 @@ import {
   seriesRangeLabel,
 } from '../../utils/libraryGroups';
 import { LibraryBookGrid } from './LibraryBookGrid';
+import { LibraryMissingSection, type LibraryBookActions } from './LibraryMissingSection';
 import { segmentClass } from './libraryStyles';
 
 type AuthorMode = 'all' | 'series';
@@ -25,6 +26,7 @@ const PageHeading = ({ kind, name, detail }: { kind: string; name: string; detai
 
 interface DetailProps {
   books: LibraryBook[];
+  actions: LibraryBookActions;
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
 }
@@ -32,6 +34,7 @@ interface DetailProps {
 /** One author's books, all together or grouped by series. */
 export const LibraryAuthorPage = ({
   books,
+  actions,
   author,
   onAuthorClick,
   onSeriesClick,
@@ -46,7 +49,12 @@ export const LibraryAuthorPage = ({
   };
 
   if (own.length === 0) {
-    return <p className="text-sm opacity-60">No books by {author} in your library.</p>;
+    return (
+      <div className="space-y-5">
+        <p className="text-sm opacity-60">No books by {author} in your library.</p>
+        <LibraryMissingSection kind="author" name={author} actions={actions} />
+      </div>
+    );
   }
 
   return (
@@ -104,6 +112,8 @@ export const LibraryAuthorPage = ({
           </section>
         ))
       )}
+
+      <LibraryMissingSection kind="author" name={name} actions={actions} />
     </div>
   );
 };
@@ -111,6 +121,7 @@ export const LibraryAuthorPage = ({
 /** One series in reading order. */
 export const LibrarySeriesPage = ({
   books,
+  actions,
   series,
   onAuthorClick,
 }: Omit<DetailProps, 'onSeriesClick'> & { series: string }) => {
@@ -120,7 +131,12 @@ export const LibrarySeriesPage = ({
   );
 
   if (!group) {
-    return <p className="text-sm opacity-60">No books in the series {series} in your library.</p>;
+    return (
+      <div className="space-y-5">
+        <p className="text-sm opacity-60">No books in the series {series} in your library.</p>
+        <LibraryMissingSection kind="series" name={series} actions={actions} />
+      </div>
+    );
   }
 
   const range = seriesRangeLabel(group);
@@ -146,6 +162,7 @@ export const LibrarySeriesPage = ({
         </p>
       </div>
       <LibraryBookGrid books={group.books} series={group.name} onAuthorClick={onAuthorClick} />
+      <LibraryMissingSection kind="series" name={group.name} actions={actions} />
     </div>
   );
 };
