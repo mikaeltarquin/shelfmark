@@ -258,7 +258,7 @@ Seconds since the last WireGuard handshake before the healthcheck bounces the tu
 | `LIBRARY_CHECK_ABS_ENABLED` | Read your Audiobookshelf book libraries and mark search results you already own, per format: an item with audio files counts as the audiobook, one with an ebook as the ebook. Audiobook releases whose narrator you already have are marked too. Read only, nothing is written to Audiobookshelf. | boolean | `false` |
 | `ABS_URL` | The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80. | string | _none_ |
 | `ABS_API_KEY` | Create one in Audiobookshelf under Settings > API Keys. A key for a user that can see the libraries to check is enough. | string (secret) | _none_ |
-| `ABS_LIBRARY_IDS` | Comma-separated IDs of the libraries to read (Test lists them). Leave empty to read every book library. | string | _none_ |
+| `ABS_LIBRARY_IDS` | Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs. | string (comma-separated) | _empty list_ |
 | `SUPPORTED_FORMATS` | Book formats to include in search results. ZIP/RAR archives are extracted automatically and book files are used if found. | string (comma-separated) | `epub,mobi,azw3,fb2,djvu,cbz,cbr` |
 | `SUPPORTED_AUDIOBOOK_FORMATS` | Audiobook formats to include in search results. ZIP/RAR archives are extracted automatically and audiobook files are used if found. | string (comma-separated) | `m4b,mp3,m4a,mp4,flac,ogg,wma,aac,wav,opus,zip,rar` |
 
@@ -321,12 +321,12 @@ Create one in Audiobookshelf under Settings > API Keys. A key for a user that ca
 
 #### `ABS_LIBRARY_IDS`
 
-**Audiobookshelf library IDs**
+**Audiobookshelf libraries**
 
-Comma-separated IDs of the libraries to read (Test lists them). Leave empty to read every book library.
+Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs.
 
-- **Type:** string
-- **Default:** _none_
+- **Type:** string (comma-separated)
+- **Default:** _empty list_
 
 #### `SUPPORTED_FORMATS`
 

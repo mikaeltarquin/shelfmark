@@ -30,10 +30,11 @@ Shelfmark reads your Audiobookshelf book libraries through its API. Nothing is w
 2. In Shelfmark's **Settings, General**, turn on **Mark books already in your Audiobookshelf
    library**, and fill in **Audiobookshelf URL** (as Shelfmark reaches it, e.g.
    `http://audiobookshelf:80`) and **Audiobookshelf API key**.
-3. Press **Test Audiobookshelf library**. It reports how many items it indexed and lists
-   the libraries with their IDs. To check only some of them, put their IDs, comma
-   separated, in **Audiobookshelf library IDs**; empty means every book library. Podcast
-   libraries are never read.
+3. Press **Test Audiobookshelf library**. It reports how many items it indexed and fills
+   **Audiobookshelf libraries** with the server's book libraries by name. Tick the ones
+   to check, or keep **All book libraries**, which also covers libraries added later.
+   Podcast libraries are never read. (As an environment variable, `ABS_LIBRARY_IDS`
+   takes comma-separated library IDs.)
 
 An item counts for the formats it holds: the audiobook when it has audio files, the
 ebook when it has an ebook file, and both for an item that holds both (the folders

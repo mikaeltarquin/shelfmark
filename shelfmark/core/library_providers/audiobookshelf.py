@@ -102,10 +102,15 @@ def _api_key(overrides: Mapping[str, Any] | None) -> str:
     return str(setting(app_config, "ABS_API_KEY", "", overrides) or "").strip()
 
 
-def _library_ids(overrides: Mapping[str, Any] | None) -> set[str]:
+ALL_LIBRARIES = "all"
+
+
+def chosen_library_ids(overrides: Mapping[str, Any] | None = None) -> set[str]:
+    """The chosen library IDs; empty means every book library."""
     raw = setting(app_config, "ABS_LIBRARY_IDS", "", overrides)
     values = raw if isinstance(raw, (list, tuple)) else str(raw or "").split(",")
-    return {str(value).strip() for value in values if str(value).strip()}
+    ids = {str(value).strip() for value in values if str(value).strip()}
+    return set() if ALL_LIBRARIES in ids else ids
 
 
 class AudiobookshelfLibrary:
@@ -131,7 +136,12 @@ class AudiobookshelfLibrary:
     def fingerprint(self) -> None:
         return None  # No cheap change token; the cache TTL applies.
 
-    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    def _get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: float = _TIMEOUT_SECONDS,
+    ) -> Any:
         base = _base_url(self._overrides)
         key = _api_key(self._overrides)
         if not base or not key:
@@ -144,7 +154,7 @@ class AudiobookshelfLibrary:
             url,
             params=params,
             headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
-            timeout=_TIMEOUT_SECONDS,
+            timeout=timeout,
             proxies=get_proxies(url),
             verify=get_ssl_verify(url),
         )
@@ -154,9 +164,9 @@ class AudiobookshelfLibrary:
         response.raise_for_status()
         return response.json()
 
-    def libraries(self) -> list[dict[str, Any]]:
+    def libraries(self, timeout: float = _TIMEOUT_SECONDS) -> list[dict[str, Any]]:
         """The server's book libraries (podcast libraries are left out)."""
-        data = self._get("/api/libraries")
+        data = self._get("/api/libraries", timeout=timeout)
         libraries = data.get("libraries") if isinstance(data, dict) else None
         return [
             lib
@@ -178,7 +188,7 @@ class AudiobookshelfLibrary:
                 return
 
     def fetch_entries(self) -> list[LibraryEntry]:
-        wanted = _library_ids(self._overrides)
+        wanted = chosen_library_ids(self._overrides)
         entries: list[LibraryEntry] = []
         for library in self.libraries():
             if wanted and str(library["id"]) not in wanted:
