@@ -550,6 +550,8 @@ export type DownloadReleasePayload = {
   source: string;
   source_id: string;
   title: string;
+  // The release's own title, which can say what the book title does not: "(Part 1 of 5)"
+  release_title?: string;
   author?: string; // Author from metadata provider
   year?: string; // Year from metadata provider
   format?: string;

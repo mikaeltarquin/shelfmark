@@ -92,7 +92,7 @@ import { withBasePath } from './utils/basePath';
 import { emitBookTargetChange } from './utils/bookTargetEvents';
 import { bookSupportsTargets } from './utils/bookTargetLoader';
 import { buildSearchQuery } from './utils/buildSearchQuery';
-import { releaseNarrators } from './utils/combinedSelection';
+import { isPartRelease, releaseNarrators } from './utils/combinedSelection';
 import { wasDownloadQueuedAfterResponseError } from './utils/downloadRecovery';
 import { getDynamicOptionGroup } from './utils/dynamicFieldOptions';
 import { resolveDefaultLanguageCodes } from './utils/languageFilters';
@@ -1415,9 +1415,12 @@ function App() {
 
       if (ebookMode === 'download' && ebookRelease) {
         // Only audiobooks being downloaded now: a request may never be fulfilled, and
-        // the ebook would be left waiting in its narrator's folder.
+        // the ebook would be left waiting in its narrator's folder. Parts of a book
+        // published in parts each get their own folder, none of them the ebook's.
         const companionAudiobookNarrators = audiobookReleases
-          .filter((_release, index) => audiobookModes[index] === 'download')
+          .filter(
+            (release, index) => audiobookModes[index] === 'download' && !isPartRelease(release),
+          )
           .map(releaseNarrators);
         await executeReleaseDownload(book, ebookRelease, 'ebook', onBehalfOfUserId, {
           companionAudiobookNarrators,

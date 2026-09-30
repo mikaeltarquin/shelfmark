@@ -286,7 +286,11 @@ def queue_release(
             or extra.get("narrator")
         )
         part = (
-            release_part(release_data.get("title"), extra.get("series"))
+            # The release's own title says "(Part 1 of 5)"; the book title does not.
+            release_part(
+                release_data.get("release_title") or release_data.get("title"),
+                extra.get("series"),
+            )
             if check_audiobook(content_type)
             else None
         )

@@ -244,3 +244,20 @@ def test_library_browser_shows_parts_as_one_book():
     ]
     books = build_catalog([(AudiobookshelfLibrary(), [e for e in entries if e])])
     assert [b.title for b in books] == ["Elantris"]
+
+
+def test_queue_reads_the_part_from_the_release_title(monkeypatch):
+    # The combined flow sends the book's title; the release's own title names the part
+    # when the series field ("Stormlight Archive #2") does not.
+    task = _queue(
+        monkeypatch,
+        {
+            "source_id": "wor1",
+            "title": "Words of Radiance",
+            "release_title": "Words of Radiance (Part 1 of 5)",
+            "content_type": "audiobook",
+            "extra": {"series": "Stormlight Archive #2"},
+        },
+    )
+    assert (task.release_part, task.release_part_total) == (1, 5)
+    assert task.title == "Words of Radiance"

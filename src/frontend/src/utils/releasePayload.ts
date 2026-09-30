@@ -44,6 +44,7 @@ export function buildReleaseDownloadPayload(
     source: release.source,
     source_id: release.source_id,
     title: isManual ? release.title : book.title,
+    release_title: release.title,
     author: isManual ? releaseAuthor || '' : book.author,
     year: book.year,
     format: release.format,
