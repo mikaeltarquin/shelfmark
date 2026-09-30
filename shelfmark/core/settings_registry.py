@@ -456,6 +456,20 @@ def save_config_file(tab_name: str, values: dict[str, Any]) -> bool:
         return True
 
 
+def replace_config_file(tab_name: str, values: dict[str, Any]) -> bool:
+    """Save a tab's persisted values as given, dropping keys that are not in ``values``."""
+    try:
+        _ensure_config_dir(tab_name)
+        config_path = _get_config_file_path(tab_name)
+        with config_path.open("w") as f:
+            json.dump(values, f, indent=2)
+    except Exception:
+        logger.exception("Error saving config file for %s", tab_name)
+        return False
+    else:
+        return True
+
+
 def initialize_default_configs() -> bool:
     """Initialize config files with default values on first startup.
 

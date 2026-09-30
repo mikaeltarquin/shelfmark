@@ -112,6 +112,42 @@ def migrate_audiobook_formats(
         logger.exception("Failed to migrate audiobook formats")
 
 
+def move_settings_between_tabs(
+    keys: Sequence[str],
+    *,
+    load_source: Callable[[], dict[str, Any]],
+    replace_source: Callable[[dict[str, Any]], object],
+    load_target: Callable[[], dict[str, Any]],
+    replace_target: Callable[[dict[str, Any]], object],
+    defaults: dict[str, Any],
+    logger: MigrationLogger,
+) -> bool:
+    """Move saved settings to the tab that now owns them; True when anything moved.
+
+    Tabs keep their values in separate files, so a setting that moves to another tab
+    would otherwise fall back to its default. A value already in the target file wins,
+    unless it is just the default written when that file was first created.
+    """
+    try:
+        source = load_source()
+        present = [key for key in keys if key in source]
+        if not present:
+            return False
+        target = load_target()
+        for key in present:
+            value = source.pop(key)
+            if key not in target or target[key] == defaults.get(key):
+                target[key] = value
+        replace_target(target)
+        replace_source(source)
+        logger.info("Moved settings %s to their new settings page", present)
+    except Exception:
+        logger.exception("Failed to move settings %s", list(keys))
+        return False
+    else:
+        return True
+
+
 def migrate_security_settings(
     *,
     load_security_config: Callable[[], dict[str, Any]],

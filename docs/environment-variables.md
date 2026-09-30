@@ -20,6 +20,10 @@ This document lists all configuration options that can be set via environment va
 - [Libgen Search](#libgen-search)
 - [IRC](#irc)
 - [Download Clients](#download-clients)
+- [Libraries](#libraries)
+  - [Audiobookshelf](#libraries-audiobookshelf)
+  - [Calibre](#libraries-calibre)
+  - [Kavita](#libraries-kavita)
 - [Metadata Providers](#metadata-providers)
   - [Hardcover](#metadata-providers-hardcover)
   - [Open Library](#metadata-providers-open-library)
@@ -255,10 +259,6 @@ Seconds since the last WireGuard handshake before the healthcheck bounces the tu
 | `SEARCH_PAGE_TITLE` | Title shown above the main search box on the homepage. | string | `Shelfmark` |
 | `CALIBRE_WEB_URL` | Adds a navigation button to your book library (Calibre-Web Automated, Grimmory, etc). | string | _none_ |
 | `AUDIOBOOK_LIBRARY_URL` | Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc). When both URLs are set, icons are shown instead of text. | string | _none_ |
-| `LIBRARY_CHECK_ABS_ENABLED` | Read your Audiobookshelf book libraries and mark search results you already own, per format: an item with audio files counts as the audiobook, one with an ebook as the ebook. Audiobook releases whose narrator you already have are marked too. Read only, nothing is written to Audiobookshelf. | boolean | `false` |
-| `ABS_URL` | The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80. | string | _none_ |
-| `ABS_API_KEY` | Create one in Audiobookshelf under Settings > API Keys. A key for a user that can see the libraries to check is enough. | string (secret) | _none_ |
-| `ABS_LIBRARY_IDS` | Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs. | string (comma-separated) | _empty list_ |
 | `SUPPORTED_FORMATS` | Book formats to include in search results. ZIP/RAR archives are extracted automatically and book files are used if found. | string (comma-separated) | `epub,mobi,azw3,fb2,djvu,cbz,cbr` |
 | `SUPPORTED_AUDIOBOOK_FORMATS` | Audiobook formats to include in search results. ZIP/RAR archives are extracted automatically and audiobook files are used if found. | string (comma-separated) | `m4b,mp3,m4a,mp4,flac,ogg,wma,aac,wav,opus,zip,rar` |
 
@@ -291,42 +291,6 @@ Adds a separate navigation button for your audiobook library (Audiobookshelf, Pl
 
 - **Type:** string
 - **Default:** _none_
-
-#### `LIBRARY_CHECK_ABS_ENABLED`
-
-**Mark books already in your Audiobookshelf library**
-
-Read your Audiobookshelf book libraries and mark search results you already own, per format: an item with audio files counts as the audiobook, one with an ebook as the ebook. Audiobook releases whose narrator you already have are marked too. Read only, nothing is written to Audiobookshelf.
-
-- **Type:** boolean
-- **Default:** `false`
-
-#### `ABS_URL`
-
-**Audiobookshelf URL**
-
-The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80.
-
-- **Type:** string
-- **Default:** _none_
-
-#### `ABS_API_KEY`
-
-**Audiobookshelf API key**
-
-Create one in Audiobookshelf under Settings > API Keys. A key for a user that can see the libraries to check is enough.
-
-- **Type:** string (secret)
-- **Default:** _none_
-
-#### `ABS_LIBRARY_IDS`
-
-**Audiobookshelf libraries**
-
-Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs.
-
-- **Type:** string (comma-separated)
-- **Default:** _empty list_
 
 #### `SUPPORTED_FORMATS`
 
@@ -2341,6 +2305,92 @@ Move deletes the job from your usenet client after import; Copy keeps it in the 
 - **Options:** `move` (Move), `copy` (Copy)
 
 </details>
+
+## Libraries
+
+### Libraries: Audiobookshelf
+
+| Variable | Description | Type | Default |
+|----------|-------------|------|---------|
+| `LIBRARY_CHECK_ABS_ENABLED` | Read your Audiobookshelf book libraries and mark search results you already own, per format: an item with audio files counts as the audiobook, one with an ebook as the ebook. Audiobook releases whose narrator you already have are marked too. Read only, nothing is written to Audiobookshelf. | boolean | `false` |
+| `ABS_URL` | The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80. | string | _none_ |
+| `ABS_API_KEY` | Create one in Audiobookshelf under Settings > API Keys. A key for a user that can see the libraries to check is enough. | string (secret) | _none_ |
+| `ABS_LIBRARY_IDS` | Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs. | string (comma-separated) | _empty list_ |
+
+<details>
+<summary>Detailed descriptions</summary>
+
+#### `LIBRARY_CHECK_ABS_ENABLED`
+
+**Mark books already in your Audiobookshelf library**
+
+Read your Audiobookshelf book libraries and mark search results you already own, per format: an item with audio files counts as the audiobook, one with an ebook as the ebook. Audiobook releases whose narrator you already have are marked too. Read only, nothing is written to Audiobookshelf.
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `ABS_URL`
+
+**Audiobookshelf URL**
+
+The address Shelfmark reaches Audiobookshelf at, e.g. http://audiobookshelf:80.
+
+- **Type:** string
+- **Default:** _none_
+
+#### `ABS_API_KEY`
+
+**Audiobookshelf API key**
+
+Create one in Audiobookshelf under Settings > API Keys. A key for a user that can see the libraries to check is enough.
+
+- **Type:** string (secret)
+- **Default:** _none_
+
+#### `ABS_LIBRARY_IDS`
+
+**Audiobookshelf libraries**
+
+Press Test above to list the libraries, then pick the ones to read. All book libraries also covers ones added later. As an environment variable: comma-separated library IDs.
+
+- **Type:** string (comma-separated)
+- **Default:** _empty list_
+
+</details>
+
+### Libraries: Calibre
+
+| Variable | Description | Type | Default |
+|----------|-------------|------|---------|
+| `LIBRARY_CHECK_CALIBRE_ENABLED` | Read the Calibre metadata.db and mark search results you already own, so you do not download a second copy. Read only, nothing is written to the library. | boolean | `false` |
+| `CALIBRE_LIBRARY_DB_PATH` | Path to metadata.db as seen from inside the Shelfmark container. Mount the Calibre library folder read-only, e.g. /path/to/calibre-library:/calibre-library:ro. | string | `/calibre-library/metadata.db` |
+
+<details>
+<summary>Detailed descriptions</summary>
+
+#### `LIBRARY_CHECK_CALIBRE_ENABLED`
+
+**Mark books already in your Calibre library**
+
+Read the Calibre metadata.db and mark search results you already own, so you do not download a second copy. Read only, nothing is written to the library.
+
+- **Type:** boolean
+- **Default:** `false`
+
+#### `CALIBRE_LIBRARY_DB_PATH`
+
+**Calibre metadata.db path**
+
+Path to metadata.db as seen from inside the Shelfmark container. Mount the Calibre library folder read-only, e.g. /path/to/calibre-library:/calibre-library:ro.
+
+- **Type:** string
+- **Default:** `/calibre-library/metadata.db`
+
+</details>
+
+### Libraries: Kavita
+
+_No environment variables for this section._
 
 ## Metadata Providers
 
