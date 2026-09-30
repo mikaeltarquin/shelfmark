@@ -180,3 +180,55 @@ class TestQueueReleaseNarrators:
         )
         assert ok, error
         assert captured["task"].narrators == expected
+
+
+class TestCompanionNarrators:
+    def _queue(self, monkeypatch, release_data):
+        from shelfmark.download import orchestrator
+
+        captured: dict[str, DownloadTask] = {}
+
+        def fake_add(task: DownloadTask) -> bool:
+            captured["task"] = task
+            return True
+
+        monkeypatch.setattr(orchestrator.config, "get", lambda _key, default=None, **_kw: default)
+        monkeypatch.setattr(orchestrator, "_source_unavailable_message", lambda _source: None)
+        monkeypatch.setattr(orchestrator.book_queue, "add", fake_add)
+        monkeypatch.setattr(orchestrator, "ws_manager", None)
+        ok, error = orchestrator.queue_release(
+            {"source": "prowlarr", "source_id": "abc", "title": "T", **release_data}, 0
+        )
+        assert ok, error
+        return captured["task"]
+
+    def test_ebook_reads_companion_narrators(self, monkeypatch):
+        task = self._queue(
+            monkeypatch,
+            {
+                "content_type": "ebook",
+                "companion_audiobook_narrators": [
+                    ["Rosamund Pike"],
+                    "Kate Reading, Michael Kramer",
+                    None,
+                ],
+            },
+        )
+        assert task.companion_narrators == [
+            ["Rosamund Pike"],
+            ["Kate Reading", "Michael Kramer"],
+            [],
+        ]
+
+    def test_audiobook_ignores_companion_narrators(self, monkeypatch):
+        task = self._queue(
+            monkeypatch,
+            {"content_type": "audiobook", "companion_audiobook_narrators": [["Rosamund Pike"]]},
+        )
+        assert task.companion_narrators is None
+
+    def test_companion_narrators_survive_retry_round_trip(self):
+        task = _task(content_type="ebook", companion_narrators=[["Rosamund Pike"], []])
+        restored = _restore_task_from_retry_payload(serialize_task_for_retry(task))
+        assert restored is not None
+        assert restored.companion_narrators == [["Rosamund Pike"], []]

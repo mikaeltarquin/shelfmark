@@ -16,6 +16,10 @@ holds it becomes a glob: every narration of the book matches it, other books do 
   narrator-less folder, or the ebook library.
 - Once an audiobook folder exists, the narrator-less ebook-only folder is emptied into
   it and removed, so Audiobookshelf is not left with a second, ebook-only item.
+- An ebook queued together with audiobooks (the combined book + audiobook flow) knows
+  their narrators, so it goes straight into their folders before they arrive. The
+  audiobook then lands in a folder Audiobookshelf already has as an item, instead of
+  the ebook-only item being moved out from under it.
 
 Best effort: a failure here is logged and never fails the download it follows.
 """
@@ -41,7 +45,7 @@ from .policy import (
     get_template,
     get_word_separator,
 )
-from .transfer import build_metadata_dict, narrator_value
+from .transfer import build_metadata_dict, format_narrator, narrator_value
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -74,6 +78,7 @@ _colocate_lock = threading.Lock()
 @dataclass(frozen=True)
 class _BookLayout:
     root: Path  # Audiobook destination
+    template: str  # Audiobook path template
     audiobook_dir_glob: str  # Every narration's folder, relative to root
     own_dir: Path  # This task's folder (its narrator, or none for an ebook)
     ebook_only_dir: Path  # The book's folder without a narrator
@@ -131,6 +136,7 @@ def _book_layout(task: DownloadTask) -> _BookLayout | None:
     unnarrated = _render(task, template, root, "")
     return _BookLayout(
         root=root,
+        template=template,
         audiobook_dir_glob=audiobook_dir_glob,
         own_dir=_render(task, template, root, narrator).parent,
         ebook_only_dir=unnarrated.parent,
@@ -255,6 +261,43 @@ def _absorb_ebook_only_dir(
     ]
 
 
+def _companion_dirs(task: DownloadTask, layout: _BookLayout) -> list[Path]:
+    """Folders of the audiobooks queued with this ebook, whether or not they exist yet."""
+    dirs: list[Path] = []
+    for narrators in task.companion_narrators or []:
+        narrator = format_narrator(narrators, is_audiobook=True)
+        directory = _render(task, layout.template, layout.root, narrator).parent
+        if directory not in dirs:
+            dirs.append(directory)
+    return dirs
+
+
+def planned_ebook_path(task: DownloadTask, dest_path: Path) -> Path:
+    """Where an ebook queued with audiobooks goes instead of the narrator-less folder.
+
+    `dest_path` is the ebook template's path. When that is the audiobook tree's
+    ebook-only folder, the ebook goes into the first companion audiobook's folder
+    instead, so Audiobookshelf never sees an ebook-only item it would later lose.
+    """
+    if check_audiobook(task.content_type) or not task.companion_narrators:
+        return dest_path
+    if not is_enabled_for(task):
+        return dest_path
+    try:
+        layout = _book_layout(task)
+        if layout is None or dest_path.parent != layout.ebook_only_dir:
+            return dest_path
+        companion_dirs = _companion_dirs(task, layout)
+    except (OSError, ValueError) as exc:
+        logger.warning("Task %s: could not plan ebook folder: %s", task.task_id, exc)
+        return dest_path
+    if not companion_dirs:
+        return dest_path
+    planned = companion_dirs[0] / f"{layout.file_stem}{dest_path.suffix}"
+    logger.info("Task %s: saving ebook in its audiobook's folder: %s", task.task_id, planned)
+    return planned
+
+
 def _colocate(task: DownloadTask, final_paths: list[Path]) -> list[Path]:
     layout = _book_layout(task)
     if layout is None:
@@ -278,6 +321,8 @@ def _colocate(task: DownloadTask, final_paths: list[Path]) -> list[Path]:
         for path in final_paths:
             sources.setdefault(path.suffix.lower(), path)
         sources = {ext: path for ext, path in sources.items() if ext in extensions}
+        # Audiobooks still downloading count as present: their folders are made now.
+        audiobook_dirs += [d for d in _companion_dirs(task, layout) if d not in audiobook_dirs]
 
     if not sources:
         return final_paths

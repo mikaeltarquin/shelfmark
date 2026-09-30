@@ -6,6 +6,8 @@ export interface ReleaseDownloadOptions {
   multiBook?: boolean;
   /** The split the user approved in the pack review panel. */
   bookPlan?: PackBook[];
+  /** Ebook only: narrators of each audiobook downloaded with it (see releaseNarrators). */
+  companionAudiobookNarrators?: (string[] | string | null)[];
 }
 
 /** Download count for a release, preferring what the release itself reports. */
@@ -68,6 +70,9 @@ export function buildReleaseDownloadPayload(
   }
   if (options.bookPlan) {
     payload.book_plan = options.bookPlan;
+  }
+  if (options.companionAudiobookNarrators?.length) {
+    payload.companion_audiobook_narrators = options.companionAudiobookNarrators;
   }
   return payload;
 }

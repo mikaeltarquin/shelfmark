@@ -267,6 +267,11 @@ def queue_release(
         series_position = release_data.get("series_position") or extra.get("series_position")
         subtitle = release_data.get("subtitle") or extra.get("subtitle")
         language = release_data.get("language") or extra.get("language")
+        companion_narrators = (
+            None
+            if check_audiobook(content_type)
+            else _companion_narrators(release_data.get("companion_audiobook_narrators"))
+        )
         narrators = narrator_list(
             release_data.get("narrators")
             or extra.get("narrators")
@@ -312,6 +317,7 @@ def queue_release(
             subtitle=subtitle,
             language=language,
             narrators=narrators or None,
+            companion_narrators=companion_narrators,
             multi_book=multi_book or book_plan is not None,
             book_plan=book_plan,
             search_mode=search_mode,
@@ -459,6 +465,13 @@ def can_retry_download_task(
     return _has_staged_retry_source(task)
 
 
+def _companion_narrators(value: object) -> list[list[str]] | None:
+    """Narrators per audiobook queued with an ebook; [] for one with no known narrator."""
+    if not isinstance(value, list) or not value:
+        return None
+    return [narrator_list(entry) for entry in value]
+
+
 def _normalize_book_plan(value: object) -> list[dict[str, Any]] | None:
     """Keep only well-formed pack books: a title plus a non-empty list of file paths."""
     if not isinstance(value, list):
@@ -515,6 +528,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "subtitle": getattr(task, "subtitle", None),
         "language": getattr(task, "language", None),
         "narrators": list(getattr(task, "narrators", None) or []),
+        "companion_narrators": getattr(task, "companion_narrators", None),
         "search_mode": search_mode,
         "multi_book": bool(getattr(task, "multi_book", False)),
         "book_plan": _normalize_book_plan(getattr(task, "book_plan", None)),
@@ -577,6 +591,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         subtitle=normalize_optional_text(payload.get("subtitle")),
         language=normalize_optional_text(payload.get("language")),
         narrators=narrator_list(payload.get("narrators")) or None,
+        companion_narrators=_companion_narrators(payload.get("companion_narrators")),
         search_mode=search_mode,
         multi_book=bool(payload.get("multi_book", False)),
         book_plan=_normalize_book_plan(payload.get("book_plan")),

@@ -233,3 +233,93 @@ class TestScope:
 
         placed = _book_dir(tmp_path, PIKE) / f"{TITLE}.epub"
         assert placed.stat().st_ino == epub.stat().st_ino
+
+
+class TestEbookQueuedWithAudiobooks:
+    """The combined flow: the ebook knows which audiobooks are on their way."""
+
+    def _transfer(self, tmp_path: Path, task: DownloadTask, name: str) -> list[Path]:
+        from shelfmark.download.postprocess.transfer import transfer_book_files
+
+        source = _write(tmp_path / "incoming" / name, b"ebook")
+        final, error, _ops = transfer_book_files(
+            [source],
+            destination=tmp_path / "library",
+            task=task,
+            use_hardlink=False,
+            is_torrent=False,
+            organization_mode="organize",
+            source_root=source.parent,
+        )
+        assert error is None
+        return colocate_ebooks_with_audiobooks(task, final)
+
+    @pytest.fixture
+    def shared(self, tmp_path, library):
+        library["DESTINATION"] = str(tmp_path / "library")
+        library["DESTINATION_AUDIOBOOK"] = str(tmp_path / "library")
+        return tmp_path / "library"
+
+    def test_ebook_goes_straight_to_the_narrator_folder(self, tmp_path, shared):
+        task = _task("ebook", companion_narrators=[[PIKE]])
+
+        final = self._transfer(tmp_path, task, "download.epub")
+
+        assert final == [_book_dir(shared, PIKE) / f"{TITLE}.epub"]
+        assert not _book_dir(shared).exists()
+
+    def test_ebook_goes_into_every_queued_narration(self, tmp_path, shared):
+        task = _task("ebook", companion_narrators=[[PIKE], ["Kate Reading", "Michael Kramer"]])
+
+        self._transfer(tmp_path, task, "download.epub")
+
+        for narrator in (PIKE, KRAMER):
+            assert (_book_dir(shared, narrator) / f"{TITLE}.epub").read_bytes() == b"ebook"
+        assert not _book_dir(shared).exists()
+
+    def test_audiobook_without_narrator_gets_placeholder_folder(self, tmp_path, shared):
+        final = self._transfer(tmp_path, _task("ebook", companion_narrators=[[]]), "d.epub")
+
+        assert final == [_book_dir(shared, "Audiobook") / f"{TITLE}.epub"]
+
+    def test_audiobook_arriving_later_joins_the_folder(self, tmp_path, shared):
+        self._transfer(tmp_path, _task("ebook", companion_narrators=[[PIKE]]), "d.epub")
+        m4b = _write(_book_dir(shared, PIKE) / f"{TITLE}.m4b")
+
+        colocate_ebooks_with_audiobooks(_task("audiobook", [PIKE]), [m4b])
+
+        assert sorted(p.name for p in _book_dir(shared, PIKE).iterdir()) == [
+            f"{TITLE}.epub",
+            f"{TITLE}.m4b",
+        ]
+        assert sorted(p.name for p in (shared / AUTHOR).iterdir()) == [f"{TITLE} {{{PIKE}}}"]
+
+    def test_existing_ebook_only_folder_is_absorbed(self, tmp_path, shared):
+        _write(_book_dir(shared) / f"{TITLE}.pdf", b"old")
+
+        self._transfer(tmp_path, _task("ebook", companion_narrators=[[PIKE]]), "d.epub")
+
+        assert not _book_dir(shared).exists()
+        assert sorted(p.name for p in _book_dir(shared, PIKE).iterdir()) == [
+            f"{TITLE}.epub",
+            f"{TITLE}.pdf",
+        ]
+
+    def test_separate_ebook_library_keeps_its_copy(self, tmp_path, library):
+        library["DESTINATION"] = str(tmp_path / "library")
+        library["DESTINATION_AUDIOBOOK"] = str(tmp_path / "audio")
+        task = _task("ebook", companion_narrators=[[PIKE]])
+
+        final = self._transfer(tmp_path, task, "d.epub")
+
+        assert final == [_book_dir(tmp_path / "library") / f"{TITLE}.epub"]
+        assert (_book_dir(tmp_path / "audio", PIKE) / f"{TITLE}.epub").exists()
+        assert not _book_dir(tmp_path / "audio").exists()
+
+    def test_disabled_keeps_the_normal_path(self, tmp_path, shared, library):
+        library["EBOOKS_WITH_AUDIOBOOKS"] = False
+
+        final = self._transfer(tmp_path, _task("ebook", companion_narrators=[[PIKE]]), "d.epub")
+
+        assert final == [_book_dir(shared) / f"{TITLE}.epub"]
+        assert not _book_dir(shared, PIKE).exists()

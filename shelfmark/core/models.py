@@ -122,6 +122,9 @@ class DownloadTask:
     subtitle: str | None = None  # Book subtitle for naming templates
     language: str | None = None  # Release language code for the {Language} template variable
     narrators: list[str] | None = None  # Release narrators for the {Narrator} template variable
+    # Ebooks only: the narrators of each audiobook queued together with this ebook, so
+    # the ebook can go straight into those audiobooks' folders (see postprocess.companions).
+    companion_narrators: list[list[str]] | None = None
 
     # Hardlinking support
     original_download_path: str | None = None  # Path in download client (for hardlinking)

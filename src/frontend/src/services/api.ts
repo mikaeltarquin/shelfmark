@@ -562,6 +562,9 @@ export type DownloadReleasePayload = {
   search_mode?: 'direct' | 'universal';
   multi_book?: boolean; // Split a multi-book pack into one book per subfolder/file
   book_plan?: PackBook[]; // The split the user approved before download
+  // Ebook queued with audiobooks: each audiobook's narrators, so the ebook can be
+  // saved straight into their Audiobookshelf folders.
+  companion_audiobook_narrators?: (string[] | string | null)[];
 };
 
 /** Inspect a release's file list before download (same body as downloadRelease). */

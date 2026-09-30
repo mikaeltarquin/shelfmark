@@ -86,6 +86,7 @@ import { withBasePath } from './utils/basePath';
 import { emitBookTargetChange } from './utils/bookTargetEvents';
 import { bookSupportsTargets } from './utils/bookTargetLoader';
 import { buildSearchQuery } from './utils/buildSearchQuery';
+import { releaseNarrators } from './utils/combinedSelection';
 import { wasDownloadQueuedAfterResponseError } from './utils/downloadRecovery';
 import { getDynamicOptionGroup } from './utils/dynamicFieldOptions';
 import { resolveDefaultLanguageCodes } from './utils/languageFilters';
@@ -208,7 +209,8 @@ type CombinedSelectionState = {
   ebookMode: RequestPolicyMode;
   audiobookMode: RequestPolicyMode;
   stagedEbook?: { book: Book; release: Release };
-  stagedAudiobook?: Release;
+  // Any number: one per narration the user wants.
+  stagedAudiobooks: Release[];
 };
 
 type PendingOnBehalfDownload =
@@ -1312,13 +1314,13 @@ function App() {
       onBehalfOfUserId?: number,
     ): Promise<void> => {
       const ebookRelease = selection.stagedEbook?.release;
-      const audiobookRelease = selection.stagedAudiobook;
+      const audiobookReleases = selection.stagedAudiobooks;
       const ebookMode = ebookRelease
         ? getSourceMode(ebookRelease.source, 'ebook')
         : selection.ebookMode;
-      const audiobookMode = audiobookRelease
-        ? getSourceMode(audiobookRelease.source, 'audiobook')
-        : selection.audiobookMode;
+      const audiobookModes = audiobookReleases.map((release) =>
+        getSourceMode(release.source, 'audiobook'),
+      );
 
       const buildRequestPayload = (
         release: Release | undefined,
@@ -1368,18 +1370,32 @@ function App() {
       const requestPayloads: CreateRequestPayload[] = [];
 
       if (ebookMode === 'download' && ebookRelease) {
-        await executeReleaseDownload(book, ebookRelease, 'ebook', onBehalfOfUserId);
+        // Only audiobooks being downloaded now: a request may never be fulfilled, and
+        // the ebook would be left waiting in its narrator's folder.
+        const companionAudiobookNarrators = audiobookReleases
+          .filter((_release, index) => audiobookModes[index] === 'download')
+          .map(releaseNarrators);
+        await executeReleaseDownload(book, ebookRelease, 'ebook', onBehalfOfUserId, {
+          companionAudiobookNarrators,
+        });
       } else if (ebookMode !== 'download' && (ebookRelease || ebookMode === 'request_book')) {
         requestPayloads.push(buildRequestPayload(ebookRelease, 'ebook', ebookMode));
       }
 
-      if (audiobookMode === 'download' && audiobookRelease) {
-        await executeReleaseDownload(book, audiobookRelease, 'audiobook', onBehalfOfUserId);
-      } else if (
-        audiobookMode !== 'download' &&
-        (audiobookRelease || audiobookMode === 'request_book')
-      ) {
-        requestPayloads.push(buildRequestPayload(audiobookRelease, 'audiobook', audiobookMode));
+      const audiobookDownloads: Promise<void>[] = [];
+      audiobookReleases.forEach((audiobookRelease, index) => {
+        const audiobookMode = audiobookModes[index] ?? selection.audiobookMode;
+        if (audiobookMode === 'download') {
+          audiobookDownloads.push(
+            executeReleaseDownload(book, audiobookRelease, 'audiobook', onBehalfOfUserId),
+          );
+        } else {
+          requestPayloads.push(buildRequestPayload(audiobookRelease, 'audiobook', audiobookMode));
+        }
+      });
+      await Promise.all(audiobookDownloads);
+      if (audiobookReleases.length === 0 && selection.audiobookMode === 'request_book') {
+        requestPayloads.push(buildRequestPayload(undefined, 'audiobook', 'request_book'));
       }
 
       if (requestPayloads.length > 0) {
@@ -1576,6 +1592,7 @@ function App() {
         phase: selectionPhases[0],
         ebookMode,
         audiobookMode,
+        stagedAudiobooks: [],
       });
     } else {
       if (mode === 'request_book') {
@@ -1709,9 +1726,9 @@ function App() {
     [combinedState, getCombinedSelectionPhases, releaseBook],
   );
 
-  const handleCombinedBack = useCallback((audiobookRelease: Release | null) => {
+  const handleCombinedBack = useCallback((audiobookReleases: Release[]) => {
     setCombinedState((prev) =>
-      prev ? { ...prev, phase: 'ebook', stagedAudiobook: audiobookRelease ?? undefined } : null,
+      prev ? { ...prev, phase: 'ebook', stagedAudiobooks: audiobookReleases } : null,
     );
   }, []);
 
@@ -1723,14 +1740,15 @@ function App() {
       if (selectionContentType === 'ebook') {
         return { ...prev, stagedEbook: undefined };
       }
-      return { ...prev, stagedAudiobook: undefined };
+      return { ...prev, stagedAudiobooks: [] };
     });
   }, []);
 
   const handleCombinedDownload = useCallback(
-    async (release: Release | null) => {
+    async (releases: Release[]) => {
       if (!combinedState || !releaseBook) return;
 
+      const [release] = releases;
       const nextCombinedState: CombinedSelectionState =
         combinedState.phase === 'ebook'
           ? {
@@ -1739,7 +1757,7 @@ function App() {
             }
           : {
               ...combinedState,
-              stagedAudiobook: release ?? undefined,
+              stagedAudiobooks: releases,
             };
 
       if (effectiveActingAsUser) {
@@ -2671,17 +2689,17 @@ function App() {
                 effectiveCombinedState
                   ? {
                       phase: effectiveCombinedState.phase,
-                      stepLabel: `Step ${combinedCurrentStep} of ${combinedSelectionPhases.length} — Select ${effectiveCombinedState.phase === 'ebook' ? 'book' : 'audiobook'}`,
+                      stepLabel: `Step ${combinedCurrentStep} of ${combinedSelectionPhases.length} — Select ${effectiveCombinedState.phase === 'ebook' ? 'book' : 'audiobooks'}`,
                       ebookMode: effectiveCombinedState.ebookMode,
                       audiobookMode: effectiveCombinedState.audiobookMode,
                       stagedEbookRelease: effectiveCombinedState.stagedEbook?.release ?? null,
-                      stagedAudiobookRelease: effectiveCombinedState.stagedAudiobook ?? null,
+                      stagedAudiobookReleases: effectiveCombinedState.stagedAudiobooks,
                       onNext: !combinedIsFinalStep ? handleCombinedNext : undefined,
                       onBack: combinedHasPreviousStep ? handleCombinedBack : undefined,
                       onClearSelection: handleCombinedClearSelection,
                       onDownload: combinedIsFinalStep
-                        ? (release) => {
-                            void handleCombinedDownload(release);
+                        ? (releases) => {
+                            void handleCombinedDownload(releases);
                           }
                         : undefined,
                     }
