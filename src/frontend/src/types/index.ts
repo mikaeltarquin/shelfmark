@@ -308,6 +308,7 @@ export interface AppConfig {
   show_release_source_links: boolean;
   show_combined_selector: boolean;
   force_combined_search: boolean;
+  mam_account_available?: boolean; // A MyAnonamouse session ID is set
   books_output_mode: BooksOutputMode;
   auto_open_downloads_sidebar: boolean; // Auto-open sidebar when download is queued
   hardcover_auto_remove_on_download: boolean; // Auto-remove from active Hardcover list on download

@@ -29,6 +29,12 @@ import {
   transformReleaseToDirectBook,
   transformSourceRecordToBook,
 } from '../utils/bookTransformers';
+import type {
+  MamAccountResponse,
+  MamPurchaseResponse,
+  MamStatusResponse,
+  UploadCreditAmount,
+} from '../utils/mamAccount';
 import { isRecord, toStringValue } from '../utils/objectHelpers';
 import type { FulfilAdminRequestBody, RejectAdminRequestBody } from './requestApiHelpers';
 import {
@@ -595,6 +601,22 @@ export const downloadRelease = async (
 export const getStatus = async (): Promise<StatusData> => {
   return fetchJSON<StatusData>(API.status);
 };
+
+export const getMamAccount = async (refresh = false): Promise<MamAccountResponse> =>
+  fetchJSON<MamAccountResponse>(`${API_BASE}/mam/account${refresh ? '?refresh=1' : ''}`);
+
+export const getMamStatus = async (): Promise<MamStatusResponse> =>
+  fetchJSON<MamStatusResponse>(`${API_BASE}/mam/status`);
+
+export const buyMamUploadCredit = async (
+  amount: UploadCreditAmount,
+): Promise<MamPurchaseResponse> =>
+  // A purchase can take several requests to MAM (one per 100/50 GB).
+  fetchJSON<MamPurchaseResponse>(
+    `${API_BASE}/mam/upload-credit`,
+    { method: 'POST', body: JSON.stringify({ amount }) },
+    120000,
+  );
 
 export const getActivitySnapshot = async (): Promise<ActivitySnapshotResponse> => {
   return fetchJSON<ActivitySnapshotResponse>(API.activitySnapshot);
