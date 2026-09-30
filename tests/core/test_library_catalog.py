@@ -321,3 +321,62 @@ class TestRoutes:
     def test_cover_rejects_odd_ids(self, main_module):
         resp = _client(main_module, is_admin=True).get("/api/library/cover/calibre/a.b")
         assert resp.status_code == 400
+
+
+class TestLookupRoute:
+    @pytest.fixture(autouse=True)
+    def fresh_lookup_cache(self, monkeypatch):
+        from shelfmark.core import library_routes
+
+        monkeypatch.setattr(library_routes, "_lookup_cache", {})
+
+    def test_answers_are_cached(self, main_module, monkeypatch):
+        entry = _entry("calibre", "1", "The Martian")
+        monkeypatch.setattr(library_catalog, "find_entry", lambda source, item_id: (CALIBRE, entry))
+        calls: list[str] = []
+
+        def find(e, content_type):
+            calls.append(content_type)
+            return BookMetadata("hardcover", "42", "The Martian")
+
+        monkeypatch.setattr(library_catalog, "find_provider_book", find)
+        client = _client(main_module, is_admin=True)
+        assert client.get("/api/library/lookup/calibre/1").status_code == 200
+        assert client.get("/api/library/lookup/calibre/1").status_code == 200
+        assert calls == ["ebook"]
+
+    def test_found(self, main_module, monkeypatch):
+        entry = _entry("calibre", "1", "The Martian")
+        monkeypatch.setattr(library_catalog, "find_entry", lambda source, item_id: (CALIBRE, entry))
+        seen: list[str] = []
+
+        def find(e, content_type):
+            seen.append(content_type)
+            return BookMetadata("hardcover", "42", "The Martian", authors=["Andy Weir"])
+
+        monkeypatch.setattr(library_catalog, "find_provider_book", find)
+        monkeypatch.setattr(
+            "shelfmark.core.library_index.ownership", lambda book: {"ebook": "owned"}
+        )
+        monkeypatch.setattr("shelfmark.core.library_index.ownership_sources", lambda book: {})
+        resp = _client(main_module, is_admin=True).get(
+            "/api/library/lookup/calibre/1?content_type=audiobook"
+        )
+        assert resp.status_code == 200
+        book = resp.get_json()["book"]
+        assert book["provider_id"] == "42"
+        assert book["library"] == {"ebook": "owned"}
+        assert seen == ["audiobook"]
+
+    def test_not_found(self, main_module, monkeypatch):
+        entry = _entry("calibre", "1", "The Martian")
+        monkeypatch.setattr(library_catalog, "find_entry", lambda source, item_id: (CALIBRE, entry))
+        monkeypatch.setattr(library_catalog, "find_provider_book", lambda e, content_type: None)
+        resp = _client(main_module, is_admin=True).get("/api/library/lookup/calibre/1")
+        assert resp.status_code == 404
+        assert "The Martian" in resp.get_json()["error"]
+
+    def test_admin_only(self, main_module, monkeypatch):
+        monkeypatch.setattr("shelfmark.core.route_guards.load_active_auth_mode", lambda: "builtin")
+        resp = _client(main_module, is_admin=False).get("/api/library/lookup/calibre/1")
+        assert resp.status_code == 403

@@ -25,6 +25,7 @@ from shelfmark.core.text_match import author_surname
 
 if TYPE_CHECKING:
     from shelfmark.core.library_providers import LibraryEntry, LibraryItem, LibraryProvider
+    from shelfmark.metadata_providers import BookMetadata
 
 logger = setup_logger(__name__)
 
@@ -185,7 +186,12 @@ def _remember_cover(key: str, url: str | None) -> None:
             logger.debug("Could not save library cover cache: %s", exc)
 
 
-def _lookup_cover(entry: LibraryEntry, content_type: str) -> str | None:
+def find_provider_book(entry: LibraryEntry, content_type: str) -> BookMetadata | None:
+    """The metadata provider's record of a library item: by ISBN, else title and author.
+
+    A title search result counts only when it matches the library item by the ownership
+    check's own rules, so a similarly named book is never taken for it.
+    """
     from shelfmark.metadata_providers import MetadataSearchOptions, get_configured_provider
 
     item = entry.item
@@ -194,16 +200,20 @@ def _lookup_cover(entry: LibraryEntry, content_type: str) -> str | None:
         return None
     if item.isbn:
         found = provider.search_by_isbn(item.isbn)
-        if found is not None and found.cover_url:
-            return found.cover_url
+        if found is not None:
+            return found
     author = item.authors[0] if item.authors else ""
     results = provider.search_paginated(
         MetadataSearchOptions(query=f"{item.title} {author}".strip(), limit=5)
     ).books
-    for book in results:
-        if book.cover_url and library_index.book_matches_entries(book, [entry]):
-            return book.cover_url
-    return None
+    return next(
+        (book for book in results if library_index.book_matches_entries(book, [entry])), None
+    )
+
+
+def _lookup_cover(entry: LibraryEntry, content_type: str) -> str | None:
+    found = find_provider_book(entry, content_type)
+    return found.cover_url if found is not None else None
 
 
 def provider_cover_url(provider: LibraryProvider, entry: LibraryEntry) -> str | None:

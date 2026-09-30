@@ -8,6 +8,7 @@ import {
   sameName,
   seriesRangeLabel,
 } from '../../utils/libraryGroups';
+import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryBookGrid } from './LibraryBookGrid';
 import { LibraryMissingSection, type LibraryBookActions } from './LibraryMissingSection';
 import { segmentClass } from './libraryStyles';
@@ -29,6 +30,7 @@ interface DetailProps {
   actions: LibraryBookActions;
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
+  cardActions: LibraryCardActions;
 }
 
 /** One author's books, all together or grouped by series. */
@@ -38,6 +40,7 @@ export const LibraryAuthorPage = ({
   author,
   onAuthorClick,
   onSeriesClick,
+  cardActions,
 }: DetailProps & { author: string }) => {
   const own = useMemo(() => booksByAuthor(books, author), [books, author]);
   const sections = useMemo(() => authorSeriesSections(own), [own]);
@@ -86,7 +89,12 @@ export const LibraryAuthorPage = ({
       </div>
 
       {mode === 'all' || !hasSeries ? (
-        <LibraryBookGrid books={own} onAuthorClick={otherAuthor} onSeriesClick={onSeriesClick} />
+        <LibraryBookGrid
+          books={own}
+          onAuthorClick={otherAuthor}
+          onSeriesClick={onSeriesClick}
+          cardActions={cardActions}
+        />
       ) : (
         sections.map((section) => (
           <section key={section.series ?? '(none)'} className="space-y-3">
@@ -108,6 +116,7 @@ export const LibraryAuthorPage = ({
               books={section.books}
               series={section.series ?? undefined}
               onAuthorClick={otherAuthor}
+              cardActions={cardActions}
             />
           </section>
         ))
@@ -124,6 +133,7 @@ export const LibrarySeriesPage = ({
   actions,
   series,
   onAuthorClick,
+  cardActions,
 }: Omit<DetailProps, 'onSeriesClick'> & { series: string }) => {
   const group = useMemo(
     () => groupBySeries(books).find((candidate) => sameName(candidate.name, series)),
@@ -161,7 +171,12 @@ export const LibrarySeriesPage = ({
           ))}
         </p>
       </div>
-      <LibraryBookGrid books={group.books} series={group.name} onAuthorClick={onAuthorClick} />
+      <LibraryBookGrid
+        books={group.books}
+        series={group.name}
+        onAuthorClick={onAuthorClick}
+        cardActions={cardActions}
+      />
       <LibraryMissingSection kind="series" name={group.name} actions={actions} />
     </div>
   );

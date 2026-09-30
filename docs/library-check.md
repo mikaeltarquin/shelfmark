@@ -62,6 +62,13 @@ series page shows the books in reading order with their numbers. Clicking an aut
 series name anywhere opens its page, and each page has its own address
 (`/library/authors/<name>`, `/library/series/<name>`), so it can be bookmarked.
 
+Books you own work like search results: hover a card for **details** and the
+**Hardcover lists** button, and **+ Get** underneath finds releases, in the format picked
+in the header (or both, in combined mode). Use it to get the format you're missing, a
+better copy, or another narrator's version; releases whose narrator you already own are
+marked. The card looks the book up with the metadata provider the first time it's
+hovered (by ISBN, else title and author), and the answer is remembered.
+
 Below the books you own, author and series pages list what is **Not in your library**:
 the books the metadata provider knows for that author or series, minus the ones you have.
 Pick **Any format**, **Ebook** or **Audiobook**: under Audiobook, a book you own only as

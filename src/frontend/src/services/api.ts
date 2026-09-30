@@ -632,6 +632,21 @@ export const getLibraryMissing = async (
   return { ...response, books: response.books.map(transformMetadataToBook) };
 };
 
+/** The metadata provider's record of a book already in the library (to get another copy). */
+export const lookupLibraryBook = async (
+  libraryBookId: string,
+  contentType: 'ebook' | 'audiobook',
+): Promise<Book> => {
+  const separator = libraryBookId.indexOf(':');
+  const source = libraryBookId.slice(0, separator);
+  const itemId = libraryBookId.slice(separator + 1);
+  const params = new URLSearchParams({ content_type: contentType });
+  const response = await fetchJSON<{ book: MetadataBookData }>(
+    `${API_BASE}/library/lookup/${encodeURIComponent(source)}/${encodeURIComponent(itemId)}?${params.toString()}`,
+  );
+  return transformMetadataToBook(response.book);
+};
+
 export const getLibraryBooks = async (): Promise<LibraryBooksResponse> =>
   fetchJSON<LibraryBooksResponse>(`${API_BASE}/library/books`);
 

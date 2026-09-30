@@ -7,6 +7,7 @@ import {
   type LibraryFormatFilter,
   type LibrarySort,
 } from '../../utils/libraryBrowser';
+import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryBookGrid } from './LibraryBookGrid';
 import { inputClass } from './libraryStyles';
 
@@ -33,10 +34,16 @@ interface LibraryAllViewProps {
   books: LibraryBook[];
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
+  cardActions: LibraryCardActions;
 }
 
 /** Every book, with a text filter, a format filter and sorting. */
-export const LibraryAllView = ({ books, onAuthorClick, onSeriesClick }: LibraryAllViewProps) => {
+export const LibraryAllView = ({
+  books,
+  onAuthorClick,
+  onSeriesClick,
+  cardActions,
+}: LibraryAllViewProps) => {
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<LibraryFormatFilter>('any');
   const [sort, setSort] = useState<LibrarySort>('title');
@@ -102,6 +109,7 @@ export const LibraryAllView = ({ books, onAuthorClick, onSeriesClick }: LibraryA
           books={visible}
           onAuthorClick={onAuthorClick}
           onSeriesClick={onSeriesClick}
+          cardActions={cardActions}
         />
       )}
     </div>
