@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import type { LibraryBook, LibraryFormat } from '../../types';
+import type { LibraryBook } from '../../types';
 import {
   authorSeriesSections,
   booksByAuthor,
@@ -8,6 +8,7 @@ import {
   sameName,
   seriesRangeLabel,
 } from '../../utils/libraryGroups';
+import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryBookGrid } from './LibraryBookGrid';
 import { LibraryMissingSection, type LibraryBookActions } from './LibraryMissingSection';
 import { segmentClass } from './libraryStyles';
@@ -29,7 +30,7 @@ interface DetailProps {
   actions: LibraryBookActions;
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
-  onGet: (book: LibraryBook, format: LibraryFormat) => Promise<void>;
+  cardActions: LibraryCardActions;
 }
 
 /** One author's books, all together or grouped by series. */
@@ -39,7 +40,7 @@ export const LibraryAuthorPage = ({
   author,
   onAuthorClick,
   onSeriesClick,
-  onGet,
+  cardActions,
 }: DetailProps & { author: string }) => {
   const own = useMemo(() => booksByAuthor(books, author), [books, author]);
   const sections = useMemo(() => authorSeriesSections(own), [own]);
@@ -92,7 +93,7 @@ export const LibraryAuthorPage = ({
           books={own}
           onAuthorClick={otherAuthor}
           onSeriesClick={onSeriesClick}
-          onGet={onGet}
+          cardActions={cardActions}
         />
       ) : (
         sections.map((section) => (
@@ -115,7 +116,7 @@ export const LibraryAuthorPage = ({
               books={section.books}
               series={section.series ?? undefined}
               onAuthorClick={otherAuthor}
-              onGet={onGet}
+              cardActions={cardActions}
             />
           </section>
         ))
@@ -132,7 +133,7 @@ export const LibrarySeriesPage = ({
   actions,
   series,
   onAuthorClick,
-  onGet,
+  cardActions,
 }: Omit<DetailProps, 'onSeriesClick'> & { series: string }) => {
   const group = useMemo(
     () => groupBySeries(books).find((candidate) => sameName(candidate.name, series)),
@@ -174,7 +175,7 @@ export const LibrarySeriesPage = ({
         books={group.books}
         series={group.name}
         onAuthorClick={onAuthorClick}
-        onGet={onGet}
+        cardActions={cardActions}
       />
       <LibraryMissingSection kind="series" name={group.name} actions={actions} />
     </div>

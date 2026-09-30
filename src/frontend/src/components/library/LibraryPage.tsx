@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { getLibraryBooks, lookupLibraryBook } from '../../services/api';
-import type { LibraryBook, LibraryBooksResponse, LibraryFormat } from '../../types';
+import type { Book, ContentType, LibraryBook, LibraryBooksResponse } from '../../types';
 import { libraryPath, parseLibraryRoute, type LibraryTab } from '../../utils/libraryRoute';
 import { LibraryAllView } from './LibraryAllView';
+import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryAuthorPage, LibrarySeriesPage } from './LibraryDetailPages';
 import { LibraryAuthorsView, LibrarySeriesView } from './LibraryGroupsView';
 import type { LibraryBookActions } from './LibraryMissingSection';
@@ -15,6 +16,20 @@ const TABS: Array<{ tab: LibraryTab; label: string; path: string }> = [
   { tab: 'authors', label: 'Authors', path: '/library/authors' },
   { tab: 'series', label: 'Series', path: '/library/series' },
 ];
+
+// Provider records of library books, remembered for the session (failures are retried).
+const lookups = new Map<string, Promise<Book>>();
+
+const lookupCached = (book: LibraryBook, contentType: ContentType): Promise<Book> => {
+  const key = `${book.id}|${contentType}`;
+  let pending = lookups.get(key);
+  if (!pending) {
+    pending = lookupLibraryBook(book.id, contentType);
+    lookups.set(key, pending);
+    pending.catch(() => lookups.delete(key));
+  }
+  return pending;
+};
 
 interface LibraryPageProps {
   onBack: () => void;
@@ -41,17 +56,13 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
     void navigate(libraryPath('authors', author));
     window.scrollTo({ top: 0 });
   };
-  // Find the book with the metadata provider, then open its releases in that format.
-  const getBook = async (book: LibraryBook, format: LibraryFormat) => {
-    try {
-      const found = await lookupLibraryBook(book.id, format);
-      await actions.onGetReleases(found, format);
-    } catch (err: unknown) {
-      actions.onShowToast?.(
-        err instanceof Error ? err.message : `Could not look up ${book.title}`,
-        'error',
-      );
-    }
+  const cardActions: LibraryCardActions = {
+    // The provider for the header's format: an audiobook looks up the audiobook record.
+    lookup: (book) => lookupCached(book, actions.contentType),
+    onShowDetails: actions.onShowDetails,
+    onGetReleases: (book) => actions.onGetReleases(book),
+    getButtonState: actions.getButtonState,
+    onShowToast: actions.onShowToast,
   };
   const openSeries = (series: string) => {
     void navigate(libraryPath('series', series));
@@ -80,7 +91,7 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         author={route.name}
         onAuthorClick={openAuthor}
         onSeriesClick={openSeries}
-        onGet={getBook}
+        cardActions={cardActions}
       />
     );
   } else if (route.tab === 'authors') {
@@ -93,7 +104,7 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         actions={actions}
         series={route.name}
         onAuthorClick={openAuthor}
-        onGet={getBook}
+        cardActions={cardActions}
       />
     );
   } else if (route.tab === 'series') {
@@ -104,7 +115,7 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         books={data.books}
         onAuthorClick={openAuthor}
         onSeriesClick={openSeries}
-        onGet={getBook}
+        cardActions={cardActions}
       />
     );
   }

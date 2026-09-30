@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import type { LibraryBook, LibraryFormat } from '../../types';
+import type { LibraryBook } from '../../types';
 import { seriesNumberIn } from '../../utils/libraryGroups';
-import { LibraryBookCard } from './LibraryBookCard';
+import { LibraryBookCard, type LibraryCardActions } from './LibraryBookCard';
 
 const PAGE_SIZE = 120;
 
@@ -12,7 +12,7 @@ interface LibraryBookGridProps {
   series?: string;
   onAuthorClick?: (author: string) => void;
   onSeriesClick?: (series: string) => void;
-  onGet?: (book: LibraryBook, format: LibraryFormat) => Promise<void>;
+  cardActions?: LibraryCardActions;
 }
 
 export const LibraryBookGrid = ({
@@ -20,7 +20,7 @@ export const LibraryBookGrid = ({
   series,
   onAuthorClick,
   onSeriesClick,
-  onGet,
+  cardActions,
 }: LibraryBookGridProps) => {
   const [shown, setShown] = useState(PAGE_SIZE);
   return (
@@ -33,7 +33,7 @@ export const LibraryBookGrid = ({
             seriesPosition={series ? seriesNumberIn(book, series) : null}
             onAuthorClick={onAuthorClick}
             onSeriesClick={onSeriesClick}
-            onGet={onGet}
+            actions={cardActions}
           />
         ))}
       </div>

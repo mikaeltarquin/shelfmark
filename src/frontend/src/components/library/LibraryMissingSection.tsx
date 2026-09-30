@@ -13,7 +13,7 @@ export interface LibraryBookActions {
   allowedContentTypes: ContentType[];
   onContentTypeChange: (contentType: ContentType) => void;
   onShowDetails: (book: Book) => Promise<void>;
-  onGetReleases: (book: Book, contentType?: ContentType) => Promise<void>;
+  onGetReleases: (book: Book) => Promise<void>;
   getButtonState: (bookId: string) => ButtonStateInfo;
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
 }

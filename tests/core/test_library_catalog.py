@@ -324,6 +324,27 @@ class TestRoutes:
 
 
 class TestLookupRoute:
+    @pytest.fixture(autouse=True)
+    def fresh_lookup_cache(self, monkeypatch):
+        from shelfmark.core import library_routes
+
+        monkeypatch.setattr(library_routes, "_lookup_cache", {})
+
+    def test_answers_are_cached(self, main_module, monkeypatch):
+        entry = _entry("calibre", "1", "The Martian")
+        monkeypatch.setattr(library_catalog, "find_entry", lambda source, item_id: (CALIBRE, entry))
+        calls: list[str] = []
+
+        def find(e, content_type):
+            calls.append(content_type)
+            return BookMetadata("hardcover", "42", "The Martian")
+
+        monkeypatch.setattr(library_catalog, "find_provider_book", find)
+        client = _client(main_module, is_admin=True)
+        assert client.get("/api/library/lookup/calibre/1").status_code == 200
+        assert client.get("/api/library/lookup/calibre/1").status_code == 200
+        assert calls == ["ebook"]
+
     def test_found(self, main_module, monkeypatch):
         entry = _entry("calibre", "1", "The Martian")
         monkeypatch.setattr(library_catalog, "find_entry", lambda source, item_id: (CALIBRE, entry))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import TYPE_CHECKING, Any
 
 from flask import Response, jsonify, redirect, request, send_file
@@ -20,10 +21,32 @@ if TYPE_CHECKING:
     from flask.typing import ResponseReturnValue
     from werkzeug.wrappers import Response as BaseResponse
 
+    from shelfmark.core.library_providers import LibraryEntry
+    from shelfmark.metadata_providers import BookMetadata
+
 logger = setup_logger(__name__)
 
 _ITEM_ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _COVER_CACHE_SECONDS = 24 * 3600
+# Library cards look their book up when hovered, so answers are kept a while.
+_LOOKUP_FOUND_SECONDS = 6 * 3600
+_LOOKUP_MISSING_SECONDS = 10 * 60
+_lookup_cache: dict[tuple[str, str, str], tuple[float, BookMetadata | None]] = {}
+
+
+def _cached_provider_book(
+    entry: LibraryEntry, source: str, item_id: str, content_type: str
+) -> BookMetadata | None:
+    key = (source, item_id, content_type)
+    cached = _lookup_cache.get(key)
+    if cached is not None:
+        at, book = cached
+        ttl = _LOOKUP_FOUND_SECONDS if book is not None else _LOOKUP_MISSING_SECONDS
+        if time.monotonic() - at < ttl:
+            return book
+    book = library_catalog.find_provider_book(entry, content_type)
+    _lookup_cache[key] = (time.monotonic(), book)
+    return book
 
 
 def _cached(response: BaseResponse) -> BaseResponse:
@@ -111,7 +134,7 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
             return jsonify({"error": "Not in the library"}), 404
         _provider, entry = found
         try:
-            book = library_catalog.find_provider_book(entry, content_type)
+            book = _cached_provider_book(entry, source, item_id, content_type)
         except Exception as exc:  # noqa: BLE001 - shown on the page
             logger.warning("Lookup of %s:%s failed: %s", source, item_id, exc)
             return jsonify({"error": f"The metadata provider could not be reached: {exc}"}), 502
