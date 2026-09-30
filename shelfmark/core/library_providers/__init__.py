@@ -7,11 +7,28 @@ and answers whether a requested book is already on the shelf.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+
+@dataclass(frozen=True)
+class LibraryItem:
+    """What the library browser shows for one library item."""
+
+    source: str  # Provider name, e.g. "calibre"
+    item_id: str  # The item's id in that library
+    title: str
+    authors: tuple[str, ...] = ()
+    # (series name, number as the library gives it, e.g. "3" or "2.5"; None if unnumbered)
+    series: tuple[tuple[str, str | None], ...] = ()
+    narrators: tuple[str, ...] = ()
+    added_at: float | None = None  # Unix time the item was added to the library
+    year: int | None = None
+    has_cover: bool = False
+    isbn: str | None = None
 
 
 @dataclass(frozen=True)
@@ -36,6 +53,8 @@ class LibraryEntry:
     content_types: frozenset[str] | None = None
     # Narrator names, compared casefolded, for audiobooks.
     narrators: frozenset[str] = frozenset()
+    # Display data for the library browser; not part of matching.
+    item: LibraryItem | None = field(default=None, compare=False)
 
 
 class LibraryProvider(Protocol):

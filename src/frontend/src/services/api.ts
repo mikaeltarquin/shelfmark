@@ -14,6 +14,7 @@ import type {
   MetadataSearchConfig,
   PackBook,
   InspectReleaseResponse,
+  LibraryBooksResponse,
 } from '../types';
 import type {
   ActionResult,
@@ -603,6 +604,9 @@ export const downloadRelease = async (
 export const getStatus = async (): Promise<StatusData> => {
   return fetchJSON<StatusData>(API.status);
 };
+
+export const getLibraryBooks = async (): Promise<LibraryBooksResponse> =>
+  fetchJSON<LibraryBooksResponse>(`${API_BASE}/library/books`);
 
 export const getMamAccount = async (refresh = false): Promise<MamAccountResponse> =>
   fetchJSON<MamAccountResponse>(`${API_BASE}/mam/account${refresh ? '?refresh=1' : ''}`);

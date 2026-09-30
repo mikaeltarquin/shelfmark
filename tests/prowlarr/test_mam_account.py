@@ -224,7 +224,10 @@ def _client(main_module, *, is_admin: bool):
 
 @pytest.fixture
 def auth_required():
-    with patch("shelfmark.core.mam_routes.load_active_auth_mode", return_value="builtin"):
+    with (
+        patch("shelfmark.core.mam_routes.load_active_auth_mode", return_value="builtin"),
+        patch("shelfmark.core.route_guards.load_active_auth_mode", return_value="builtin"),
+    ):
         yield
 
 

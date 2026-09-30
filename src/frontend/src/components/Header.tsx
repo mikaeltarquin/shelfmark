@@ -37,6 +37,7 @@ interface HeaderProps {
   onDownloadsClick?: () => void;
   onSettingsClick?: () => void;
   onMamAccountClick?: () => void; // Admins with a MyAnonamouse session ID only
+  onLibraryClick?: () => void; // Admins with a library connected
   isAdmin?: boolean;
   canAccessSettings?: boolean;
   statusCounts?: ActivityStatusCounts;
@@ -108,6 +109,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
       onDownloadsClick,
       onSettingsClick,
       onMamAccountClick,
+      onLibraryClick,
       isAdmin = false,
       canAccessSettings,
       statusCounts = DEFAULT_STATUS_COUNTS,
@@ -375,6 +377,33 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
             </svg>
             {!showIconsOnly && <span className="text-sm font-medium">Go To Library</span>}
           </a>
+        )}
+
+        {/* Library browser */}
+        {onLibraryClick && (
+          <button
+            type="button"
+            onClick={onLibraryClick}
+            className="hover-action flex items-center gap-2 rounded-full px-3 py-2 text-gray-900 transition-all duration-200 dark:text-gray-100"
+            aria-label="Browse your library"
+            title="Library"
+          >
+            <svg
+              className="h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z"
+              />
+            </svg>
+            <span className="hidden text-sm font-medium sm:inline">Library</span>
+          </button>
         )}
 
         {/* Activity Button */}
