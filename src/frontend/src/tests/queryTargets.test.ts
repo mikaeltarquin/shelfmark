@@ -4,6 +4,7 @@ import type { MetadataSearchField } from '../types';
 import {
   buildQueryTargets,
   findQueryTarget,
+  generalSuggestionAction,
   getDefaultQueryTargetKey,
   searchBarQueryField,
 } from '../utils/queryTargets';
@@ -115,5 +116,62 @@ describe('searchBarQueryField', () => {
     ];
     expect(searchBarQueryField(general, 'universal', plainTitle)).toBeNull();
     expect(searchBarQueryField(general, 'direct', fields)).toBeNull();
+  });
+});
+
+describe('General suggestions', () => {
+  const fields: MetadataSearchField[] = [
+    {
+      key: 'author',
+      label: 'Author',
+      type: 'TextSearchField',
+      suggestions_endpoint: '/api/metadata/field-options?provider=hardcover&field=author',
+    },
+    {
+      key: 'title',
+      label: 'Title',
+      type: 'TextSearchField',
+      suggestions_endpoint: '/api/metadata/field-options?provider=hardcover&field=title',
+    },
+  ];
+  const targets = buildQueryTargets({ searchMode: 'universal', metadataSearchFields: fields });
+  const general = findQueryTarget(targets, 'general');
+  const generalEndpoint = '/api/metadata/field-options?provider=hardcover&field=general';
+
+  it("use the provider's General suggestions over its title suggestions", () => {
+    const field = searchBarQueryField(general, 'universal', fields, generalEndpoint);
+    expect(field).toMatchObject({ key: 'general', suggestions_endpoint: generalEndpoint });
+  });
+
+  it('open a picked series in reading order', () => {
+    expect(
+      generalSuggestionAction(
+        { value: 'id:997', label: 'The Stormlight Archive', kind: 'series' },
+        general,
+        targets,
+        true,
+      ),
+    ).toEqual({ kind: 'series', name: 'The Stormlight Archive', seriesId: '997' });
+  });
+
+  it('turn a picked author into an Author search', () => {
+    const action = generalSuggestionAction(
+      { value: 'id:204214', label: 'Brandon Sanderson', kind: 'author' },
+      general,
+      targets,
+      true,
+    );
+    expect(action?.kind).toBe('author');
+    expect(action?.kind === 'author' && action.target.key).toBe('author');
+  });
+
+  it('search a picked book, and leave picks outside General alone', () => {
+    const book = { value: 'Elantris', label: 'Elantris', kind: 'book' as const };
+    expect(generalSuggestionAction(book, general, targets, true)).toBeNull();
+    const series = { value: 'id:1', label: 'Mistborn', kind: 'series' as const };
+    expect(
+      generalSuggestionAction(series, findQueryTarget(targets, 'title'), targets, true),
+    ).toBeNull();
+    expect(generalSuggestionAction(series, general, targets, false)).toBeNull();
   });
 });

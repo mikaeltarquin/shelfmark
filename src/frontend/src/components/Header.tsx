@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, forwardRef, useImperativeHandle } from 'reac
 
 import { useDismiss } from '../hooks/useDismiss';
 import { useMountEffect } from '../hooks/useMountEffect';
+import type { DynamicFieldOption } from '../services/api';
 import type {
   ContentType,
   ActingAsUserSelection,
@@ -14,7 +15,7 @@ import { getActivityBadgeState } from '../utils/activityBadge';
 import { withBasePath } from '../utils/basePath';
 import { isRecord } from '../utils/objectHelpers';
 import { DropdownList } from './DropdownList';
-import type { SearchBarHandle } from './SearchBar';
+import type { SearchBarHandle, SuggestionPickResult } from './SearchBar';
 import { SearchBar } from './SearchBar';
 
 interface HeaderHandle {
@@ -30,6 +31,7 @@ interface HeaderProps {
   searchInput?: string | number | boolean;
   searchInputLabel?: string;
   onSearchChange?: (value: string | number | boolean, label?: string) => void;
+  onSuggestionPick?: (option: DynamicFieldOption) => SuggestionPickResult;
   onSearch?: () => void;
   onAdvancedToggle?: () => void;
   isAdvancedActive?: boolean;
@@ -102,6 +104,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
       searchInput = '',
       searchInputLabel,
       onSearchChange,
+      onSuggestionPick,
       onSearch,
       onAdvancedToggle,
       isAdvancedActive = false,
@@ -777,6 +780,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
                     value={searchInput}
                     valueLabel={searchInputLabel}
                     onChange={handleSearchChange}
+                    onSuggestionPick={onSuggestionPick}
                     onSubmit={handleHeaderSearch}
                     onAdvancedToggle={onAdvancedToggle}
                     isAdvancedActive={isAdvancedActive}

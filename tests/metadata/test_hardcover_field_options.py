@@ -47,8 +47,8 @@ class TestHardcoverFieldOptions:
         options = provider.get_search_field_options("author", query="sand")
 
         assert options == [
-            {"value": "id:1", "label": "Brandon Sanderson"},
-            {"value": "id:2", "label": "Brian Sanderson"},
+            {"value": "id:1", "label": "Brandon Sanderson", "kind": "author"},
+            {"value": "id:2", "label": "Brian Sanderson", "kind": "author"},
         ]
         assert captured["variables"] == {
             "query": "sand",
@@ -127,8 +127,16 @@ class TestHardcoverFieldOptions:
         options = provider.get_search_field_options("title", query="mistborn")
 
         assert options == [
-            {"value": "Mistborn: The Final Empire", "label": "Mistborn: The Final Empire"},
-            {"value": "Mistborn: Secret History", "label": "Mistborn: Secret History"},
+            {
+                "value": "Mistborn: The Final Empire",
+                "label": "Mistborn: The Final Empire",
+                "kind": "book",
+            },
+            {
+                "value": "Mistborn: Secret History",
+                "label": "Mistborn: Secret History",
+                "kind": "book",
+            },
         ]
         assert captured["variables"] == {
             "query": "mistborn",
@@ -170,8 +178,13 @@ class TestHardcoverFieldOptions:
                 "value": "Words of Radiance",
                 "label": "Words of Radiance",
                 "description": "by Brandon Sanderson",
+                "kind": "book",
             },
-            {"value": "Words of Radiance: Part One", "label": "Words of Radiance: Part One"},
+            {
+                "value": "Words of Radiance: Part One",
+                "label": "Words of Radiance: Part One",
+                "kind": "book",
+            },
         ]
 
     def test_get_search_field_options_skips_short_text_queries(self):
@@ -179,3 +192,22 @@ class TestHardcoverFieldOptions:
 
         assert provider.get_search_field_options("author", query="a") == []
         assert provider.get_search_field_options("title", query="i") == []
+
+
+def test_general_suggestions_list_books_then_series_then_authors(monkeypatch):
+    provider = HardcoverProvider(api_key="test-token")
+    books = [{"value": f"Book {i}", "label": f"Book {i}"} for i in range(7)]
+    series = [{"value": f"id:{i}", "label": f"Series {i}"} for i in range(5)]
+    authors = [{"value": f"id:{i}", "label": f"Author {i}"} for i in range(5)]
+    monkeypatch.setattr(provider, "_search_title_options", lambda query: books)
+    monkeypatch.setattr(provider, "_search_series_options", lambda query: series)
+    monkeypatch.setattr(provider, "_search_author_options", lambda query: authors)
+
+    options = provider.get_search_field_options("general", query="stormlight")
+
+    assert [(o["kind"], o["label"]) for o in options] == [
+        *(("book", f"Book {i}") for i in range(5)),
+        *(("series", f"Series {i}") for i in range(3)),
+        *(("author", f"Author {i}") for i in range(3)),
+    ]
+    assert provider.get_search_field_options("general", query="s") == []

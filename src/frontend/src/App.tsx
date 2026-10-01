@@ -17,6 +17,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { ReleaseModal } from './components/ReleaseModal';
 import { RequestConfirmationModal } from './components/RequestConfirmationModal';
 import { ResultsSection } from './components/ResultsSection';
+import type { SuggestionPickResult } from './components/SearchBar';
 import { SearchSection } from './components/SearchSection';
 import { SelfSettingsModal, SettingsModal } from './components/settings';
 import { ToastContainer } from './components/ToastContainer';
@@ -65,6 +66,7 @@ import {
   checkMamBuffer,
   getMamRatio,
   type DownloadReleasePayload,
+  type DynamicFieldOption,
 } from './services/api';
 import type {
   Book,
@@ -104,6 +106,7 @@ import { policyTrace } from './utils/policyTrace';
 import {
   buildQueryTargets,
   findQueryTarget,
+  generalSuggestionAction,
   getDefaultQueryTargetKey,
   searchBarQueryField,
 } from './utils/queryTargets';
@@ -2088,6 +2091,9 @@ function App() {
     activeQueryOption,
     effectiveSearchMode,
     stableSearchFields,
+    activeMetadataConfig?.capabilities.find(
+      (capability) => capability.key === 'general_suggestions',
+    )?.suggestions_endpoint,
   );
   const seriesBrowseCapability = useMemo(
     () =>
@@ -2415,6 +2421,40 @@ function App() {
     ],
   );
 
+  // A series or an author picked from General's suggestions opens as if picked in
+  // Series or Author search; a book searches for its title as usual.
+  const handleSuggestionPick = useCallback(
+    (option: DynamicFieldOption): SuggestionPickResult => {
+      const action = generalSuggestionAction(
+        option,
+        activeQueryOption,
+        queryTargets,
+        Boolean(seriesBrowseTarget),
+      );
+      if (action?.kind === 'series') {
+        handleSearchSeries(action.name, action.seriesId);
+        // Keep the series in the box (shown by its name), as a pick in Series search does.
+        setSearchInput(option.value);
+        return 'searched';
+      }
+      if (action?.kind === 'author') {
+        setActiveQueryTarget(action.target.key);
+        setSearchInput(option.value);
+        updateSearchFieldValue(action.target.field.key, option.value, option.label);
+        return 'selected';
+      }
+      return undefined;
+    },
+    [
+      activeQueryOption,
+      handleSearchSeries,
+      queryTargets,
+      seriesBrowseTarget,
+      setSearchInput,
+      updateSearchFieldValue,
+    ],
+  );
+
   const canSearchSeriesForBook = useCallback(
     (book: Book | null): boolean => {
       if (!book?.provider || !book.series_name) {
@@ -2545,6 +2585,7 @@ function App() {
           searchInput={activeQueryValue}
           searchInputLabel={activeQueryValueLabel}
           onSearchChange={handleActiveQueryValueChange}
+          onSuggestionPick={handleSuggestionPick}
           onDownloadsClick={toggleDownloadsSidebar}
           onSettingsClick={handleSettingsClick}
           onLibraryClick={
@@ -2681,6 +2722,7 @@ function App() {
                 queryValue={activeQueryValue}
                 queryValueLabel={activeQueryValueLabel}
                 onQueryValueChange={handleActiveQueryValueChange}
+                onSuggestionPick={handleSuggestionPick}
                 queryTargets={queryTargets}
                 activeQueryTarget={effectiveActiveQueryTarget}
                 onQueryTargetChange={handleQueryTargetChange}

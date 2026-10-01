@@ -344,6 +344,7 @@ export interface MetadataCapability {
   key: string;
   field_key?: string;
   sort?: string;
+  suggestions_endpoint?: string;
 }
 
 export interface MetadataSearchConfig {

@@ -1,3 +1,4 @@
+import type { DynamicFieldOption } from '../services/api';
 import type {
   AdvancedFilterState,
   Language,
@@ -8,7 +9,7 @@ import type {
   MetadataProviderSummary,
 } from '../types';
 import { AdvancedFilters } from './AdvancedFilters';
-import { SearchBar } from './SearchBar';
+import { SearchBar, type SuggestionPickResult } from './SearchBar';
 
 interface SearchSectionProps {
   onSearch: () => void;
@@ -21,6 +22,7 @@ interface SearchSectionProps {
   queryValue: string | number | boolean;
   queryValueLabel?: string;
   onQueryValueChange: (value: string | number | boolean, label?: string) => void;
+  onSuggestionPick?: (option: DynamicFieldOption) => SuggestionPickResult;
   queryTargets: QueryTargetOption[];
   activeQueryTarget: string;
   onQueryTargetChange: (key: string) => void;
@@ -54,6 +56,7 @@ export const SearchSection = ({
   queryValue,
   queryValueLabel,
   onQueryValueChange,
+  onSuggestionPick,
   queryTargets,
   activeQueryTarget,
   onQueryTargetChange,
@@ -99,6 +102,7 @@ export const SearchSection = ({
           value={queryValue}
           valueLabel={queryValueLabel}
           onChange={onQueryValueChange}
+          onSuggestionPick={onSuggestionPick}
           onSubmit={onSearch}
           isLoading={isLoading}
           onAdvancedToggle={onAdvancedToggle}
