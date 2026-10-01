@@ -28,6 +28,9 @@ interface SearchBarProps {
   className?: string;
   inputClassName?: string;
   controlsClassName?: string;
+  // Float the Content / Search by panel over the page (in the header) instead of
+  // pushing what follows down; the parent must be positioned.
+  floatingControlsPanel?: boolean;
   clearButtonLabel?: string;
   clearButtonTitle?: string;
   searchButtonLabel?: string;
@@ -181,6 +184,7 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
       className = '',
       inputClassName = '',
       controlsClassName = '',
+      floatingControlsPanel = false,
       clearButtonLabel = 'Clear search input',
       clearButtonTitle = 'Clear search',
       searchButtonLabel = 'Search books',
@@ -841,7 +845,16 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
         {showQueryTargetSelector && isSelectorOpen && (
           <div
             id={SEARCH_CONTROLS_PANEL_ID}
-            className="animate-fade-in-down flex flex-wrap items-start gap-x-8 gap-y-2 px-1 pt-2"
+            className={`animate-fade-in-down flex flex-wrap items-start gap-x-8 gap-y-2 ${
+              floatingControlsPanel
+                ? 'absolute top-full right-0 left-0 z-50 mt-2 rounded-2xl border px-4 pt-3 pb-2 shadow-xl'
+                : 'px-1 pt-2'
+            }`}
+            style={
+              floatingControlsPanel
+                ? { background: 'var(--bg)', borderColor: 'var(--border-muted)' }
+                : undefined
+            }
             ref={controlsPanelRef}
           >
             {showContentTypeSelector && (

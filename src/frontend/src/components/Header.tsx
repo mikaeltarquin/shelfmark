@@ -771,28 +771,33 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
                       className="hidden h-12 w-12 shrink-0 lg:block"
                     />
                   ))}
-                <SearchBar
-                  ref={searchBarRef}
-                  className="flex-1 lg:w-[calc(50vw+5rem)] lg:flex-none"
-                  value={searchInput}
-                  valueLabel={searchInputLabel}
-                  onChange={handleSearchChange}
-                  onSuggestionPick={onSuggestionPick}
-                  onSubmit={handleHeaderSearch}
-                  onAdvancedToggle={onAdvancedToggle}
-                  isAdvancedActive={isAdvancedActive}
-                  isLoading={isLoading}
-                  contentType={contentType}
-                  onContentTypeChange={onContentTypeChange}
-                  allowedContentTypes={allowedContentTypes}
-                  combinedMode={combinedMode}
-                  combinedModeLocked={combinedModeLocked}
-                  onCombinedModeChange={onCombinedModeChange}
-                  queryTargets={queryTargets}
-                  activeQueryTarget={activeQueryTarget}
-                  onQueryTargetChange={onQueryTargetChange}
-                  activeQueryField={activeQueryField}
-                />
+                {/* One positioned box for the bar and its Content / Search by panel, which
+                    floats below the bar; as a direct child of this row the panel would sit
+                    beside the bar instead. */}
+                <div className="relative min-w-0 flex-1 lg:w-[calc(50vw+5rem)] lg:flex-none">
+                  <SearchBar
+                    ref={searchBarRef}
+                    value={searchInput}
+                    valueLabel={searchInputLabel}
+                    onChange={handleSearchChange}
+                    onSuggestionPick={onSuggestionPick}
+                    onSubmit={handleHeaderSearch}
+                    onAdvancedToggle={onAdvancedToggle}
+                    isAdvancedActive={isAdvancedActive}
+                    isLoading={isLoading}
+                    contentType={contentType}
+                    onContentTypeChange={onContentTypeChange}
+                    allowedContentTypes={allowedContentTypes}
+                    combinedMode={combinedMode}
+                    combinedModeLocked={combinedModeLocked}
+                    onCombinedModeChange={onCombinedModeChange}
+                    queryTargets={queryTargets}
+                    activeQueryTarget={activeQueryTarget}
+                    onQueryTargetChange={onQueryTargetChange}
+                    activeQueryField={activeQueryField}
+                    floatingControlsPanel
+                  />
+                </div>
               </div>
             </div>
           )}
