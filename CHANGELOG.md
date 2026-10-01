@@ -2,7 +2,7 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
-## Unreleased
+## v1.0.2
 
 ### Added
 - **Title and General search suggestions**: typing in Title search offers book titles from
