@@ -20,8 +20,9 @@ This is a fork of [calibrain/shelfmark](https://github.com/calibrain/shelfmark) 
 **shared ebook and audiobook libraries in [Audiobookshelf](https://github.com/advplyr/audiobookshelf)**
 and on **MyAnonamouse** as a source. Everything upstream still works the same; the fork only adds.
 
-**Image:** `ghcr.io/mikaeltarquin/shelfmark:dev` (and `ghcr.io/mikaeltarquin/shelfmark-lite:dev`),
-rebuilt from `main` after each change. The compose files and install commands below still point at
+**Image:** `ghcr.io/mikaeltarquin/shelfmark:latest` (and `ghcr.io/mikaeltarquin/shelfmark-lite:latest`)
+for the latest release, or a version tag such as `:1.0.1`. `:dev` is rebuilt from `main` after each
+change. See the [changelog](CHANGELOG.md) for what each release adds. The compose files and install commands below still point at
 upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get the features listed here.
 
 ### What's different from upstream
@@ -35,6 +36,9 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
 - **Write Audiobookshelf Metadata**: a `metadata.opf` in each audiobook folder with title, authors,
   narrators, year, language and series with number, so every book of a series files under the same
   series name. Edits made in Audiobookshelf itself still win.
+- **Books released in parts** (GraphicAudio): each part is filed as its own book,
+  `Elantris (1 of 2) {GraphicAudio}/Elantris (1 of 2).m4b`, numbered in its series after the
+  book (book 2, part 1 is 2.1), so Audiobookshelf matches each part and lists them in order.
 
 **MyAnonamouse account tools** (admin only; needs the MAM session ID)
 - An **account panel** (header menu → MyAnonamouse) with upload, download, ratio, buffer, bonus
@@ -59,8 +63,10 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
 - A **library browser** (the **Library** button in the header, admin only):
   - **All**: every book in your connected libraries as a cover grid, with filter, format filter
     and sorting. A book held by both libraries shows once, with both format badges.
-  - **Authors**: each author's books, all together or grouped by series.
-  - **Series**: each series in reading order, with numbers.
+  - **Authors**: each author's books, all together or grouped by series. Sort authors by
+    First Last or Last, First, book or series count, or recently added, as cards or a table.
+  - **Series**: each series in reading order, with numbers. Sort series by name, author,
+    book count or recently added.
   - **Not in your library**: on author and series pages, the books your metadata provider
     (Hardcover) knows that you don't have, with an Any / Ebook / Audiobook switch. A book you own
     only as an ebook still shows as a missing audiobook.
