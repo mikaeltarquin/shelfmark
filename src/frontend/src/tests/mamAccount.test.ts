@@ -10,6 +10,7 @@ import {
   maxAffordableGb,
   uploadCreditCost,
   formatUnsat,
+  mamProfileUrl,
   ratioTone,
   unsatTone,
 } from '../utils/mamAccount';
@@ -121,5 +122,13 @@ describe('header ratio and unsatisfied', () => {
     expect(ratioTone(1.5)).toContain('amber');
     expect(ratioTone(0.8)).toContain('red');
     expect(ratioTone(Infinity)).toBeUndefined();
+  });
+});
+
+describe('mamProfileUrl', () => {
+  it("links the account's profile, or the site without an id", () => {
+    expect(mamProfileUrl(123456)).toBe('https://www.myanonamouse.net/u/123456');
+    expect(mamProfileUrl(null)).toBe('https://www.myanonamouse.net');
+    expect(mamProfileUrl(undefined)).toBe('https://www.myanonamouse.net');
   });
 });

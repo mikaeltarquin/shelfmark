@@ -11,6 +11,7 @@ export interface MamStats {
   vip_until: string | null;
   unsat_count: number | null; // Torrents not yet seeded 72 hours
   unsat_limit: number | null; // How many the user class allows
+  uid?: number | null; // The account's user id
   fetched_at: number;
 }
 
@@ -146,6 +147,13 @@ export const formatRatio = (ratio: number | null): string => {
   if (!Number.isFinite(ratio)) return '∞';
   return ratio.toFixed(2);
 };
+
+export const MAM_SITE_URL = 'https://www.myanonamouse.net';
+export const MAM_STORE_URL = `${MAM_SITE_URL}/store.php`;
+
+/** The account's profile page on MyAnonamouse, or the site when its id isn't known. */
+export const mamProfileUrl = (uid: number | null | undefined): string =>
+  uid ? `${MAM_SITE_URL}/u/${uid}` : MAM_SITE_URL;
 
 /** Red at or past the unsatisfied limit, amber within 10% of it. */
 export const unsatTone = (count: number | null, limit: number | null): string | undefined => {

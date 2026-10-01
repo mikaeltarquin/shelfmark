@@ -81,6 +81,7 @@ class MamStats:
     # Torrents not yet seeded for MAM's required 72 hours, and how many the class allows.
     unsat_count: int | None = None
     unsat_limit: int | None = None
+    uid: int | None = None  # The account's user id, for a link to its profile page
     fetched_at: float = field(default_factory=time.time)
 
     @property
@@ -188,6 +189,7 @@ def parse_stats(data: dict[str, Any]) -> MamStats:
         vip_until=str(vip_until) if vip_until else None,
         unsat_count=_whole(unsat.get("count")),
         unsat_limit=_whole(unsat.get("limit")),
+        uid=_whole(data.get("uid")),
     )
 
 
