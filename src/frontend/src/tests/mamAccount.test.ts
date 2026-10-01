@@ -9,6 +9,9 @@ import {
   formatRatio,
   maxAffordableGb,
   uploadCreditCost,
+  formatUnsat,
+  ratioTone,
+  unsatTone,
 } from '../utils/mamAccount';
 
 const GIB = 1024 ** 3;
@@ -100,5 +103,23 @@ describe('auto-buy descriptions', () => {
     expect(describeCheck({ ...base, purchases: [], skipped: 'No auto-buy mode is on' })).toBe(
       'No auto-buy mode is on',
     );
+  });
+});
+
+describe('header ratio and unsatisfied', () => {
+  it('formats the unsatisfied count with its limit', () => {
+    expect(formatUnsat(4, 50)).toBe('4 / 50');
+    expect(formatUnsat(4, null)).toBe('4');
+    expect(formatUnsat(null, 50)).toBe('—');
+  });
+
+  it('warns near and past the limits', () => {
+    expect(unsatTone(10, 50)).toBeUndefined();
+    expect(unsatTone(45, 50)).toContain('amber');
+    expect(unsatTone(50, 50)).toContain('red');
+    expect(ratioTone(5)).toBeUndefined();
+    expect(ratioTone(1.5)).toContain('amber');
+    expect(ratioTone(0.8)).toContain('red');
+    expect(ratioTone(Infinity)).toBeUndefined();
   });
 });

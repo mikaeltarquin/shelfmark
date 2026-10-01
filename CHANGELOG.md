@@ -10,6 +10,14 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   Series already did. General search suggests books, series and authors together, each
   marked with an icon. Picking a book searches for it, a series opens it in reading order,
   and an author switches to an Author search.
+- **MyAnonamouse in the header**: the MyAnonamouse button moves out of the menu to sit
+  between Library and Activity, and shows the account's ratio and unsatisfied count
+  (amber or red near the limits), refreshed every 5 minutes and after closing the panel.
+
+### Fixed
+- The Content / Search by panel on a results page opens below the search bar instead of
+  beside it, over the header menus.
+- After picking an author or series suggestion, the search box can be edited again.
 
 ## v1.0.1
 

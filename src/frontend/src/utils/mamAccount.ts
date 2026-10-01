@@ -147,6 +147,26 @@ export const formatRatio = (ratio: number | null): string => {
   return ratio.toFixed(2);
 };
 
+/** Red at or past the unsatisfied limit, amber within 10% of it. */
+export const unsatTone = (count: number | null, limit: number | null): string | undefined => {
+  if (count === null || limit === null) return undefined;
+  if (count >= limit) return 'text-red-600 dark:text-red-400';
+  if (count >= limit * 0.9) return 'text-amber-600 dark:text-amber-400';
+  return undefined;
+};
+
+/** Red below 1, amber below 2. */
+export const ratioTone = (ratio: number | null): string | undefined => {
+  if (ratio === null || !Number.isFinite(ratio)) return undefined;
+  if (ratio < 1) return 'text-red-600 dark:text-red-400';
+  if (ratio < 2) return 'text-amber-600 dark:text-amber-400';
+  return undefined;
+};
+
+/** "4 / 50", or "4" when the limit isn't known. */
+export const formatUnsat = (count: number | null, limit: number | null): string =>
+  count === null ? '—' : `${count}${limit !== null ? ` / ${limit}` : ''}`;
+
 export const formatPoints = (points: number): string => Math.floor(points).toLocaleString('en-US');
 
 /**

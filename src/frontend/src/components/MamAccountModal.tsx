@@ -20,7 +20,10 @@ import {
   formatGib,
   formatPoints,
   formatRatio,
+  formatUnsat,
   maxAffordableGb,
+  ratioTone,
+  unsatTone,
   UPLOAD_CREDIT_PRESETS_GB,
   uploadCreditCost,
   type MamAccountResponse,
@@ -90,20 +93,6 @@ const chipClass = (selected: boolean) =>
       ? 'border-emerald-600 bg-emerald-600 text-white'
       : 'border-(--border-muted) bg-(--bg-soft) hover:bg-(--hover-surface)'
   }`;
-
-const unsatTone = (count: number | null, limit: number | null): string | undefined => {
-  if (count === null || limit === null) return undefined;
-  if (count >= limit) return 'text-red-600 dark:text-red-400';
-  if (count >= limit * 0.9) return 'text-amber-600 dark:text-amber-400';
-  return undefined;
-};
-
-const ratioTone = (ratio: number | null): string | undefined => {
-  if (ratio === null || !Number.isFinite(ratio)) return undefined;
-  if (ratio < 1) return 'text-red-600 dark:text-red-400';
-  if (ratio < 2) return 'text-amber-600 dark:text-amber-400';
-  return undefined;
-};
 
 export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
   const [isClosing, setIsClosing] = useState(false);
@@ -329,11 +318,7 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               />
               <Stat
                 label="Unsatisfied"
-                value={
-                  stats && stats.unsat_count !== null
-                    ? `${stats.unsat_count}${stats.unsat_limit !== null ? ` / ${stats.unsat_limit}` : ''}`
-                    : '—'
-                }
+                value={stats ? formatUnsat(stats.unsat_count, stats.unsat_limit) : '—'}
                 tone={stats ? unsatTone(stats.unsat_count, stats.unsat_limit) : undefined}
               />
               <Stat

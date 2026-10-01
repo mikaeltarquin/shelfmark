@@ -41,9 +41,11 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
   book (book 2, part 1 is 2.1), so Audiobookshelf matches each part and lists them in order.
 
 **MyAnonamouse account tools** (admin only; needs the MAM session ID)
-- An **account panel** (header menu → MyAnonamouse) with upload, download, ratio, buffer, bonus
-  points, VIP expiry, the **unsatisfied torrent** count and limit, and an estimated **bonus points
-  per hour**, plus connection status for MAM and your torrent client.
+- A **MyAnonamouse button** in the header showing your **ratio** and **unsatisfied** count
+  (amber or red as they near the limits). It opens an **account panel** with upload,
+  download, ratio, buffer, bonus points, VIP expiry, the **unsatisfied torrent** count and
+  limit, and an estimated **bonus points per hour**, plus connection status for MAM and your
+  torrent client.
 - **Buy upload credit** from the panel (preset amounts, a custom amount or "max affordable").
 - **Auto-buy** upload credit when the ratio or buffer falls below a threshold, or spend bonus
   points above a threshold, always keeping a reserve. It runs on a schedule and after MAM downloads

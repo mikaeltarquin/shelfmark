@@ -45,7 +45,9 @@ After a failed request (a 403, a timeout, an unexpected reply), Shelfmark waits 
 
 ## Account panel
 
-With a MAM session ID set, admins get a **MyAnonamouse** entry in the menu (top right). It shows:
+With a MAM session ID set, admins get a **MyAnonamouse** button in the header, between
+Library and Activity. It shows the account's ratio and unsatisfied count at a glance (amber
+or red as they near their limits, refreshed every 5 minutes), and opens a panel that shows:
 
 - **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class, VIP expiry and unsatisfied torrents against your class's limit (amber at 90%, red at the limit), from MAM's `jsonLoad.php?snatch_summary`. Refreshed at most once a minute unless you press **Refresh**.
 - **Points / hour:** MAM's API has no earning rate, so Shelfmark estimates it from its own readings of your balance (taken hourly, kept for two days) over the last 24 hours. Points Shelfmark spent on upload credit are added back; a period where points dropped for another reason (spending on MAM's site) or hit MAM's 99,999 cap is left out. It shows once a few hours of readings exist.
