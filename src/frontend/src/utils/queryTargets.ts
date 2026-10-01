@@ -106,3 +106,37 @@ export const findQueryTarget = (
   const lowered = key.toLowerCase();
   return targets.find((target) => target.key.toLowerCase() === lowered);
 };
+
+const hasSuggestions = (field: MetadataSearchField): field is TextSearchField =>
+  field.type === 'TextSearchField' && Boolean(field.suggestions_endpoint);
+
+/**
+ * The field the search bar edits for a target. General has none of its own, so in
+ * universal mode it borrows the provider's title suggestions: typing in General
+ * offers book titles, and picking one searches for it.
+ */
+export const searchBarQueryField = (
+  target: QueryTargetOption | null | undefined,
+  searchMode: SearchMode,
+  metadataSearchFields: MetadataSearchField[] = [],
+): MetadataSearchField | null => {
+  if (target?.field) {
+    return target.field;
+  }
+  if (target?.source !== 'general' || searchMode !== 'universal') {
+    return null;
+  }
+  const title = metadataSearchFields.find(
+    (field): field is TextSearchField => field.key === 'title' && hasSuggestions(field),
+  );
+  if (!title) {
+    return null;
+  }
+  return {
+    key: target.key,
+    label: target.label,
+    type: 'TextSearchField',
+    suggestions_endpoint: title.suggestions_endpoint,
+    suggestions_min_query_length: title.suggestions_min_query_length,
+  };
+};

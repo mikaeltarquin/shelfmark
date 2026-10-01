@@ -6,14 +6,16 @@ from shelfmark.metadata_providers.hardcover import (
 
 
 class TestHardcoverFieldOptions:
-    def test_search_fields_enable_typeahead_for_author_and_series(self):
+    def test_search_fields_enable_typeahead_for_author_title_and_series(self):
         provider = HardcoverProvider(api_key="test-token")
         fields_by_key = {field.key: field for field in provider.search_fields}
 
         assert fields_by_key["author"].suggestions_endpoint == (
             "/api/metadata/field-options?provider=hardcover&field=author"
         )
-        assert fields_by_key["title"].suggestions_endpoint is None
+        assert fields_by_key["title"].suggestions_endpoint == (
+            "/api/metadata/field-options?provider=hardcover&field=title"
+        )
         assert fields_by_key["series"].suggestions_endpoint == (
             "/api/metadata/field-options?provider=hardcover&field=series"
         )
@@ -139,6 +141,38 @@ class TestHardcoverFieldOptions:
             "fields": TITLE_SUGGESTION_FIELDS,
             "weights": TITLE_SUGGESTION_WEIGHTS,
         }
+
+    def test_title_suggestions_name_the_author(self, monkeypatch):
+        provider = HardcoverProvider(api_key="test-token")
+        monkeypatch.setattr(
+            provider,
+            "_execute_query",
+            lambda query, variables: {
+                "search": {
+                    "results": {
+                        "hits": [
+                            {
+                                "document": {
+                                    "title": "Words of Radiance",
+                                    "author_names": ["Brandon Sanderson", "Kate Reading"],
+                                }
+                            },
+                            {"document": {"title": "Words of Radiance: Part One"}},
+                        ],
+                        "found": 2,
+                    }
+                }
+            },
+        )
+
+        assert provider.get_search_field_options("title", query="words of radiance") == [
+            {
+                "value": "Words of Radiance",
+                "label": "Words of Radiance",
+                "description": "by Brandon Sanderson",
+            },
+            {"value": "Words of Radiance: Part One", "label": "Words of Radiance: Part One"},
+        ]
 
     def test_get_search_field_options_skips_short_text_queries(self):
         provider = HardcoverProvider(api_key="test-token")

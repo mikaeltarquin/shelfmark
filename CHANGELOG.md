@@ -2,6 +2,13 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
+## Unreleased
+
+### Added
+- **Title and General search suggestions**: typing in Title or General search offers book
+  titles from Hardcover with their author ("Words of Radiance — by Brandon Sanderson"), as
+  Author and Series already did. Picking one searches for it.
+
 ## v1.0.1
 
 ### Added

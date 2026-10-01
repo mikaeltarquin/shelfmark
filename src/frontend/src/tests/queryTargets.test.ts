@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
+import type { MetadataSearchField } from '../types';
 import {
   buildQueryTargets,
   findQueryTarget,
   getDefaultQueryTargetKey,
+  searchBarQueryField,
 } from '../utils/queryTargets';
 
 describe('queryTargets', () => {
@@ -76,5 +78,42 @@ describe('findQueryTarget', () => {
 
     expect(findQueryTarget(providerTargets, 'hardcoverlist')?.key).toBe('hardcoverList');
     expect(findQueryTarget(providerTargets, 'hardcoverList')?.key).toBe('hardcoverList');
+  });
+});
+
+describe('searchBarQueryField', () => {
+  const fields: MetadataSearchField[] = [
+    {
+      key: 'title',
+      label: 'Title',
+      type: 'TextSearchField',
+      suggestions_endpoint: '/api/metadata/field-options?provider=hardcover&field=title',
+    },
+  ];
+  const universal = buildQueryTargets({ searchMode: 'universal', metadataSearchFields: fields });
+  const general = findQueryTarget(universal, 'general');
+
+  it('gives General the title suggestions in universal mode', () => {
+    expect(searchBarQueryField(general, 'universal', fields)).toEqual({
+      key: 'general',
+      label: 'General',
+      type: 'TextSearchField',
+      suggestions_endpoint: '/api/metadata/field-options?provider=hardcover&field=title',
+      suggestions_min_query_length: undefined,
+    });
+  });
+
+  it('keeps a field target as it is', () => {
+    expect(searchBarQueryField(findQueryTarget(universal, 'title'), 'universal', fields)).toBe(
+      fields[0],
+    );
+  });
+
+  it('leaves General plain without title suggestions or in direct mode', () => {
+    const plainTitle: MetadataSearchField[] = [
+      { key: 'title', label: 'Title', type: 'TextSearchField' },
+    ];
+    expect(searchBarQueryField(general, 'universal', plainTitle)).toBeNull();
+    expect(searchBarQueryField(general, 'direct', fields)).toBeNull();
   });
 });
