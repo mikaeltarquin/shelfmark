@@ -5,9 +5,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
-- **Title and General search suggestions**: typing in Title or General search offers book
-  titles from Hardcover with their author ("Words of Radiance — by Brandon Sanderson"), as
-  Author and Series already did. Picking one searches for it.
+- **Title and General search suggestions**: typing in Title search offers book titles from
+  Hardcover with their author ("Words of Radiance — by Brandon Sanderson"), as Author and
+  Series already did. General search suggests books, series and authors together, each
+  marked with an icon. Picking a book searches for it, a series opens it in reading order,
+  and an author switches to an Author search.
 
 ## v1.0.1
 

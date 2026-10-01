@@ -1,3 +1,4 @@
+import type { DynamicFieldOption } from '../services/api';
 import type { MetadataSearchField, QueryTargetOption, SearchMode, TextSearchField } from '../types';
 
 const makeDirectField = (
@@ -112,13 +113,14 @@ const hasSuggestions = (field: MetadataSearchField): field is TextSearchField =>
 
 /**
  * The field the search bar edits for a target. General has none of its own, so in
- * universal mode it borrows the provider's title suggestions: typing in General
- * offers book titles, and picking one searches for it.
+ * universal mode it borrows suggestions: the provider's General suggestions (books,
+ * series and authors) when it offers them, or else its title suggestions.
  */
 export const searchBarQueryField = (
   target: QueryTargetOption | null | undefined,
   searchMode: SearchMode,
   metadataSearchFields: MetadataSearchField[] = [],
+  generalSuggestionsEndpoint?: string,
 ): MetadataSearchField | null => {
   if (target?.field) {
     return target.field;
@@ -129,14 +131,46 @@ export const searchBarQueryField = (
   const title = metadataSearchFields.find(
     (field): field is TextSearchField => field.key === 'title' && hasSuggestions(field),
   );
-  if (!title) {
+  const endpoint = generalSuggestionsEndpoint ?? title?.suggestions_endpoint;
+  if (!endpoint) {
     return null;
   }
   return {
     key: target.key,
     label: target.label,
     type: 'TextSearchField',
-    suggestions_endpoint: title.suggestions_endpoint,
-    suggestions_min_query_length: title.suggestions_min_query_length,
+    suggestions_endpoint: endpoint,
+    suggestions_min_query_length: title?.suggestions_min_query_length,
   };
+};
+
+export type GeneralSuggestionAction =
+  | { kind: 'series'; name: string; seriesId?: string }
+  | { kind: 'author'; target: QueryTargetOption & { field: MetadataSearchField } };
+
+/**
+ * What picking a General suggestion does: a series opens in reading order and an
+ * author becomes an Author search; a book (or anything else) searches as usual.
+ */
+export const generalSuggestionAction = (
+  option: DynamicFieldOption,
+  activeTarget: QueryTargetOption | null | undefined,
+  targets: QueryTargetOption[],
+  canBrowseSeries: boolean,
+): GeneralSuggestionAction | null => {
+  if (activeTarget?.source !== 'general') {
+    return null;
+  }
+  if (option.kind === 'series' && canBrowseSeries) {
+    const seriesId = option.value.startsWith('id:') ? option.value.slice(3) : undefined;
+    return { kind: 'series', name: option.label, seriesId };
+  }
+  if (option.kind === 'author') {
+    const target = targets.find(
+      (candidate): candidate is QueryTargetOption & { field: MetadataSearchField } =>
+        candidate.source === 'provider-field' && candidate.field?.key === 'author',
+    );
+    return target ? { kind: 'author', target } : null;
+  }
+  return null;
 };

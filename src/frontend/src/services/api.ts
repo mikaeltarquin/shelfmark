@@ -326,11 +326,14 @@ interface MetadataSearchResult {
   sourceTitle?: string;
 }
 
+export type SuggestionKind = 'book' | 'series' | 'author';
+
 export interface DynamicFieldOption {
   value: string;
   label: string;
   group?: string;
   description?: string;
+  kind?: SuggestionKind; // What a search suggestion is, shown as an icon
 }
 
 export interface BookTargetOption {
@@ -438,12 +441,27 @@ export const fetchFieldOptions = async (
     return [];
   }
 
-  return parseOptionList(response.options).map(({ value, label, group, description }) => ({
-    value,
-    label,
-    group,
-    description,
-  }));
+  return parseSuggestionOptions(response.options);
+};
+
+const SUGGESTION_KINDS: readonly string[] = ['book', 'series', 'author'] satisfies SuggestionKind[];
+
+const isSuggestionKind = (value: unknown): value is SuggestionKind =>
+  typeof value === 'string' && SUGGESTION_KINDS.includes(value);
+
+/** Field options as the search bar lists them, with what each suggestion is. */
+export const parseSuggestionOptions = (raw: unknown): DynamicFieldOption[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => {
+      const option: DynamicFieldOption = parseBaseOption(item);
+      if (isSuggestionKind(item.kind)) {
+        option.kind = item.kind;
+      }
+      return option;
+    })
+    .filter((option) => option.value !== '');
 };
 
 const parseBaseOption = (
@@ -454,14 +472,6 @@ const parseBaseOption = (
   const group = typeof option.group === 'string' ? option.group : undefined;
   const description = typeof option.description === 'string' ? option.description : undefined;
   return { value, label, group, description };
-};
-
-const parseOptionList = (raw: unknown): ReturnType<typeof parseBaseOption>[] => {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
-    .map(parseBaseOption)
-    .filter((option) => option.value !== '');
 };
 
 const parseBookTargetOptions = (raw: unknown): BookTargetOption[] => {

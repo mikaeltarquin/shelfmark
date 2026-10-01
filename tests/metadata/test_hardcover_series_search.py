@@ -35,6 +35,7 @@ class TestHardcoverSeriesSearch:
                 "value": "id:7",
                 "label": "Mistborn",
                 "description": "by Brandon Sanderson • 7 books",
+                "kind": "series",
             }
         ]
 
@@ -113,16 +114,19 @@ class TestHardcoverSeriesSearch:
                 "value": "id:997",
                 "label": "The Stormlight Archive",
                 "description": "by Brandon Sanderson • 10 books",
+                "kind": "series",
             },
             {
                 "value": "id:5452",
                 "label": "The Mistborn Saga",
                 "description": "by Brandon Sanderson • 10 books",
+                "kind": "series",
             },
             {
                 "value": "id:193594",
                 "label": "Brandon Sanderson",
                 "description": "by Brandon Sanderson",
+                "kind": "series",
             },
         ]
 

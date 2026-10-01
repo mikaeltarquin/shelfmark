@@ -561,6 +561,17 @@ SERIES_SEARCH_SORT = "_text_match:desc,readers_count:desc"
 AUTHOR_SUGGESTION_FIELDS = "name,name_personal,alternate_names"
 AUTHOR_SUGGESTION_WEIGHTS = "4,3,2"
 AUTHOR_SUGGESTION_SORT = "_text_match:desc,books_count:desc"
+# General search suggestions: how many of each kind, listed books first.
+GENERAL_BOOK_SUGGESTIONS = 5
+GENERAL_SERIES_SUGGESTIONS = 3
+GENERAL_AUTHOR_SUGGESTIONS = 3
+
+
+def _with_kind(options: list[dict[str, str]], kind: str) -> list[dict[str, str]]:
+    """Tag suggestions with what they are (book, series, author) for the list's icons."""
+    return [{**option, "kind": kind} for option in options]
+
+
 TITLE_SUGGESTION_FIELDS = BOOK_SEARCH_FIELDS
 TITLE_SUGGESTION_WEIGHTS = "5,2,0,0,0"
 TITLE_SUGGESTION_SORT = "_text_match:desc,users_count:desc"
@@ -986,6 +997,11 @@ class HardcoverProvider(MetadataProvider):
             field_key="series",
             sort=SortOrder.SERIES_ORDER,
         ),
+        # General search suggests books, series and authors together.
+        MetadataCapability(
+            key="general_suggestions",
+            suggestions_endpoint="/api/metadata/field-options?provider=hardcover&field=general",
+        ),
     )
     search_fields: ClassVar[tuple[SearchField, ...]] = (
         TextSearchField(
@@ -1233,11 +1249,13 @@ class HardcoverProvider(MetadataProvider):
     ) -> list[dict[str, str]]:
         """Provide dynamic options for Hardcover-specific advanced fields."""
         if field_key == "author":
-            return self._search_author_options(query or "")
+            return _with_kind(self._search_author_options(query or ""), "author")
         if field_key == "title":
-            return self._search_title_options(query or "")
+            return _with_kind(self._search_title_options(query or ""), "book")
         if field_key == "series":
-            return self._search_series_options(query or "")
+            return _with_kind(self._search_series_options(query or ""), "series")
+        if field_key == "general":
+            return self._search_general_options(query or "")
         if field_key == "hardcover_list":
             return self.get_user_lists()
         return []
@@ -1405,6 +1423,23 @@ class HardcoverProvider(MetadataProvider):
             options.append(option)
 
         return options
+
+    def _search_general_options(self, query: str) -> list[dict[str, str]]:
+        """Books, then series, then authors matching a General search, each tagged."""
+        if len(_normalize_search_text(query)) < HARDCOVER_MIN_TYPEAHEAD_QUERY_LENGTH:
+            return []
+        from concurrent.futures import ThreadPoolExecutor
+
+        # The three lookups are independent Hardcover requests, cached on their own.
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            books = executor.submit(self._search_title_options, query)
+            series = executor.submit(self._search_series_options, query)
+            authors = executor.submit(self._search_author_options, query)
+        return [
+            *_with_kind(books.result()[:GENERAL_BOOK_SUGGESTIONS], "book"),
+            *_with_kind(series.result()[:GENERAL_SERIES_SUGGESTIONS], "series"),
+            *_with_kind(authors.result()[:GENERAL_AUTHOR_SUGGESTIONS], "author"),
+        ]
 
     def _format_series_option_description(self, item: dict[str, Any]) -> str | None:
         """Build a short description for a series suggestion option."""

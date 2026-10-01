@@ -48,6 +48,7 @@ class MetadataCapability:
     key: str
     field_key: str | None = None
     sort: SortOrder | None = None
+    suggestions_endpoint: str | None = None
 
 
 @dataclass
@@ -128,6 +129,9 @@ def serialize_metadata_capability(capability: MetadataCapability) -> dict[str, A
 
     if capability.sort:
         result["sort"] = capability.sort.value
+
+    if capability.suggestions_endpoint:
+        result["suggestions_endpoint"] = capability.suggestions_endpoint
 
     return result
 

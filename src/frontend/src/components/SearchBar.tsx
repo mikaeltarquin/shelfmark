@@ -10,11 +10,15 @@ import type { ContentType, MetadataSearchField, QueryTargetOption, SortOption } 
 import { SearchBarAutocompleteSession } from './SearchBarAutocompleteSession';
 import { SearchBarDynamicOptionsSession } from './SearchBarDynamicOptionsSession';
 import { Tooltip } from './shared/Tooltip';
+import { SuggestionKindIcon } from './SuggestionKindIcon';
 
 interface SearchBarProps {
   value: string | number | boolean;
   valueLabel?: string;
   onChange: (value: string | number | boolean, label?: string) => void;
+  // Lets the page act on a picked suggestion itself: "searched" (it ran the search),
+  // "selected" (it set the value; the bar submits), or nothing for the usual pick.
+  onSuggestionPick?: (option: DynamicFieldOption) => SuggestionPickResult;
   onSubmit: () => void;
   isLoading?: boolean;
   onAdvancedToggle?: () => void;
@@ -50,6 +54,8 @@ export interface SearchBarHandle {
 const EMPTY_SORT_OPTIONS: SortOption[] = [];
 const EMPTY_AUTOCOMPLETE_OPTIONS: DynamicFieldOption[] = [];
 const EMPTY_QUERY_TARGETS: QueryTargetOption[] = [];
+
+export type SuggestionPickResult = 'searched' | 'selected' | undefined;
 
 const SEARCH_CONTROLS_PANEL_ID = 'search-bar-controls-panel';
 
@@ -165,6 +171,7 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
       value,
       valueLabel,
       onChange,
+      onSuggestionPick,
       onSubmit,
       isLoading = false,
       onAdvancedToggle,
@@ -795,24 +802,34 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
                     return (
                       <button
                         type="button"
-                        key={option.value}
+                        // A series and an author can share an id ("id:1") in one list.
+                        key={`${option.kind ?? ''}:${option.value}`}
                         role="option"
                         aria-selected={isSelected}
                         onClick={() => {
-                          setAutocompleteSelection(option.value, option.label);
-                          onChange(option.value, option.label);
                           setIsAutocompleteOpen(false);
+                          const picked = onSuggestionPick?.(option);
+                          if (picked === 'searched') {
+                            return;
+                          }
+                          if (picked !== 'selected') {
+                            setAutocompleteSelection(option.value, option.label);
+                            onChange(option.value, option.label);
+                          }
                           setTimeout(() => submitLatest(), 0);
                         }}
-                        className="hover-surface w-full px-5 py-3 text-left text-sm transition-colors"
+                        className="hover-surface flex w-full items-center gap-3 px-5 py-3 text-left text-sm transition-colors"
                         style={{ color: 'var(--text)' }}
                       >
-                        <div className="truncate font-medium">{option.label}</div>
-                        {option.description && (
-                          <div className="mt-0.5 truncate text-xs opacity-70">
-                            {option.description}
-                          </div>
-                        )}
+                        {option.kind && <SuggestionKindIcon kind={option.kind} />}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{option.label}</div>
+                          {option.description && (
+                            <div className="mt-0.5 truncate text-xs opacity-70">
+                              {option.description}
+                            </div>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
