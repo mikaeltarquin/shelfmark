@@ -75,9 +75,19 @@ Brandon Sanderson/Elantris (1 of 2) {GraphicAudio}/Elantris (1 of 2).m4b
 Brandon Sanderson/Elantris (2 of 2) {GraphicAudio}/Elantris (2 of 2).m4b
 ```
 
-The part goes into the title everywhere `{Title}` is used, and into the `metadata.opf`.
-The number of parts comes from the release title ("(1 of 2)"); when no release says it,
-the part is written `Elantris (Part 1)`. Parts are left out of
-[Keep Ebooks With Audiobooks](#keeping-ebooks-with-audiobooks): the ebook stays in its own
-folder rather than in one part's. The library check and the library browser still count
-the parts as the audiobook of the book.
+The part is read from the release's own title, also in the combined (ebook + audiobook)
+flow, where the book's title doesn't name the part ("Words of Radiance (Part 1 of 5)" with
+the series field "Stormlight Archive #2"). The part goes into the title everywhere `{Title}`
+is used, and into the `metadata.opf`. The number of parts comes from the release title
+("(1 of 2)"); when no release says it, the part is written `Elantris (Part 1)`.
+
+Each part is also numbered in its series after the book, so the parts sort in order: with
+the book's series position from your metadata provider, part 1 of book 2 is **2.1**, part 2
+is 2.2, and so on (a book in ten or more parts uses two decimals: 2.01 … 2.12). The number
+goes into `{SeriesPosition}` and the `metadata.opf`. A release with no known series position,
+or one already fractional (a novella at 1.5), keeps its position as it is.
+
+Parts are left out of [Keep Ebooks With Audiobooks](#keeping-ebooks-with-audiobooks): the
+ebook stays in its own folder rather than in one part's. The library check and the library
+browser still count the parts as the audiobook of the book, shown once at the book's own
+series number.
