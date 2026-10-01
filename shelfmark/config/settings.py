@@ -1591,7 +1591,7 @@ def download_settings() -> list[SettingsField]:
                 "{Subtitle}, {PrimaryTitle}, {PartNumber}, {Narrator}. Use arbitrary prefix/suffix: "
                 "{Vol. SeriesPosition - } outputs 'Vol. 2 - ' when set, nothing when empty. "
                 "Braces inside a block are kept: {Title} {{Narrator}} outputs "
-                "'Title {Kate Reading & Michael Kramer}', the Audiobookshelf narrator folder. "
+                "'Title {Narrator One & Narrator Two}', the Audiobookshelf narrator folder. "
                 "{Narrator} comes from MyAnonamouse enrichment; audiobooks without one use 'Audiobook'."
             ),
             default="{Author}/{Title}/{Title}",
@@ -1604,8 +1604,8 @@ def download_settings() -> list[SettingsField]:
             label="Narrator Separator",
             description="How {Narrator} joins several narrators.",
             options=[
-                {"value": "&", "label": "Ampersand (Kate Reading & Michael Kramer)"},
-                {"value": ",", "label": "Comma (Kate Reading, Michael Kramer)"},
+                {"value": "&", "label": "Ampersand (Narrator One & Narrator Two)"},
+                {"value": ",", "label": "Comma (Narrator One, Narrator Two)"},
             ],
             default="&",
             show_when={

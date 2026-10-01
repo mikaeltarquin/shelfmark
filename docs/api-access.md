@@ -48,7 +48,7 @@ Search, then look up releases, then queue one (the same calls the web UI makes):
 
 ```bash
 curl -s -H "Authorization: Bearer $SHELFMARK_API_KEY" \
-  "https://shelfmark.example.com/api/metadata/search?query=dune%20frank%20herbert"
+  "https://shelfmark.example.com/api/metadata/search?query=book%20title%20firstname%20lastname"
 # -> {"books":[{"provider":"hardcover","provider_id":"427363", ...}]}
 
 curl -s -H "Authorization: Bearer $SHELFMARK_API_KEY" \

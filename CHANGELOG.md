@@ -6,7 +6,7 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ### Added
 - **Title and General search suggestions**: typing in Title search offers book titles from
-  Hardcover with their author ("Words of Radiance — by Brandon Sanderson"), as Author and
+  Hardcover with their author ("Book Title — by Firstname Lastname"), as Author and
   Series already did. General search suggests books, series and authors together, each
   marked with an icon. Picking a book searches for it, a series opens it in reading order,
   and an author switches to an Author search.
@@ -27,9 +27,9 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ### Added
 - **Books released in parts** (GraphicAudio and similar): each part of a book is filed as its
-  own book, `Words of Radiance (1 of 5) {GraphicAudio}/Words of Radiance (1 of 5).m4b`, so
+  own book, `Book Title (1 of 5) {GraphicAudio}/Book Title (1 of 5).m4b`, so
   Audiobookshelf creates one item per part and can match it. The part is read from
-  MyAnonamouse's series field ("Elantris #1p2") or the release title ("Part 1 of 5", "Pt. 2",
+  MyAnonamouse's series field ("Series Name #1p2") or the release title ("Part 1 of 5", "Pt. 2",
   "(2 of 3)", "[2/3]").
 - **Parts are numbered in their series**: part 1 of book 2 gets series position 2.1, part 2
   gets 2.2, and so on (two decimals for ten or more parts), in `{SeriesPosition}` and
@@ -40,7 +40,7 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ### Fixed
 - Parts downloaded through the combined (ebook + audiobook) flow went into one folder
-  (`Words of Radiance.m4b`, `_1`, `_2`…), because only the book's title was sent and it
+  (`Book Title.m4b`, `_1`, `_2`…), because only the book's title was sent and it
   doesn't name the part. The release's title is now used.
 - In the combined flow, an ebook downloaded with a part was placed in that part's narrator
   folder. It now goes to its own folder.

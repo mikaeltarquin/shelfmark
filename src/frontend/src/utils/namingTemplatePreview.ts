@@ -104,7 +104,7 @@ export const NAMING_TEMPLATE_TOKENS: NamingTemplateToken[] = [
     label: 'Narrator',
     description:
       'Audiobook narrators (MyAnonamouse). Use {Title} {{Narrator}} for an Audiobookshelf folder',
-    value: 'Kate Reading & Michael Kramer',
+    value: 'Narrator One & Narrator Two',
     group: 'Universal',
     audiobookOnly: true,
   },
