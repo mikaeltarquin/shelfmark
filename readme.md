@@ -21,7 +21,7 @@ This is a fork of [calibrain/shelfmark](https://github.com/calibrain/shelfmark) 
 and on **MyAnonamouse** as a source. Everything upstream still works the same; the fork only adds.
 
 **Image:** `ghcr.io/mikaeltarquin/shelfmark:latest` (and `ghcr.io/mikaeltarquin/shelfmark-lite:latest`)
-for the latest release, or a version tag such as `:1.0.1`. `:dev` is rebuilt from `main` after each
+for the latest release, or a version tag such as `:1.0.2`. `:dev` is rebuilt from `main` after each
 change. See the [changelog](CHANGELOG.md) for what each release adds. The compose files and install commands below still point at
 upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get the features listed here.
 
