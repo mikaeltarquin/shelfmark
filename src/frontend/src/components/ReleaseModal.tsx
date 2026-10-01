@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, type KeyboardEventHandler } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useSavedItems } from '../contexts/SavedItemsContext';
 import { useDescriptionOverflow } from '../hooks/releaseModal/useDescriptionOverflow';
 import { useHeaderThumbOnScroll } from '../hooks/releaseModal/useHeaderThumbOnScroll';
 import { useReleaseSearchSession } from '../hooks/releaseModal/useReleaseSearchSession';
@@ -54,6 +55,7 @@ import {
   FORMAT_SORT_KEY,
   sortReleasesByFormat,
 } from '../utils/releaseSort';
+import type { SavedPick } from '../utils/savedItems';
 import { BookDownloadButton } from './BookDownloadButton';
 import { BookTargetDropdown } from './BookTargetDropdown';
 import { Dropdown } from './Dropdown';
@@ -61,6 +63,7 @@ import { DropdownList } from './DropdownList';
 import { LanguageMultiSelect } from './LanguageMultiSelect';
 import { PackReviewPanel } from './PackReviewPanel';
 import { ReleaseCell } from './ReleaseCell';
+import { BookmarkIcon, SaveForLaterButton } from './SaveForLaterButton';
 
 // Combined mode configuration for the ReleaseModal
 interface CombinedModeConfig {
@@ -469,6 +472,7 @@ const ReleaseRow = ({
   multiSelect = false,
   isSelected = false,
   onSelect,
+  saveTarget,
 }: {
   release: Release;
   index: number;
@@ -483,6 +487,8 @@ const ReleaseRow = ({
   multiSelect?: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
+  // The book this release belongs to, so the release can be saved for later.
+  saveTarget?: { book: Book; contentType: ContentType };
 }) => {
   const author = toStringValue(release.extra?.author);
 
@@ -577,13 +583,23 @@ const ReleaseRow = ({
         {selectionMode ? (
           <RadioIndicator selected={isSelected} multiple={multiSelect} />
         ) : (
-          <BookDownloadButton
-            buttonState={buttonState}
-            onDownload={onDownload}
-            variant="icon"
-            size="sm"
-            ariaLabel={`${buttonState.text} ${release.title}`}
-          />
+          <div className="flex items-center gap-0.5">
+            {saveTarget && (
+              <SaveForLaterButton
+                book={saveTarget.book}
+                contentType={saveTarget.contentType}
+                release={release}
+                variant="row"
+              />
+            )}
+            <BookDownloadButton
+              buttonState={buttonState}
+              onDownload={onDownload}
+              variant="icon"
+              size="sm"
+              ariaLabel={`${buttonState.text} ${release.title}`}
+            />
+          </div>
         )}
       </div>
 
@@ -670,13 +686,23 @@ const ReleaseRow = ({
         {selectionMode ? (
           <RadioIndicator selected={isSelected} multiple={multiSelect} />
         ) : (
-          <BookDownloadButton
-            buttonState={buttonState}
-            onDownload={onDownload}
-            variant="icon"
-            size="sm"
-            ariaLabel={`${buttonState.text} ${release.title}`}
-          />
+          <div className="flex items-center gap-0.5">
+            {saveTarget && (
+              <SaveForLaterButton
+                book={saveTarget.book}
+                contentType={saveTarget.contentType}
+                release={release}
+                variant="row"
+              />
+            )}
+            <BookDownloadButton
+              buttonState={buttonState}
+              onDownload={onDownload}
+              variant="icon"
+              size="sm"
+              ariaLabel={`${buttonState.text} ${release.title}`}
+            />
+          </div>
         )}
       </div>
     </div>
@@ -856,6 +882,8 @@ const ReleaseModalSession = ({
   } | null>(null);
   const [packSubmitting, setPackSubmitting] = useState(false);
   const isCombinedMode = combinedMode != null;
+  const savedItems = useSavedItems();
+  const saveTarget = useMemo(() => (book ? { book, contentType } : undefined), [book, contentType]);
   const combinedPhase = combinedMode?.phase ?? null;
   const combinedStepLabel = combinedMode?.stepLabel ?? '';
   const combinedEbookMode = combinedMode?.ebookMode ?? null;
@@ -1426,6 +1454,15 @@ const ReleaseModalSession = ({
     combinedPhase === 'ebook' ? hasCombinedAudiobookAction : hasCombinedEbookAction;
   const canCompleteCombinedAction =
     selectedRelease !== null || hasCombinedActionOutsideCurrentPhase;
+  // Everything picked so far in the combined flow, to save for later in one go.
+  const combinedEbookPick = combinedPhase === 'ebook' ? selectedRelease : stagedEbookRelease;
+  const combinedSavePicks: SavedPick[] = [
+    ...(combinedEbookPick ? [{ content_type: 'ebook' as const, release: combinedEbookPick }] : []),
+    ...footerAudiobookReleases.map((release) => ({
+      content_type: 'audiobook' as const,
+      release,
+    })),
+  ];
   const currentCombinedPhaseLabel = combinedPhase === 'ebook' ? 'Book' : 'Audiobook';
   const nextCombinedPhaseLabel = combinedPhase === 'ebook' ? 'Audiobook' : 'Book';
   let emptyStateMessage = 'No releases found for this book.';
@@ -2426,6 +2463,7 @@ const ReleaseModalSession = ({
                           leadingCell={columnConfig.leading_cell}
                           onlineServers={columnConfig.online_servers}
                           showReleaseSourceLinks={showReleaseSourceLinks}
+                          saveTarget={saveTarget}
                           selectionMode={isCombinedMode}
                           multiSelect={isMultiSelectPhase}
                           isSelected={
@@ -2539,6 +2577,22 @@ const ReleaseModalSession = ({
                       {selectedRelease
                         ? `Select ${nextCombinedPhaseLabel} →`
                         : `Skip ${currentCombinedPhaseLabel} →`}
+                    </button>
+                  )}
+
+                  {savedItems && book && combinedSavePicks.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void savedItems
+                          .savePicks(book, 'combined', combinedSavePicks)
+                          .then(() => handleClose());
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors hover:bg-(--hover-surface)"
+                      title="Save these picks and download them later"
+                    >
+                      <BookmarkIcon filled={false} className="h-4 w-4" />
+                      Save for later
                     </button>
                   )}
 

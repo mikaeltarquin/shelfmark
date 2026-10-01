@@ -7,6 +7,7 @@ import { bookSupportsTargets } from '../../utils/bookTargetLoader';
 import { getFormatColor, getLanguageColor } from '../../utils/colorMaps';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
+import { SaveForLaterButton } from '../SaveForLaterButton';
 import { DisplayFieldIcon, DisplayFieldBadge, LibraryBadge } from '../shared';
 
 interface ListViewProps {
@@ -305,6 +306,7 @@ export const ListView = ({
 
                 {/* Action Buttons */}
                 <div className="flex flex-row justify-end gap-0.5 sm:gap-1 sm:pr-3">
+                  <SaveForLaterButton book={book} variant="row" />
                   {bookSupportsTargets(book) && targetProvider && targetBookId && (
                     <BookTargetDropdown
                       provider={targetProvider}

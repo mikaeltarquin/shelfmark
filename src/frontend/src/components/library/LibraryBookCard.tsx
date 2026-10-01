@@ -7,6 +7,7 @@ import { bookSupportsTargets } from '../../utils/bookTargetLoader';
 import { seriesLabel } from '../../utils/libraryBrowser';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
+import { SaveForLaterButton } from '../SaveForLaterButton';
 
 const FORMAT_LABELS: Record<LibraryFormat, string> = {
   ebook: 'Ebook',
@@ -206,6 +207,7 @@ export const LibraryBookCard = ({
               pointerEvents: overlayVisible ? 'auto' : 'none',
             }}
           >
+            {found && <SaveForLaterButton book={found} />}
             {found?.provider && found.provider_id && bookSupportsTargets(found) && (
               <BookTargetDropdown
                 provider={found.provider}

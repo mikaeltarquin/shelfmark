@@ -55,6 +55,11 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
 - **Unsatisfied limit guard**: optionally block MAM downloads that would take you past the
   unsatisfied limit, keeping a number of slots free (5 by default).
 
+**Saved for later** ([docs](docs/saved-for-later.md))
+- Bookmark a book, one release, or a combined ebook + audiobook pick to download later (when
+  you're out of upload credit or unsatisfied slots, say). They wait in **Activity → Saved**,
+  per user, with **+ Get** to download them through the usual checks.
+
 **Library integration** ([docs](docs/library-check.md))
 - **Audiobookshelf library check** next to upstream's Calibre one. It marks search results you
   already own, **per format** (an item with audio counts as the audiobook, one with an ebook file as
