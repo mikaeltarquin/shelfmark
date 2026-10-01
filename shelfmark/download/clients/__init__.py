@@ -175,6 +175,15 @@ class DownloadStatus:
         return self.state
 
 
+@dataclass(frozen=True)
+class TrackerTorrent:
+    """A torrent from one tracker, with how long it has seeded."""
+
+    name: str
+    seeding_seconds: int  # Time spent seeding since it completed
+    complete: bool  # Finished downloading (the seeding clock runs only after)
+
+
 class DownloadClient(ABC):
     """Base class for external download clients.
 
@@ -368,6 +377,13 @@ class DownloadClient(ABC):
             Tuple of (download_id, status) if found, None if not found.
             Default implementation returns None.
 
+        """
+        return None
+
+    def list_tracker_torrents(self, tracker: str) -> list[TrackerTorrent] | None:
+        """Every torrent whose tracker host contains `tracker`, with its seeding time.
+
+        None when the client can't report seeding time (the default).
         """
         return None
 

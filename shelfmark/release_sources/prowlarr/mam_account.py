@@ -359,6 +359,88 @@ def _torrent_client_status() -> dict[str, Any]:
     return {"configured": True, "ok": bool(ok), "name": name, "message": message}
 
 
+# MAM counts a torrent as satisfied once it has seeded 72 hours.
+UNSAT_SEED_SECONDS = 72 * 3600
+# "Slots freeing up soon" looks this far ahead.
+UNSAT_WINDOW_SECONDS = 6 * 3600
+_TIMING_TTL_SECONDS = 60
+_timing_lock = threading.Lock()
+_timing_cache: tuple[float, dict[str, Any]] | None = None
+
+
+def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict[str, Any]:
+    """When the MAM torrents still short of 72 hours' seeding become satisfied.
+
+    Each seeding torrent is satisfied after 72 hours minus the time it has already
+    seeded, if it keeps seeding; ones still downloading haven't started that clock.
+    """
+    remaining = sorted(
+        UNSAT_SEED_SECONDS - t.seeding_seconds
+        for t in torrents
+        if t.complete and t.seeding_seconds < UNSAT_SEED_SECONDS
+    )
+    return {
+        "available": True,
+        "client": client_name,
+        "next_seconds": remaining[0] if remaining else None,
+        "within_window": sum(1 for r in remaining if r <= UNSAT_WINDOW_SECONDS),
+        "window_hours": UNSAT_WINDOW_SECONDS // 3600,
+        "seeding": len(remaining),
+        "downloading": sum(1 for t in torrents if not t.complete),
+    }
+
+
+def _read_unsat_timing() -> dict[str, Any]:
+    from shelfmark.download.clients import get_client
+
+    try:
+        client = get_client("torrent")
+    except (ImportError, RuntimeError, ValueError) as exc:
+        return {"available": False, "reason": str(exc)}
+    if client is None:
+        return {"available": False, "reason": "No torrent client is configured"}
+    raw_name = str(getattr(client, "name", "") or "")
+    name = _CLIENT_LABELS.get(raw_name, raw_name.title() or None)
+    try:
+        torrents = client.list_tracker_torrents("myanonamouse")
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        requests.exceptions.RequestException,
+    ) as exc:
+        logger.warning("Could not read MAM torrents from %s: %s", name, exc)
+        return {"available": False, "client": name, "reason": f"Couldn't read {name}: {exc}"}
+    if torrents is None:
+        return {
+            "available": False,
+            "client": name,
+            "reason": f"{name} doesn't report seeding time",
+        }
+    return summarize_unsat_timing(torrents, name)
+
+
+def unsat_timing(*, refresh: bool = False) -> dict[str, Any]:
+    """When the next unsatisfied MAM torrent frees a slot, from the torrent client.
+
+    An estimate: MAM keeps its own clock, so time spent paused or offline pushes the
+    real moment later. Cached for a minute.
+    """
+    global _timing_cache
+    if not is_configured():
+        return {"available": False, "reason": "No MAM session ID is set"}
+    with _timing_lock:
+        cached = _timing_cache
+    if not refresh and cached and time.time() - cached[0] < _TIMING_TTL_SECONDS:
+        return cached[1]
+    timing = _read_unsat_timing()
+    with _timing_lock:
+        _timing_cache = (time.time(), timing)
+    return timing
+
+
 def connection_status() -> dict[str, Any]:
     """Check MAM (a fresh stats read) and the configured torrent client."""
     mam: dict[str, Any]

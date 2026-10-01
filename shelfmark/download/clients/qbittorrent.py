@@ -16,6 +16,7 @@ from shelfmark.core.logger import setup_logger
 from shelfmark.download.clients import (
     DownloadClient,
     DownloadStatus,
+    TrackerTorrent,
     register_client,
 )
 from shelfmark.download.clients._coercion import (
@@ -288,6 +289,22 @@ class QBittorrentClient(DownloadClient):
         except _QBITTORRENT_CLIENT_ERRORS as e:
             logger.debug("Failed to get torrents info: %s", e)
             return [], f"qBittorrent API error: {type(e).__name__}: {e}"
+
+    def list_tracker_torrents(self, tracker: str) -> list[TrackerTorrent] | None:
+        """Every torrent on a tracker, with qBittorrent's seeding time."""
+        torrents, error = self._request_torrent_info_records({})
+        if error:
+            raise RuntimeError(error)
+        needle = tracker.lower()
+        return [
+            TrackerTorrent(
+                name=str(getattr(torrent, "name", "") or ""),
+                seeding_seconds=coerce_optional_int(getattr(torrent, "seeding_time", 0)) or 0,
+                complete=(coerce_optional_float(getattr(torrent, "progress", 0)) or 0) >= 1.0,
+            )
+            for torrent in torrents
+            if needle in str(getattr(torrent, "tracker", "") or "").lower()
+        ]
 
     def _get_torrent_info(self, download_id: str) -> tuple[SimpleNamespace | None, str | None]:
         """Get one torrent by its current qBittorrent hash."""

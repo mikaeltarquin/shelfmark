@@ -74,6 +74,12 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
         # Every user: they all download on the one account. No username or points.
         return jsonify(mam_account.ratio_snapshot())
 
+    @app.route("/api/mam/unsat-timing", methods=["GET"])
+    @login_required
+    def api_mam_unsat_timing() -> Response:
+        # Counts and times only, no torrent names: every user downloads on the account.
+        return jsonify(mam_account.unsat_timing())
+
     @app.route("/api/mam/buffer-check", methods=["POST"])
     @login_required
     def api_mam_buffer_check() -> Response | tuple[Response, int]:

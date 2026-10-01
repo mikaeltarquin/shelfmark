@@ -8,11 +8,13 @@ import {
   getMamAccount,
   getMamAutobuy,
   getMamStatus,
+  getMamUnsatTiming,
   runMamAutobuy,
 } from '../services/api';
 import {
   customAmountError,
   describeAutobuy,
+  describeUnsatTiming,
   describeCheck,
   purchaseReasonLabel,
   DEFAULT_POINTS_PER_GB,
@@ -32,6 +34,7 @@ import {
   type MamAutobuyResponse,
   type MamConnection,
   type MamStatusResponse,
+  type MamUnsatTiming,
   type UploadCreditAmount,
 } from '../utils/mamAccount';
 
@@ -108,6 +111,7 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
   const [customValue, setCustomValue] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
+  const [timing, setTiming] = useState<MamUnsatTiming | null>(null);
   const [purchaseMessage, setPurchaseMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
@@ -127,10 +131,13 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
         const failed = { configured: true, ok: false, message: errorText(error) };
         setStatus({ mam: failed, torrent_client: failed });
       });
+    const timingRequest = getMamUnsatTiming()
+      .then(setTiming)
+      .catch(() => setTiming(null));
     const autobuyRequest = getMamAutobuy()
       .then(setAutobuy)
       .catch((error: unknown) => console.warn('Could not load MAM auto-buy:', error));
-    await Promise.all([accountRequest, statusRequest, autobuyRequest]);
+    await Promise.all([accountRequest, statusRequest, timingRequest, autobuyRequest]);
     setIsRefreshing(false);
   }, []);
 
@@ -358,6 +365,22 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               <Stat label="Uploaded" value={stats ? formatGib(stats.uploaded_bytes) : '…'} />
               <Stat label="Downloaded" value={stats ? formatGib(stats.downloaded_bytes) : '…'} />
             </div>
+            {timing && (
+              <p className="mt-2 text-sm" title={timing.reason}>
+                <span className="font-medium">Unsatisfied slots: </span>
+                {timing.available ? (
+                  <>
+                    {describeUnsatTiming(timing)}
+                    <span className="opacity-60">
+                      {' '}
+                      (estimated from {timing.client ?? 'your torrent client'}'s seeding time)
+                    </span>
+                  </>
+                ) : (
+                  <span className="opacity-60">{timing.reason ?? 'Not available'}</span>
+                )}
+              </p>
+            )}
           </section>
 
           <section aria-label="Connections">

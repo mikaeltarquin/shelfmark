@@ -86,3 +86,19 @@ Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonu
 ## Unsatisfied limit
 
 MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by class. With **Hold Back Downloads at the Unsatisfied Limit** (`MAM_BLOCK_ON_UNSAT_LIMIT`, on by default), MAM torrents are held back when they, plus Shelfmark's MAM downloads not yet handed to the torrent client, would leave fewer free slots than **Unsatisfied Slots to Keep Free** (`MAM_UNSAT_RESERVE_SLOTS`, 5). Every MAM torrent counts, freeleech too. Upload credit can't fix this, so none is offered: wait for torrents to finish seeding or pick fewer. The projected-ratio line also shows `unsatisfied 94 → 98 / 100`, red when the picks would be held back.
+
+### When slots free up
+
+The account panel (and the header button's tooltip) also estimates when unsatisfied
+torrents free their slots: `Next slot in 2:05 · 3 slots in the next 6 hours`. MAM's API
+only reports how many torrents are unsatisfied, so the timing comes from your torrent
+client: each MyAnonamouse torrent it is seeding that hasn't reached 72 hours frees a slot
+after 72 hours minus the time it has already seeded.
+
+- Works with **Deluge**, **qBittorrent** and **Transmission**, which report seeding time.
+  Other clients show why there's no estimate.
+- It's an estimate. MAM keeps its own clock, so time spent paused or offline pushes the
+  real moment later.
+- Torrents still downloading haven't started their 72 hours. Torrents MAM counts but that
+  are no longer in your client can't be timed, and don't free a slot by seeding.
+- Only counts and times are shown, no torrent names, so every user can see it.

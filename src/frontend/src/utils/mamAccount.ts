@@ -155,6 +155,38 @@ export const MAM_STORE_URL = `${MAM_SITE_URL}/store.php`;
 export const mamProfileUrl = (uid: number | null | undefined): string =>
   uid ? `${MAM_SITE_URL}/u/${uid}` : MAM_SITE_URL;
 
+/** When unsatisfied torrents free their slots, from the torrent client (/api/mam/unsat-timing). */
+export interface MamUnsatTiming {
+  available: boolean;
+  reason?: string; // Why there's no timing (no client, client can't report it...)
+  client?: string | null;
+  next_seconds?: number | null; // Until the next torrent reaches 72 hours seeded
+  within_window?: number; // Torrents reaching 72 hours within window_hours
+  window_hours?: number;
+  seeding?: number; // MAM torrents seeding but not yet at 72 hours
+  downloading?: number; // Still downloading: their 72 hours haven't started
+}
+
+/** Seconds as h:mm ("2:05"), rounded up so a slot is never promised early. */
+export const formatHoursMinutes = (seconds: number): string => {
+  const minutes = Math.max(0, Math.ceil(seconds / 60));
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+};
+
+/** "Next slot in 2:05 · 2 slots in the next 6 hours", or why there's nothing to wait for. */
+export const describeUnsatTiming = (timing: MamUnsatTiming | null): string | null => {
+  if (!timing?.available) return null;
+  const hours = timing.window_hours ?? 6;
+  if (timing.next_seconds === null || timing.next_seconds === undefined) {
+    return timing.downloading
+      ? `No slot frees up until a download finishes and seeds 72 hours`
+      : 'No unsatisfied torrents seeding in your client';
+  }
+  const count = timing.within_window ?? 0;
+  const slots = `${count} slot${count === 1 ? '' : 's'} in the next ${hours} hours`;
+  return `Next slot in ${formatHoursMinutes(timing.next_seconds)} · ${slots}`;
+};
+
 /** Red at or past the unsatisfied limit, amber within 10% of it. */
 export const unsatTone = (count: number | null, limit: number | null): string | undefined => {
   if (count === null || limit === null) return undefined;

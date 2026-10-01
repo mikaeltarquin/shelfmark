@@ -2,6 +2,14 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
+## Unreleased
+
+### Added
+- **When unsatisfied slots free up**: the MyAnonamouse panel and the header button's
+  tooltip estimate when the next unsatisfied torrent reaches 72 hours seeded and how many
+  will in the next 6 hours ("Next slot in 2:05 · 3 slots in the next 6 hours"), from the
+  seeding time Deluge, qBittorrent or Transmission reports.
+
 ## v1.0.2
 
 ### Added

@@ -1,8 +1,15 @@
 import { useState } from 'react';
 
 import { useMountEffect } from '../hooks/useMountEffect';
-import { getMamRatio } from '../services/api';
-import { formatRatio, formatUnsat, ratioTone, unsatTone } from '../utils/mamAccount';
+import { getMamRatio, getMamUnsatTiming } from '../services/api';
+import {
+  describeUnsatTiming,
+  formatRatio,
+  formatUnsat,
+  ratioTone,
+  unsatTone,
+  type MamUnsatTiming,
+} from '../utils/mamAccount';
 import type { MamRatioSnapshot } from '../utils/mamRatio';
 import { MouseIcon } from './MouseIcon';
 
@@ -16,6 +23,7 @@ interface MamHeaderButtonProps {
 /** The header's MyAnonamouse button, showing the account's ratio and unsatisfied count. */
 export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
   const [stats, setStats] = useState<MamRatioSnapshot | null>(null);
+  const [timing, setTiming] = useState<MamUnsatTiming | null>(null);
 
   useMountEffect(() => {
     let cancelled = false;
@@ -26,6 +34,13 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
         })
         .catch(() => {
           if (!cancelled) setStats(null);
+        });
+      getMamUnsatTiming()
+        .then((next) => {
+          if (!cancelled) setTiming(next);
+        })
+        .catch(() => {
+          if (!cancelled) setTiming(null);
         });
     };
     load();
@@ -40,8 +55,11 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
   const unsatCount = stats?.available ? (stats.unsat_count ?? null) : null;
   const unsatLimit = stats?.available ? (stats.unsat_limit ?? null) : null;
   const hasStats = Boolean(stats?.available);
+  const slots = describeUnsatTiming(timing);
   const summary = hasStats
-    ? `Ratio ${formatRatio(ratio)}, unsatisfied ${formatUnsat(unsatCount, unsatLimit)}`
+    ? `Ratio ${formatRatio(ratio)}, unsatisfied ${formatUnsat(unsatCount, unsatLimit)}${
+        slots ? `. ${slots}` : ''
+      }`
     : 'MyAnonamouse';
 
   return (
