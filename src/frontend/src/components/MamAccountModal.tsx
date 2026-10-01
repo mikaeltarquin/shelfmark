@@ -20,7 +20,12 @@ import {
   formatGib,
   formatPoints,
   formatRatio,
+  formatUnsat,
+  MAM_STORE_URL,
+  mamProfileUrl,
   maxAffordableGb,
+  ratioTone,
+  unsatTone,
   UPLOAD_CREDIT_PRESETS_GB,
   uploadCreditCost,
   type MamAccountResponse,
@@ -90,20 +95,6 @@ const chipClass = (selected: boolean) =>
       ? 'border-emerald-600 bg-emerald-600 text-white'
       : 'border-(--border-muted) bg-(--bg-soft) hover:bg-(--hover-surface)'
   }`;
-
-const unsatTone = (count: number | null, limit: number | null): string | undefined => {
-  if (count === null || limit === null) return undefined;
-  if (count >= limit) return 'text-red-600 dark:text-red-400';
-  if (count >= limit * 0.9) return 'text-amber-600 dark:text-amber-400';
-  return undefined;
-};
-
-const ratioTone = (ratio: number | null): string | undefined => {
-  if (ratio === null || !Number.isFinite(ratio)) return undefined;
-  if (ratio < 1) return 'text-red-600 dark:text-red-400';
-  if (ratio < 2) return 'text-amber-600 dark:text-amber-400';
-  return undefined;
-};
 
 export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
   const [isClosing, setIsClosing] = useState(false);
@@ -273,6 +264,29 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <a
+              href={mamProfileUrl(stats?.uid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-(--hover-surface)"
+              title="Open your MyAnonamouse profile in a new tab"
+            >
+              {stats?.uid ? 'Profile' : 'Website'}
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                />
+              </svg>
+            </a>
             <button
               type="button"
               onClick={() => void refresh(true)}
@@ -329,11 +343,7 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               />
               <Stat
                 label="Unsatisfied"
-                value={
-                  stats && stats.unsat_count !== null
-                    ? `${stats.unsat_count}${stats.unsat_limit !== null ? ` / ${stats.unsat_limit}` : ''}`
-                    : '—'
-                }
+                value={stats ? formatUnsat(stats.unsat_count, stats.unsat_limit) : '—'}
                 tone={stats ? unsatTone(stats.unsat_count, stats.unsat_limit) : undefined}
               />
               <Stat
@@ -362,7 +372,32 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
           </section>
 
           <section aria-label="Buy upload credit">
-            <h4 className="text-sm font-semibold">Buy upload credit</h4>
+            <div className="flex items-baseline justify-between gap-3">
+              <h4 className="text-sm font-semibold">Buy upload credit</h4>
+              <a
+                href={MAM_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                title="Open the MyAnonamouse store in a new tab"
+              >
+                MAM store
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                  />
+                </svg>
+              </a>
+            </div>
             <p className="mt-0.5 text-xs opacity-70">
               {formatPoints(pointsPerGb)} bonus points per GB, bought in {stepGb} GB steps.
             </p>

@@ -69,6 +69,11 @@ def _ok(amount: float, seedbonus: float) -> dict[str, Any]:
 
 
 class TestParsing:
+    def test_stats_carry_the_user_id_for_the_profile_link(self):
+        assert mam_account.parse_stats({**USER, "uid": 123456}).uid == 123456
+        assert mam_account.parse_stats({**USER, "uid": "123456"}).uid == 123456
+        assert mam_account.parse_stats(USER).uid is None
+
     def test_stats_prefer_byte_counts(self):
         stats = mam_account.parse_stats(USER)
         assert stats.uploaded_bytes == int(120.5 * GIB)

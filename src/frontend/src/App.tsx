@@ -684,6 +684,8 @@ function App() {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mamAccountOpen, setMamAccountOpen] = useState(false);
+  // Bumped when the account dialog closes, so the header re-reads ratio and unsatisfied.
+  const [mamStatsKey, setMamStatsKey] = useState(0);
   // Account figures for the projected-ratio line in the combined picker.
   const [mamRatio, setMamRatio] = useState<MamRatioSnapshot | null>(null);
   const [mamBufferPrompt, setMamBufferPrompt] = useState<{
@@ -2593,6 +2595,7 @@ function App() {
               ? () => void navigate('/library')
               : undefined
           }
+          mamStatsKey={mamStatsKey}
           onMamAccountClick={
             // Without login everyone is an admin, as the backend's admin check treats them.
             (requestRoleIsAdmin || !authRequired) && config?.mam_account_available
@@ -2942,7 +2945,14 @@ function App() {
 
       <ToastContainer toasts={toasts} />
 
-      {mamAccountOpen && <MamAccountModal onClose={() => setMamAccountOpen(false)} />}
+      {mamAccountOpen && (
+        <MamAccountModal
+          onClose={() => {
+            setMamAccountOpen(false);
+            setMamStatsKey((key) => key + 1);
+          }}
+        />
+      )}
       {mamBufferPrompt && (
         <MamBufferModal
           check={mamBufferPrompt.check}
