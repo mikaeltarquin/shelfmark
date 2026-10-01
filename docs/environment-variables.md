@@ -258,7 +258,9 @@ Seconds since the last WireGuard handshake before the healthcheck bounces the tu
 |----------|-------------|------|---------|
 | `SEARCH_PAGE_TITLE` | Title shown above the main search box on the homepage. | string | `Shelfmark` |
 | `CALIBRE_WEB_URL` | Adds a navigation button to your book library (Calibre-Web Automated, Grimmory, etc). | string | _none_ |
-| `AUDIOBOOK_LIBRARY_URL` | Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc). When both URLs are set, icons are shown instead of text. | string | _none_ |
+| `CALIBRE_WEB_NAME` | Name shown on the library button. Leave empty to name it after the app it links to (Calibre-Web, Kavita, ...) or its address. | string | _none_ |
+| `AUDIOBOOK_LIBRARY_URL` | Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc). | string | _none_ |
+| `AUDIOBOOK_LIBRARY_NAME` | Name shown on the audiobook library button. Leave empty to name it after the app it links to (Audiobookshelf, Plex, ...) or its address. | string | _none_ |
 | `SUPPORTED_FORMATS` | Book formats to include in search results. ZIP/RAR archives are extracted automatically and book files are used if found. | string (comma-separated) | `epub,mobi,azw3,fb2,djvu,cbz,cbr` |
 | `SUPPORTED_AUDIOBOOK_FORMATS` | Audiobook formats to include in search results. ZIP/RAR archives are extracted automatically and audiobook files are used if found. | string (comma-separated) | `m4b,mp3,m4a,mp4,flac,ogg,wma,aac,wav,opus,zip,rar` |
 
@@ -283,11 +285,29 @@ Adds a navigation button to your book library (Calibre-Web Automated, Grimmory, 
 - **Type:** string
 - **Default:** _none_
 
+#### `CALIBRE_WEB_NAME`
+
+**Library Button Name**
+
+Name shown on the library button. Leave empty to name it after the app it links to (Calibre-Web, Kavita, ...) or its address.
+
+- **Type:** string
+- **Default:** _none_
+
 #### `AUDIOBOOK_LIBRARY_URL`
 
 **Audiobook Library URL**
 
-Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc). When both URLs are set, icons are shown instead of text.
+Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc).
+
+- **Type:** string
+- **Default:** _none_
+
+#### `AUDIOBOOK_LIBRARY_NAME`
+
+**Audiobook Library Button Name**
+
+Name shown on the audiobook library button. Leave empty to name it after the app it links to (Audiobookshelf, Plex, ...) or its address.
 
 - **Type:** string
 - **Default:** _none_
@@ -319,7 +339,7 @@ Audiobook formats to include in search results. ZIP/RAR archives are extracted a
 | `SEARCH_MODE` | How you want to search for and download books. | string (choice) | `universal` |
 | `BOOK_LANGUAGE` | Default language filter for searches. Users can override this for their own account. | string (comma-separated) | `en` |
 | `DEFAULT_CONTENT_TYPE` | Which tab the search page opens on. Users can override this for their own account, and a browser that has already picked a tab keeps its choice. | string (choice) | `ebook` |
-| `AA_DEFAULT_SORT` | Default sort order for search results. | string (choice) | `relevance` |
+| `AA_DEFAULT_SORT` | Default sort order for search results. | string (choice) | _empty string_ |
 | `SHOW_RELEASE_SOURCE_LINKS` | Show clickable release-source links in release and details modals. Metadata provider links stay enabled. | boolean | `true` |
 | `SHOW_COMBINED_SELECTOR` | Show the option to search for and download both a book and audiobook together. | boolean | `true` |
 | `FORCE_COMBINED_SEARCH` | Force combined search whenever it's available. Locks the combined toggle on. | boolean | `false` |
