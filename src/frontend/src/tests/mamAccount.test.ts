@@ -9,6 +9,8 @@ import {
   formatRatio,
   maxAffordableGb,
   uploadCreditCost,
+  describeUnsatTiming,
+  formatHoursMinutes,
   formatUnsat,
   mamProfileUrl,
   ratioTone,
@@ -130,5 +132,43 @@ describe('mamProfileUrl', () => {
     expect(mamProfileUrl(123456)).toBe('https://www.myanonamouse.net/u/123456');
     expect(mamProfileUrl(null)).toBe('https://www.myanonamouse.net');
     expect(mamProfileUrl(undefined)).toBe('https://www.myanonamouse.net');
+  });
+});
+
+describe('unsatisfied slot timing', () => {
+  it('formats hours and minutes, rounding up', () => {
+    expect(formatHoursMinutes(2 * 3600 + 5 * 60)).toBe('2:05');
+    expect(formatHoursMinutes(59)).toBe('0:01');
+    expect(formatHoursMinutes(30 * 3600)).toBe('30:00');
+  });
+
+  it('says when the next slot frees and how many in the window', () => {
+    expect(
+      describeUnsatTiming({
+        available: true,
+        next_seconds: 7500,
+        within_window: 2,
+        window_hours: 6,
+      }),
+    ).toBe('Next slot in 2:05 · 2 slots in the next 6 hours');
+    expect(
+      describeUnsatTiming({
+        available: true,
+        next_seconds: 40000,
+        within_window: 0,
+        window_hours: 6,
+      }),
+    ).toBe('Next slot in 11:07 · 0 slots in the next 6 hours');
+  });
+
+  it('explains when nothing is counting down', () => {
+    expect(describeUnsatTiming({ available: true, next_seconds: null, downloading: 2 })).toContain(
+      'download finishes',
+    );
+    expect(describeUnsatTiming({ available: true, next_seconds: null, downloading: 0 })).toBe(
+      'No unsatisfied torrents seeding in your client',
+    );
+    expect(describeUnsatTiming({ available: false, reason: 'No torrent client' })).toBeNull();
+    expect(describeUnsatTiming(null)).toBeNull();
   });
 });

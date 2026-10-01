@@ -14,6 +14,7 @@ from shelfmark.core.logger import setup_logger
 from shelfmark.download.clients import (
     DownloadClient,
     DownloadStatus,
+    TrackerTorrent,
     register_client,
 )
 from shelfmark.download.clients._coercion import (
@@ -362,6 +363,26 @@ class TransmissionClient(DownloadClient):
             return DownloadStatus.error("Torrent not found")
         except _TRANSMISSION_CLIENT_ERRORS as e:
             return DownloadStatus.error(self._log_error("get_status", e))
+
+    def list_tracker_torrents(self, tracker: str) -> list[TrackerTorrent] | None:
+        """Every torrent on a tracker, with Transmission's seeding time."""
+        torrents = self._client.get_torrents(
+            arguments=["name", "secondsSeeding", "percentDone", "trackers"]
+        )
+        needle = tracker.lower()
+        result: list[TrackerTorrent] = []
+        for torrent in torrents:
+            announces = [str(getattr(t, "announce", "") or "") for t in torrent.trackers]
+            if not any(needle in announce.lower() for announce in announces):
+                continue
+            result.append(
+                TrackerTorrent(
+                    name=str(torrent.name or ""),
+                    seeding_seconds=int(torrent.seconds_seeding or 0),
+                    complete=float(torrent.percent_done or 0) >= 1.0,
+                )
+            )
+        return result
 
     def remove(self, download_id: str, *, delete_files: bool = False) -> bool:
         """Remove a torrent from Transmission.

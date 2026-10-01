@@ -24,6 +24,7 @@ from shelfmark.core.utils import normalize_http_url
 from shelfmark.download.clients import (
     DownloadClient,
     DownloadStatus,
+    TrackerTorrent,
     register_client,
 )
 from shelfmark.download.clients._coercion import (
@@ -407,6 +408,27 @@ class DelugeClient(DownloadClient):
 
         except _DELUGE_CLIENT_ERRORS as e:
             return DownloadStatus.error(self._log_error("get_status", e))
+
+    def list_tracker_torrents(self, tracker: str) -> list[TrackerTorrent] | None:
+        """Every torrent on a tracker, with Deluge's seeding time."""
+        self._ensure_connected()
+        statuses = self._rpc_call(
+            "core.get_torrents_status",
+            {},
+            ["name", "tracker_host", "seeding_time", "is_finished"],
+        )
+        if not isinstance(statuses, dict):
+            return []
+        needle = tracker.lower()
+        return [
+            TrackerTorrent(
+                name=str(status.get("name") or ""),
+                seeding_seconds=coerce_optional_int(status.get("seeding_time")) or 0,
+                complete=bool(status.get("is_finished")),
+            )
+            for status in statuses.values()
+            if isinstance(status, dict) and needle in str(status.get("tracker_host") or "").lower()
+        ]
 
     def remove(self, download_id: str, *, delete_files: bool = False) -> bool:
         """Remove a torrent from Deluge, optionally deleting its files."""

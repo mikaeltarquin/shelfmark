@@ -35,6 +35,7 @@ import type {
   MamAutobuyResponse,
   MamPurchaseResponse,
   MamStatusResponse,
+  MamUnsatTiming,
   UploadCreditAmount,
 } from '../utils/mamAccount';
 import type { MamBufferCheck, MamRatioSnapshot } from '../utils/mamRatio';
@@ -667,6 +668,9 @@ export const getMamAccount = async (refresh = false): Promise<MamAccountResponse
 
 export const getMamRatio = async (): Promise<MamRatioSnapshot> =>
   fetchJSON<MamRatioSnapshot>(`${API_BASE}/mam/ratio`);
+
+export const getMamUnsatTiming = async (): Promise<MamUnsatTiming> =>
+  fetchJSON<MamUnsatTiming>(`${API_BASE}/mam/unsat-timing`);
 
 export const checkMamBuffer = async (releases: DownloadReleasePayload[]): Promise<MamBufferCheck> =>
   fetchJSON<MamBufferCheck>(`${API_BASE}/mam/buffer-check`, {
