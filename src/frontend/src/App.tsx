@@ -101,7 +101,12 @@ import { getConfiguredMetadataProviderForContentType } from './utils/metadataPro
 import { getEffectiveMetadataSort } from './utils/metadataSort';
 import { isRecord } from './utils/objectHelpers';
 import { policyTrace } from './utils/policyTrace';
-import { buildQueryTargets, findQueryTarget, getDefaultQueryTargetKey } from './utils/queryTargets';
+import {
+  buildQueryTargets,
+  findQueryTarget,
+  getDefaultQueryTargetKey,
+  searchBarQueryField,
+} from './utils/queryTargets';
 import { buildReleaseDownloadPayload, type ReleaseDownloadOptions } from './utils/releasePayload';
 import { applyRequestNoteToPayload } from './utils/requestConfirmation';
 import { bookFromRequestData } from './utils/requestFulfil';
@@ -2079,7 +2084,11 @@ function App() {
     [queryTargets, effectiveActiveQueryTarget],
   );
 
-  const activeQueryField = activeQueryOption?.field ?? null;
+  const activeQueryField = searchBarQueryField(
+    activeQueryOption,
+    effectiveSearchMode,
+    stableSearchFields,
+  );
   const seriesBrowseCapability = useMemo(
     () =>
       activeMetadataConfig?.capabilities.find(

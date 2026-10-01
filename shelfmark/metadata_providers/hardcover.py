@@ -1000,6 +1000,7 @@ class HardcoverProvider(MetadataProvider):
             label="Title",
             placeholder="Search title...",
             description="Search by book title",
+            suggestions_endpoint="/api/metadata/field-options?provider=hardcover&field=title",
         ),
         TextSearchField(
             key="series",
@@ -1395,7 +1396,13 @@ class HardcoverProvider(MetadataProvider):
                 continue
 
             seen_labels.add(normalized_label)
-            options.append({"value": label, "label": label})
+            option = {"value": label, "label": label}
+            authors = item.get("author_names")
+            if isinstance(authors, str):
+                authors = [authors]
+            if isinstance(authors, list) and authors and str(authors[0]).strip():
+                option["description"] = f"by {str(authors[0]).strip()}"
+            options.append(option)
 
         return options
 
