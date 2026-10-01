@@ -8,19 +8,19 @@ Audiobookshelf treats each folder as one library item. Two things follow from th
 Audiobookshelf reads the narrator from a `{...}` part of the folder name:
 
 ```
-/books/Robert Jordan/The Eye of the World {Rosamund Pike}/The Eye of the World.m4b
-/books/Robert Jordan/The Eye of the World {Rosamund Pike}/The Eye of the World.epub
-/books/Robert Jordan/The Eye of the World {Kate Reading & Michael Kramer}/The Eye of the World.m4b
-/books/Robert Jordan/The Eye of the World {Kate Reading & Michael Kramer}/The Eye of the World.epub
+/books/Firstname Lastname/Book Title {Narrator One}/Book Title.m4b
+/books/Firstname Lastname/Book Title {Narrator One}/Book Title.epub
+/books/Firstname Lastname/Book Title {Narrator Two & Narrator Three}/Book Title.m4b
+/books/Firstname Lastname/Book Title {Narrator Two & Narrator Three}/Book Title.epub
 ```
 
 ## The `{Narrator}` variable
 
-Audiobook templates can use `{Narrator}`. Narrators come from [MyAnonamouse Enrichment](myanonamouse-enrichment.md); other sources do not report one. An audiobook without a narrator gets `Audiobook`, so it still has its own folder (`The Eye of the World {Audiobook}`). Ebooks have no narrator.
+Audiobook templates can use `{Narrator}`. Narrators come from [MyAnonamouse Enrichment](myanonamouse-enrichment.md); other sources do not report one. An audiobook without a narrator gets `Audiobook`, so it still has its own folder (`Book Title {Audiobook}`). Ebooks have no narrator.
 
-Several narrators are joined with **Narrator Separator** (`NARRATOR_SEPARATOR`): `&` (default) gives `Kate Reading & Michael Kramer`, `,` gives `Kate Reading, Michael Kramer`.
+Several narrators are joined with **Narrator Separator** (`NARRATOR_SEPARATOR`): `&` (default) gives `Narrator Two & Narrator Three`, `,` gives `Narrator Two, Narrator Three`.
 
-Braces nested inside a template block are kept as text, so `{{Narrator}}` renders `{Rosamund Pike}` and disappears entirely when there is no narrator (the space before it is trimmed too). The recommended audiobook **Path Template** is:
+Braces nested inside a template block are kept as text, so `{{Narrator}}` renders `{Narrator One}` and disappears entirely when there is no narrator (the space before it is trimmed too). The recommended audiobook **Path Template** is:
 
 ```
 {Author}/{Title} {{Narrator}}/{Title}
@@ -41,10 +41,10 @@ Ebooks are still saved to the Books destination as usual. In addition, Shelfmark
 | What arrives | What Shelfmark does |
 |--------------|---------------------|
 | Ebook, audiobooks already present | Links (or copies) the ebook into every narration's folder. |
-| Ebook, no audiobook yet | Puts it in the folder the template gives without a narrator (`The Eye of the World/`). |
+| Ebook, no audiobook yet | Puts it in the folder the template gives without a narrator (`Book Title/`). |
 | Audiobook | Links (or copies) the ebook in from another narration's folder, the narrator-less folder, or the Books destination. |
 
-When you download a book and its audiobooks together (combined search: select the book, then the audiobooks), the ebook already knows which narrations are coming. It is saved straight into their folders (`The Eye of the World {Rosamund Pike}/`) instead of the narrator-less one, so the audiobook later lands in an item Audiobookshelf already has rather than moving the ebook out from under it. You can tick several audiobooks on that step, one per narration; the ebook goes into each of their folders. Audiobooks that are only requested, not downloaded, don't count: the request might never be fulfilled.
+When you download a book and its audiobooks together (combined search: select the book, then the audiobooks), the ebook already knows which narrations are coming. It is saved straight into their folders (`Book Title {Narrator One}/`) instead of the narrator-less one, so the audiobook later lands in an item Audiobookshelf already has rather than moving the ebook out from under it. You can tick several audiobooks on that step, one per narration; the ebook goes into each of their folders. Audiobooks that are only requested, not downloaded, don't count: the request might never be fulfilled.
 
 Once a book has an audiobook folder, the narrator-less ebook-only folder is emptied into it and removed, so Audiobookshelf does not keep a second, ebook-only item. Audiobookshelf's own `cover.*` and `metadata.json` in that folder are removed with it; if it holds anything else, the folder is left in place and a warning is logged.
 
@@ -66,20 +66,20 @@ Turn on **Settings > Downloads > Audiobooks > Write Audiobookshelf Metadata** (`
 
 Some publishers split one book into several releases: GraphicAudio's dramatizations come
 in parts, each its own torrent. Shelfmark reads the part from MyAnonamouse's series field
-("Elantris #1p2") or, for other sources, from the title ("Part 2", "Pt. 2", "(2 of 3)"),
+("Series Name #1p2") or, for other sources, from the title ("Part 2", "Pt. 2", "(2 of 3)"),
 and files each part as its own book, so Audiobookshelf gets one item per part that it can
 match:
 
 ```
-Brandon Sanderson/Elantris (1 of 2) {GraphicAudio}/Elantris (1 of 2).m4b
-Brandon Sanderson/Elantris (2 of 2) {GraphicAudio}/Elantris (2 of 2).m4b
+Firstname Lastname/Book Title (1 of 2) {GraphicAudio}/Book Title (1 of 2).m4b
+Firstname Lastname/Book Title (2 of 2) {GraphicAudio}/Book Title (2 of 2).m4b
 ```
 
 The part is read from the release's own title, also in the combined (ebook + audiobook)
-flow, where the book's title doesn't name the part ("Words of Radiance (Part 1 of 5)" with
-the series field "Stormlight Archive #2"). The part goes into the title everywhere `{Title}`
+flow, where the book's title doesn't name the part ("Book Title (Part 1 of 5)" with
+the series field "Series Name #2"). The part goes into the title everywhere `{Title}`
 is used, and into the `metadata.opf`. The number of parts comes from the release title
-("(1 of 2)"); when no release says it, the part is written `Elantris (Part 1)`.
+("(1 of 2)"); when no release says it, the part is written `Book Title (Part 1)`.
 
 Each part is also numbered in its series after the book, so the parts sort in order: with
 the book's series position from your metadata provider, part 1 of book 2 is **2.1**, part 2

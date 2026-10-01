@@ -37,7 +37,7 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
   narrators, year, language and series with number, so every book of a series files under the same
   series name. Edits made in Audiobookshelf itself still win.
 - **Books released in parts** (GraphicAudio): each part is filed as its own book,
-  `Elantris (1 of 2) {GraphicAudio}/Elantris (1 of 2).m4b`, numbered in its series after the
+  `Book Title (1 of 2) {GraphicAudio}/Book Title (1 of 2).m4b`, numbered in its series after the
   book (book 2, part 1 is 2.1), so Audiobookshelf matches each part and lists them in order.
 
 **MyAnonamouse account tools** (admin only; needs the MAM session ID)

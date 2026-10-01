@@ -9,26 +9,26 @@ holds a shareable link to what you're looking at.
 ## Basic Usage
 
 ```
-http://your-server:8084/#q=harry+potter
+http://your-server:8084/#q=book+title
 ```
 
-Older query-string links (`/?q=harry+potter`) still work: they're read once on load and
+Older query-string links (`/?q=book+title`) still work: they're read once on load and
 rewritten to the hash form.
 
 ## Supported Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `q` or `query` | Main search query | `/#q=dune` |
-| `author` | Filter by author name | `/#author=frank+herbert` |
-| `title` | Filter by book title | `/#title=foundation` |
+| `q` or `query` | Main search query | `/#q=book+title` |
+| `author` | Filter by author name | `/#author=firstname+lastname` |
+| `title` | Filter by book title | `/#title=book+title` |
 | `isbn` | Filter by ISBN | `/#isbn=978-0747532699` |
 | `lang` | Filter by language (ISO 639-1 code) | `/#lang=en` |
 | `format` | Filter by file format | `/#format=epub` |
 | `content` | Filter by content type | `/#content=fiction` |
-| `content_type` | Select media type (`ebook`, `audiobook`, or `combined`) in Universal mode only | `/#q=dune&content_type=audiobook` |
+| `content_type` | Select media type (`ebook`, `audiobook`, or `combined`) in Universal mode only | `/#q=book+title&content_type=audiobook` |
 | `sort` | Sort order for results | `/#sort=newest` |
-| `search_by` | "Search By" target the query applies to (`general`, `author`, `title`, `isbn`, a metadata provider field like `series`, or `manual`) | `/#search_by=author&q=frank+herbert` |
+| `search_by` | "Search By" target the query applies to (`general`, `author`, `title`, `isbn`, a metadata provider field like `series`, or `manual`) | `/#search_by=author&q=firstname+lastname` |
 
 ## Multiple Values
 
@@ -48,12 +48,12 @@ Some parameters support multiple values by repeating the parameter:
 
 **Search with author filter:**
 ```
-/#q=dune&author=frank+herbert
+/#q=book+title&author=firstname+lastname
 ```
 
 **Search with format and language:**
 ```
-/#q=harry+potter&format=epub&lang=en
+/#q=book+title&format=epub&lang=en
 ```
 
 **Author search with multiple formats:**
@@ -68,12 +68,12 @@ Some parameters support multiple values by repeating the parameter:
 
 **Universal search as audiobook:**
 ```
-/#q=dune&content_type=audiobook
+/#q=book+title&content_type=audiobook
 ```
 
 **Universal search forcing combined (ebook + audiobook):**
 ```
-/#q=dune&content_type=combined
+/#q=book+title&content_type=combined
 ```
 
 ## Search Mode Behavior

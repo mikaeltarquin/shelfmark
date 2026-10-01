@@ -98,8 +98,8 @@ Example payload shape:
   "task": {
     "task_id": "abc123",
     "source": "direct",
-    "title": "Foundation",
-    "author": "Isaac Asimov"
+    "title": "Book Title",
+    "author": "Firstname Lastname"
   },
   "output": {
     "mode": "folder",
@@ -107,9 +107,9 @@ Example payload shape:
   },
   "paths": {
     "destination": "/data/library/books",
-    "target": "/data/library/books/Isaac Asimov/Foundation/Foundation.epub",
+    "target": "/data/library/books/Firstname Lastname/Book Title/Book Title.epub",
     "final_paths": [
-      "/data/library/books/Isaac Asimov/Foundation/Foundation.epub"
+      "/data/library/books/Firstname Lastname/Book Title/Book Title.epub"
     ]
   },
   "transfer": {
@@ -173,16 +173,16 @@ This setting controls what gets passed as `$1`:
 
 For folder output, the destination root is your configured destination folder. For Booklore output, it's the local upload folder.
 
-Example (folder destination is `/data/library/books`, and the imported file ended up in `Isaac Asimov/Foundation/Foundation.epub`):
+Example (folder destination is `/data/library/books`, and the imported file ended up in `Firstname Lastname/Book Title/Book Title.epub`):
 
 ```bash
 # Absolute mode:
 $PWD is unchanged
-$1 = /data/library/books/Isaac Asimov/Foundation/Foundation.epub
+$1 = /data/library/books/Firstname Lastname/Book Title/Book Title.epub
 
 # Relative mode:
 $PWD = /data/library/books
-$1 = Isaac Asimov/Foundation/Foundation.epub
+$1 = Firstname Lastname/Book Title/Book Title.epub
 ```
 
 Note: if the target is the destination folder itself, `relative` mode may pass `.`.

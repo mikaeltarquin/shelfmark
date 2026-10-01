@@ -17,7 +17,7 @@ describe('namingTemplatePreview', () => {
     );
 
     expect(preview.value).toBe(
-      'Arthur Conan Doyle/The Hound of the Baskervilles {Kate Reading & Michael Kramer}/The Hound of the Baskervilles.mp3',
+      'Arthur Conan Doyle/The Hound of the Baskervilles {Narrator One & Narrator Two}/The Hound of the Baskervilles.mp3',
     );
     expect(preview.unknownTokens).toEqual([]);
   });
