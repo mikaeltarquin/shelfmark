@@ -2215,9 +2215,10 @@ function App() {
       if (activeQueryOption.field) {
         if (activeQueryOption.field.type === 'TextSearchField') {
           setSearchInput(typeof value === 'string' ? value : String(value ?? ''));
-          if (label !== undefined) {
-            updateSearchFieldValue(activeQueryOption.field.key, value, label);
-          }
+          // Typing (no label) drops the label of a picked suggestion: the search bar
+          // shows a label over the value, so a stale "Brandon Sanderson" would replace
+          // every keystroke.
+          updateSearchFieldValue(activeQueryOption.field.key, value, label);
           return;
         }
         updateSearchFieldValue(activeQueryOption.field.key, value, label);
