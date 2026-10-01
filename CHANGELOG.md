@@ -14,6 +14,9 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   between Library and Activity, and shows the account's ratio and unsatisfied count
   (amber or red near the limits), refreshed every 5 minutes and after closing the panel.
   It has a mouse icon, and the panel links to your MAM profile and the MAM store.
+- **Library links named after where they go**: the header's "Go To Library" buttons now
+  read "Audiobookshelf", "Calibre-Web", "Plex"..., worked out from the link (or the
+  connected Audiobookshelf server), or set your own under Settings › General.
 
 ### Fixed
 - The Content / Search by panel on a results page opens below the search bar instead of

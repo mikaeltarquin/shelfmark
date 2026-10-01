@@ -55,6 +55,7 @@ from shelfmark.core.config import config as app_config
 from shelfmark.core.cwa_user_sync import upsert_cwa_user
 from shelfmark.core.download_history_service import DownloadHistoryService
 from shelfmark.core.external_user_linking import upsert_external_user
+from shelfmark.core.library_links import library_link_name
 from shelfmark.core.library_routes import register_library_routes
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.mam_routes import buffer_check_payload, register_mam_routes
@@ -1298,7 +1299,19 @@ def api_config() -> Response | tuple[Response, int]:
 
         config = {
             "calibre_web_url": app_config.get("CALIBRE_WEB_URL", ""),
+            "calibre_web_name": library_link_name(
+                app_config.get("CALIBRE_WEB_URL", ""),
+                app_config.get("CALIBRE_WEB_NAME", ""),
+                audiobookshelf_url=app_config.get("ABS_URL", ""),
+                fallback="Books",
+            ),
             "audiobook_library_url": app_config.get("AUDIOBOOK_LIBRARY_URL", ""),
+            "audiobook_library_name": library_link_name(
+                app_config.get("AUDIOBOOK_LIBRARY_URL", ""),
+                app_config.get("AUDIOBOOK_LIBRARY_NAME", ""),
+                audiobookshelf_url=app_config.get("ABS_URL", ""),
+                fallback="Audiobooks",
+            ),
             "search_page_title": app_config.get("SEARCH_PAGE_TITLE", "Shelfmark"),
             "debug": app_config.get("DEBUG", False),
             "build_version": BUILD_VERSION,

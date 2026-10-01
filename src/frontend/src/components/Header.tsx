@@ -25,7 +25,9 @@ interface HeaderHandle {
 
 interface HeaderProps {
   calibreWebUrl?: string;
+  calibreWebName?: string; // Where the link goes ("Calibre-Web"), from the config
   audiobookLibraryUrl?: string;
+  audiobookLibraryName?: string; // e.g. "Audiobookshelf"
   debug?: boolean;
   logoUrl?: string;
   showSearch?: boolean;
@@ -99,7 +101,9 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
   (
     {
       calibreWebUrl,
+      calibreWebName = 'Books',
       audiobookLibraryUrl,
+      audiobookLibraryName = 'Audiobooks',
       debug,
       logoUrl,
       showSearch = false,
@@ -323,8 +327,11 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
       }
     };
 
-    // Determine if we should show icons only (both URLs configured)
-    const showIconsOnly = Boolean(calibreWebUrl && audiobookLibraryUrl);
+    // With both links set the header is crowded: their names show only on wide screens.
+    const linkLabelClass =
+      calibreWebUrl && audiobookLibraryUrl
+        ? 'hidden text-sm font-medium lg:inline'
+        : 'hidden text-sm font-medium sm:inline';
 
     // Icon buttons - reused for both states
     const iconButtonsNode = (
@@ -336,8 +343,8 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
             target="_blank"
             rel="noopener noreferrer"
             className="hover-action flex items-center gap-2 rounded-full px-3 py-2 text-gray-900 transition-all duration-200 dark:text-gray-100"
-            aria-label="Open book library"
-            title={showIconsOnly ? 'Book Library' : 'Go To Library'}
+            aria-label={`Open ${calibreWebName}`}
+            title={calibreWebName}
           >
             <svg
               className="h-5 w-5"
@@ -353,7 +360,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
                 d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
               />
             </svg>
-            {!showIconsOnly && <span className="text-sm font-medium">Go To Library</span>}
+            <span className={linkLabelClass}>{calibreWebName}</span>
           </a>
         )}
 
@@ -364,8 +371,8 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
             target="_blank"
             rel="noopener noreferrer"
             className="hover-action flex items-center gap-2 rounded-full px-3 py-2 text-gray-900 transition-all duration-200 dark:text-gray-100"
-            aria-label="Open audiobook library"
-            title={showIconsOnly ? 'Audiobook Library' : 'Go To Library'}
+            aria-label={`Open ${audiobookLibraryName}`}
+            title={audiobookLibraryName}
           >
             <svg
               className="h-5 w-5"
@@ -381,7 +388,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
                 d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
               />
             </svg>
-            {!showIconsOnly && <span className="text-sm font-medium">Go To Library</span>}
+            <span className={linkLabelClass}>{audiobookLibraryName}</span>
           </a>
         )}
 

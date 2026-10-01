@@ -562,10 +562,28 @@ def general_settings() -> list[SettingsField]:
             placeholder="http://calibre-web:8083",
         ),
         TextField(
+            key="CALIBRE_WEB_NAME",
+            label="Library Button Name",
+            description=(
+                "Name shown on the library button. Leave empty to name it after the app it "
+                "links to (Calibre-Web, Kavita, ...) or its address."
+            ),
+            placeholder="Automatic",
+        ),
+        TextField(
             key="AUDIOBOOK_LIBRARY_URL",
             label="Audiobook Library URL",
-            description="Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc). When both URLs are set, icons are shown instead of text.",
+            description="Adds a separate navigation button for your audiobook library (Audiobookshelf, Plex, etc).",
             placeholder="http://audiobookshelf:8080",
+        ),
+        TextField(
+            key="AUDIOBOOK_LIBRARY_NAME",
+            label="Audiobook Library Button Name",
+            description=(
+                "Name shown on the audiobook library button. Leave empty to name it after the "
+                "app it links to (Audiobookshelf, Plex, ...) or its address."
+            ),
+            placeholder="Automatic",
         ),
         HeadingField(
             key="search_defaults_heading",

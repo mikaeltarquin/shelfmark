@@ -2580,6 +2580,8 @@ function App() {
       <div ref={headerRef} className="fixed top-0 right-0 left-0 z-40">
         <Header
           calibreWebUrl={config?.calibre_web_url || ''}
+          calibreWebName={config?.calibre_web_name || undefined}
+          audiobookLibraryName={config?.audiobook_library_name || undefined}
           audiobookLibraryUrl={config?.audiobook_library_url || ''}
           debug={config?.debug || false}
           logoUrl={logoUrl}
