@@ -2,11 +2,11 @@ import type { CSSProperties } from 'react';
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { ActivitySidebar } from './components/activity';
+import { ActivitySidebar, type ActivityItem } from './components/activity';
 import { SavedPanel } from './components/activity/SavedPanel';
 import { AdvancedFilters } from './components/AdvancedFilters';
 import { ConfigSetupBanner } from './components/ConfigSetupBanner';
-import { DetailsModal } from './components/DetailsModal';
+import { DetailsModal, type DetailsNotice } from './components/DetailsModal';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { LibraryPage } from './components/library/LibraryPage';
@@ -101,6 +101,7 @@ import type {
 } from './types';
 import { isMetadataBook } from './types';
 import { formatActingAsUserName } from './utils/actingAsUser';
+import { findActivityBook } from './utils/activityBook';
 import { buildLoginRedirectPath, getReturnToFromSearch } from './utils/authRedirect';
 import { withBasePath } from './utils/basePath';
 import { emitBookTargetChange } from './utils/bookTargetEvents';
@@ -413,6 +414,7 @@ function App() {
     activityHistoryHasMore,
     prefetchActivityHistory,
     refreshActivitySnapshot,
+    refreshActivityHistory,
     resetActivity,
     handleActivityTabChange,
     handleActivityHistoryLoadMore,
@@ -567,6 +569,11 @@ function App() {
     contentType: ContentType;
   } | null>(null);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  // A note shown with one book's details (a failed download, from Activity).
+  const [detailsNotice, setDetailsNotice] = useState<{
+    bookId: string;
+    notice: DetailsNotice;
+  } | null>(null);
   const [releaseBook, setReleaseBook] = useState<Book | null>(null);
   const [activeResultsSort, setActiveResultsSort] = useState('');
 
@@ -1632,11 +1639,54 @@ function App() {
   const handleRetry = async (id: string) => {
     try {
       await retryDownload(id);
-      await fetchStatus();
+      // A retried download leaves History for the Downloads list.
+      await Promise.all([fetchStatus(), refreshActivitySnapshot(), refreshActivityHistory()]);
     } catch (error) {
       console.error('Retry failed:', error);
       showToast('Failed to retry download', 'error');
     }
+  };
+
+  // An Activity row opens its book's details, with a note and Retry for a failed download.
+  const handleOpenActivityDetails = async (item: ActivityItem) => {
+    const failed =
+      item.kind === 'download' &&
+      (item.visualStatus === 'error' || item.visualStatus === 'cancelled');
+    const retryId = item.downloadBookId;
+    const notice: DetailsNotice | null = failed
+      ? {
+          tone: 'error',
+          title:
+            item.visualStatus === 'cancelled'
+              ? 'This download was cancelled'
+              : 'This download failed',
+          detail: item.statusDetail,
+          ...(item.downloadRetryAvailable && retryId
+            ? {
+                actionLabel: 'Retry download',
+                onAction: async () => {
+                  await handleRetry(retryId);
+                  setSelectedBook(null);
+                },
+              }
+            : {}),
+        }
+      : null;
+    let book: Book | null = null;
+    try {
+      book = await findActivityBook(item);
+    } catch (error) {
+      console.warn('Could not look up the book:', error);
+    }
+    if (!book) {
+      // Not found directly: search for it (a failed row keeps its own Retry button).
+      setDownloadsSidebarOpen(false);
+      runSearchWithPolicyRefresh({ query: `${item.title} ${item.author}`.trim() });
+      showToast(`Searching for "${item.title}"`, 'info');
+      return;
+    }
+    setDetailsNotice(notice ? { bookId: book.id, notice } : null);
+    setSelectedBook(book);
   };
 
   // Universal-mode "Get" action (open releases, request-book, or block by policy).
@@ -2937,6 +2987,7 @@ function App() {
               {selectedBook && (
                 <DetailsModal
                   book={selectedBook}
+                  notice={detailsNotice?.bookId === selectedBook.id ? detailsNotice.notice : null}
                   onClose={() => setSelectedBook(null)}
                   onDownload={handleDownload}
                   onShowToast={showToast}
@@ -3066,6 +3117,9 @@ function App() {
             status={activitySidebarStatus}
             isAdmin={requestRoleIsAdmin}
             onClearCompleted={handleClearCompleted}
+            onOpenDetails={(item) => {
+              void handleOpenActivityDetails(item);
+            }}
             onCancel={(id) => {
               void handleCancel(id);
             }}

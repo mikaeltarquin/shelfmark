@@ -5,6 +5,10 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Activity rows open the book**: click a download (in Downloads or History) to see the
+  book's details and your library copies. A failed or cancelled one says why, with
+  **Retry download**; History rows get a Retry button too. Saving a finished file to this
+  device is now a small download button on the row rather than the title link.
 - **Smarter automatic downloads from Saved**: one **Get automatically** switch per item
   instead of freeleech and ratio checkboxes. Freeleech torrents go as soon as there's
   room, even while the ratio is below target; small downloads that barely move the ratio

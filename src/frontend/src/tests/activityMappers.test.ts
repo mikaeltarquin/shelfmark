@@ -69,6 +69,16 @@ describe('activityMappers.downloadToActivityItem', () => {
     });
   });
 
+  it('keeps the book a download was for, to open its details', () => {
+    const item = downloadToActivityItem(
+      makeBook({ book_key: 'hardcover:42', content_type: 'audiobook' }),
+      'error',
+    );
+    expect(item.bookKey).toBe('hardcover:42');
+    expect(item.contentType).toBe('audiobook');
+    expect(downloadToActivityItem(makeBook(), 'complete').bookKey).toBeUndefined();
+  });
+
   it('maps download items with meta line and status fields', () => {
     const item = downloadToActivityItem(
       makeBook({

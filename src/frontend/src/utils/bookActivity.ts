@@ -94,6 +94,22 @@ const titleMatchAllowed = (book: ActivityBookRef, entryKey: string | null): bool
   entryKey.startsWith('id:') ||
   providerOf(entryKey) !== providerOf(book.key);
 
+/** Whether a title and author (as a download recorded them) are this book. */
+export const isSameBook = (book: ActivityBookRef, title: string, author: string | null): boolean =>
+  titleKey(book.title) === titleKey(title) && sameAuthors(book.authors, authorList(author));
+
+/** "hardcover:42" as provider and id; null for keys that aren't a metadata book. */
+export const parseBookKey = (
+  key: string | null | undefined,
+): { provider: string; providerId: string } | null => {
+  if (!key) return null;
+  const separator = key.indexOf(':');
+  const provider = key.slice(0, separator);
+  const providerId = key.slice(separator + 1);
+  if (separator <= 0 || !providerId || provider === 'id' || provider === 'manual') return null;
+  return { provider, providerId };
+};
+
 const formatOf = (contentType: string | null): ContentType =>
   contentType && fold(contentType).includes('audio') ? 'audiobook' : 'ebook';
 

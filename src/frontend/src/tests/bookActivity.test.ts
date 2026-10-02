@@ -5,7 +5,9 @@ import {
   downloadLabel,
   downloadSummary,
   indexDownloads,
+  isSameBook,
   mergeDownloads,
+  parseBookKey,
   savedItemFor,
   titleKey,
   type BookDownloadEntry,
@@ -112,5 +114,34 @@ describe('savedItemFor', () => {
         authors: ['Jane Author'],
       }),
     ).toBeDefined();
+  });
+});
+
+describe('parseBookKey', () => {
+  it('splits a metadata book key, and rejects ones that are not', () => {
+    expect(parseBookKey('hardcover:42')).toEqual({ provider: 'hardcover', providerId: '42' });
+    expect(parseBookKey('openlibrary:OL1:W')).toEqual({
+      provider: 'openlibrary',
+      providerId: 'OL1:W',
+    });
+    expect(parseBookKey('id:abc')).toBeNull();
+    expect(parseBookKey('manual:1')).toBeNull();
+    expect(parseBookKey(':1')).toBeNull();
+    expect(parseBookKey(undefined)).toBeNull();
+  });
+});
+
+describe('isSameBook', () => {
+  it('matches title and author loosely', () => {
+    expect(
+      isSameBook(
+        { title: 'The Example Book', authors: ['Jane Author'] },
+        'Example Book: A Novel',
+        'Author, Jane',
+      ),
+    ).toBe(true);
+    expect(
+      isSameBook({ title: 'Example Book', authors: ['Jane Author'] }, 'Example Book', 'Sam Writer'),
+    ).toBe(false);
   });
 });
