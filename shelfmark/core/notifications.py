@@ -71,6 +71,7 @@ class NotificationEvent(StrEnum):
     REQUEST_REJECTED = "request_rejected"
     DOWNLOAD_COMPLETE = "download_complete"
     DOWNLOAD_FAILED = "download_failed"
+    SAVED_AUTO_GET = "saved_auto_get"
 
 
 @dataclass
@@ -326,6 +327,7 @@ def _resolve_notify_type(event: NotificationEvent) -> object:
             NotificationEvent.REQUEST_REJECTED: "warning",
             NotificationEvent.DOWNLOAD_COMPLETE: "success",
             NotificationEvent.DOWNLOAD_FAILED: "failure",
+            NotificationEvent.SAVED_AUTO_GET: "info",
         }
         return fallback[event]
 
@@ -335,6 +337,7 @@ def _resolve_notify_type(event: NotificationEvent) -> object:
         NotificationEvent.REQUEST_REJECTED: apprise.NotifyType.WARNING,
         NotificationEvent.DOWNLOAD_COMPLETE: apprise.NotifyType.SUCCESS,
         NotificationEvent.DOWNLOAD_FAILED: apprise.NotifyType.FAILURE,
+        NotificationEvent.SAVED_AUTO_GET: apprise.NotifyType.INFO,
     }
     return mapping[event]
 
@@ -363,6 +366,11 @@ def _render_message(context: NotificationContext) -> tuple[str, str]:
         )
     if event == NotificationEvent.DOWNLOAD_COMPLETE:
         return "Download Complete", f'"{title}" by {author} downloaded successfully.'
+    if event == NotificationEvent.SAVED_AUTO_GET:
+        return (
+            "Saved Book Downloading",
+            f'"{title}" by {author} had room and is downloading from Saved for later.',
+        )
 
     error_message = _clean_text(context.error_message, "")
     error_line = f"\nError: {error_message}" if error_message else ""

@@ -302,6 +302,23 @@ class MamClient:
         data = self._get(_BONUS_BUY_PATH, {**params, "_": str(int(time.time() * 1000))})
         return data if isinstance(data, dict) else {}
 
+    def get_torrent(self, torrent_id: int) -> dict[str, Any] | None:
+        """Return one torrent as MAM's search lists it (freeleech flags included)."""
+        params: dict[str, str | list[str]] = {
+            "tor[id]": str(torrent_id),
+            "tor[searchType]": "all",
+            "tor[searchIn]": "torrents",
+            "tor[cat][]": "0",
+        }
+        data = self._get(_SEARCH_PATH, params)
+        items = data.get("data") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            return None
+        for item in items:
+            if isinstance(item, dict) and coerce_int_like(item.get("id")) == torrent_id:
+                return item
+        return None
+
     def search(
         self, text: str, options: MamSearchOptions, *, start: int = 0
     ) -> list[dict[str, Any]]:

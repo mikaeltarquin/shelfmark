@@ -1,8 +1,14 @@
 /** Saved for later: books, and the releases picked for them, to download later. */
 
+import type { DownloadReleasePayload } from '../services/api';
 import type { Book, ContentType, Release } from '../types';
+import { isPartRelease, releaseNarrators } from './combinedSelection';
+import { buildReleaseDownloadPayload } from './releasePayload';
 
 export type SavedKind = 'book' | 'release' | 'combined';
+
+// Ratio an automatic download keeps by default (matches the server).
+export const DEFAULT_MIN_RATIO = 2.0;
 
 export interface SavedPick {
   content_type: ContentType; // What this release is: the ebook or an audiobook
@@ -28,6 +34,8 @@ export interface SavedItem {
   auto_get: boolean;
   conditions: SavedConditions;
   last_error: string | null;
+  auto_status: string | null; // Why an automatic download is still waiting
+  auto_checked_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +48,31 @@ export const combinedPicks = (
   ...(ebook ? [{ content_type: 'ebook' as const, release: ebook }] : []),
   ...audiobooks.map((release) => ({ content_type: 'audiobook' as const, release })),
 ];
+
+/**
+ * The download payloads for saved picks, one per pick, as a manual Get would send them:
+ * an ebook picked with audiobooks goes into their narrators' folders.
+ */
+export const savedPayloads = (
+  book: Book,
+  picks: readonly SavedPick[],
+): DownloadReleasePayload[] => {
+  const companionAudiobookNarrators = picks
+    .filter((pick) => pick.content_type === 'audiobook' && !isPartRelease(pick.release))
+    .map((pick) => releaseNarrators(pick.release));
+  return picks.map((pick) =>
+    buildReleaseDownloadPayload(
+      book,
+      pick.release,
+      pick.content_type,
+      pick.content_type === 'ebook' ? { companionAudiobookNarrators } : {},
+    ),
+  );
+};
+
+/** Whether any pick is a MyAnonamouse torrent: only those wait for room or conditions. */
+export const hasMamPick = (item: Pick<SavedItem, 'releases'>): boolean =>
+  item.releases.some((pick) => Boolean(pick.release.extra?.mam_torrent_id));
 
 /** The key a book is saved under, as the server works it out: one saved item per book. */
 export const savedBookKey = (book: Pick<Book, 'id' | 'provider' | 'provider_id'>): string =>

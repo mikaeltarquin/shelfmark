@@ -2,8 +2,8 @@
 
 A saved item is a book and, when one was picked, the exact releases to get: one release,
 or a combined pick (an ebook and audiobooks). Each user has their own list; with no
-login, everyone shares one. Items can be marked to download on their own once there is
-room (see `mam_autoget`), with optional conditions.
+login, everyone shares one. Items with picked releases can be marked to download on their
+own once there is room (see `saved_autoget`), with optional conditions.
 """
 
 from __future__ import annotations
@@ -47,6 +47,14 @@ ON saved_items (owner, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_saved_items_auto_get
 ON saved_items (auto_get, created_at);
 """
+
+# Columns added after the table first shipped: name -> definition.
+_ADDED_COLUMNS = {
+    # Why an automatic download is still waiting ("Waiting for freeleech"), and when
+    # that was last checked.
+    "auto_status": "TEXT",
+    "auto_checked_at": "TEXT",
+}
 
 
 def user_owner(user_id: int) -> str:
@@ -110,6 +118,8 @@ def _row_to_item(row: sqlite3.Row) -> dict[str, Any]:
         "auto_get": bool(row["auto_get"]),
         "conditions": normalize_conditions(_loads(row["conditions"], {})),
         "last_error": row["last_error"],
+        "auto_status": row["auto_status"],
+        "auto_checked_at": row["auto_checked_at"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -134,6 +144,10 @@ class SavedItemsService:
             conn = self._connect()
             try:
                 conn.executescript(_CREATE_SQL)
+                existing = {row["name"] for row in conn.execute("PRAGMA table_info(saved_items)")}
+                for name, definition in _ADDED_COLUMNS.items():
+                    if name not in existing:
+                        conn.execute(f"ALTER TABLE saved_items ADD COLUMN {name} {definition}")
                 conn.commit()
             finally:
                 conn.close()
@@ -182,6 +196,9 @@ class SavedItemsService:
         if any(not isinstance(r.get("release"), dict) for r in picks):
             msg = "each release needs its release record"
             raise ValueError(msg)
+        if payloads is not None and len(payloads) != len(picks):
+            msg = "payloads must match the releases one for one"
+            raise ValueError(msg)
         kind = "book"
         if picks:
             kind = "combined" if content_type == "combined" or len(picks) > 1 else "release"
@@ -202,7 +219,7 @@ class SavedItemsService:
                     conn.execute(
                         """UPDATE saved_items SET kind = ?, content_type = ?, title = ?,
                            author = ?, book = ?, releases = ?, payloads = ?, last_error = NULL,
-                           updated_at = ? WHERE id = ?""",
+                           auto_status = NULL, updated_at = ? WHERE id = ?""",
                         (
                             kind,
                             content_type,
@@ -252,13 +269,20 @@ class SavedItemsService:
         payloads: list[dict[str, Any]] | None = None,
         last_error: str | None = None,
         clear_error: bool = False,
+        auto_status: str | None = None,
     ) -> dict[str, Any] | None:
-        """Change an item's automatic download settings or note a failed attempt."""
+        """Change an item's automatic download settings or note a failed attempt.
+
+        `auto_status` records what the last automatic check found ("" clears it).
+        Turning automatic downloads on or off clears it too.
+        """
         sets: list[str] = []
         values: list[Any] = []
         if auto_get is not None:
             sets.append("auto_get = ?")
             values.append(1 if auto_get else 0)
+            if auto_status is None:
+                sets.append("auto_status = NULL")
         if conditions is not None:
             sets.append("conditions = ?")
             values.append(json.dumps(normalize_conditions(conditions)))
@@ -268,12 +292,17 @@ class SavedItemsService:
         if last_error is not None or clear_error:
             sets.append("last_error = ?")
             values.append(last_error)
+        if auto_status is not None:
+            sets.extend(["auto_status = ?", "auto_checked_at = ?"])
+            values.extend([auto_status or None, now_utc_iso()])
         with self._lock:
             conn = self._connect()
             try:
                 if sets:
-                    sets.append("updated_at = ?")
-                    values.append(now_utc_iso())
+                    # A check's status alone isn't an edit.
+                    if auto_status is None or len(sets) > 2:
+                        sets.append("updated_at = ?")
+                        values.append(now_utc_iso())
                     conn.execute(
                         f"UPDATE saved_items SET {', '.join(sets)} WHERE owner = ? AND id = ?",  # noqa: S608 - fixed column names
                         (*values, owner, item_id),
@@ -283,6 +312,60 @@ class SavedItemsService:
                     "SELECT * FROM saved_items WHERE owner = ? AND id = ?", (owner, item_id)
                 ).fetchone()
                 return _row_to_item(row) if row else None
+            finally:
+                conn.close()
+
+    def list_auto_items(self) -> list[dict[str, Any]]:
+        """Every owner's items marked for automatic download, oldest first, with payloads."""
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM saved_items WHERE auto_get = 1 ORDER BY created_at, id"
+            ).fetchall()
+            return [
+                {
+                    **_row_to_item(row),
+                    "owner": row["owner"],
+                    "payloads": _loads(row["payloads"], []),
+                }
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
+    def keep_picks(
+        self,
+        owner: str,
+        item_id: int,
+        *,
+        releases: list[dict[str, Any]],
+        payloads: list[dict[str, Any]],
+        last_error: str,
+    ) -> None:
+        """After a partly failed automatic download: keep only the picks still to get.
+
+        Automatic downloading is turned off so the error is seen before anything retries.
+        """
+        kind = "release" if len(releases) == 1 else "combined"
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.execute(
+                    """UPDATE saved_items SET kind = CASE WHEN content_type = 'combined'
+                       THEN 'combined' ELSE ? END, releases = ?, payloads = ?, auto_get = 0,
+                       auto_status = NULL, last_error = ?, updated_at = ?
+                       WHERE owner = ? AND id = ?""",
+                    (
+                        kind,
+                        json.dumps(releases),
+                        json.dumps(payloads),
+                        last_error,
+                        now_utc_iso(),
+                        owner,
+                        item_id,
+                    ),
+                )
+                conn.commit()
             finally:
                 conn.close()
 

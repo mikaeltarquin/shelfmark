@@ -326,6 +326,33 @@ def prowlarr_config_settings() -> list[SettingsField]:
             show_when={"field": "MAM_BLOCK_ON_UNSAT_LIMIT", "value": True},
         ),
         HeadingField(
+            key="prowlarr_saved_autoget_heading",
+            title="Saved for Later",
+            description=(
+                'Saved books marked "Get automatically" download on their own once their '
+                "MyAnonamouse torrents fit the buffer and the unsatisfied limit, and the "
+                "item's own conditions (freeleech only, a minimum ratio afterwards) hold. "
+                "Upload credit is never bought for them."
+            ),
+            show_when={"field": "PROWLARR_ENABLED", "value": True},
+        ),
+        CheckboxField(
+            key="SAVED_AUTO_GET_ENABLED",
+            label="Get Saved Books Automatically",
+            description="Turn off to pause every automatic download; items stay marked.",
+            default=True,
+            show_when={"field": "PROWLARR_ENABLED", "value": True},
+        ),
+        NumberField(
+            key="SAVED_AUTO_GET_INTERVAL_MINUTES",
+            label="Check Every (Minutes)",
+            description="How often to check the marked items. At least 5.",
+            default=10,
+            min_value=5,
+            step=1,
+            show_when={"field": "SAVED_AUTO_GET_ENABLED", "value": True},
+        ),
+        HeadingField(
             key="prowlarr_mam_autobuy_heading",
             title="Upload Credit Auto-Buy",
             description=(

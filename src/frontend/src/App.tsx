@@ -3033,8 +3033,11 @@ function App() {
             <SavedPanel
               items={savedStore.items}
               loaded={savedStore.loaded}
+              autoGetAvailable={Boolean(config?.saved_auto_get_enabled)}
               onGet={handleSavedGet}
               onRemove={(item) => savedStore.remove(item)}
+              onRefresh={savedStore.refresh}
+              onAutoGet={savedStore.setAutoGet}
             />
           }
           isOpen={downloadsSidebarOpen}

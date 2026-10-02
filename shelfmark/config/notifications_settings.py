@@ -27,6 +27,7 @@ _ADMIN_EVENT_OPTIONS = [
     {"value": NotificationEvent.REQUEST_REJECTED.value, "label": "Request rejected"},
     {"value": NotificationEvent.DOWNLOAD_COMPLETE.value, "label": "Download complete"},
     {"value": NotificationEvent.DOWNLOAD_FAILED.value, "label": "Download failed"},
+    {"value": NotificationEvent.SAVED_AUTO_GET.value, "label": "Saved book got automatically"},
 ]
 _ROUTE_EVENT_OPTIONS = [
     {"value": _ROUTE_EVENT_ALL, "label": "All"},
