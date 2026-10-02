@@ -9,7 +9,7 @@ import { isMetadataBook } from '../types';
 import { bookSupportsTargets } from '../utils/bookTargetLoader';
 import { isUserCancelledError } from '../utils/errors';
 import { BookTargetDropdown } from './BookTargetDropdown';
-import { LibraryBadge, LibraryHoldings, isInLibrary } from './shared';
+import { ActivityChips, LibraryBadge, LibraryHoldings, activityRef, isInLibrary } from './shared';
 
 interface DetailsModalProps {
   book: Book | null;
@@ -180,6 +180,7 @@ export const DetailsModal = ({
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 {book.author || 'Unknown author'}
               </p>
+              <ActivityChips book={activityRef(book)} className="mt-1" />
             </div>
             <button
               type="button"

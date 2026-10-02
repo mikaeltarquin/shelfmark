@@ -5,6 +5,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **See what's already saved or downloaded**: search results (cards, list and compact),
+  the library's book tables and covers, author and series rows, and the book details show
+  **Saved** and **Downloading / Downloaded / Failed** marks, so you don't save or get a
+  book twice. Downloads now record the book they were for; older downloads (and library
+  books) are matched by title and author.
 - **Library views work alike**: All, Authors and Series each have a Grid and a Table
   layout and a format filter. In the Authors and Series tables a row opens onto its
   books, and **Owned / Missing / Owned + missing** shows the books the metadata provider

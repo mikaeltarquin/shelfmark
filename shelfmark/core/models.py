@@ -161,6 +161,9 @@ class DownloadTask:
     user_id: int | None = None  # DB user ID who queued this download
     username: str | None = None  # Username for {User} template variable
     request_id: int | None = None  # Origin request ID when queued from request fulfilment
+    # The metadata book this release was got for ("hardcover:446681"), so the UI can tell
+    # a book is downloading or downloaded; None for direct-mode and older downloads.
+    book_key: str | None = None
 
     # Runtime state
     priority: int = 0

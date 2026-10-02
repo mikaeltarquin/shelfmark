@@ -4,9 +4,16 @@ import { SearchModeProvider } from '../../contexts/SearchModeContext';
 import type { Book, ButtonStateInfo, LibraryBook, LibraryFormat } from '../../types';
 import { rowAuthors, rowSeries, rowTitle, rowYear, type LibraryRow } from '../../utils/libraryRows';
 import { BookActionButton } from '../BookActionButton';
+import { ActivityChips, activityRef } from '../shared';
 import { LibraryFormatBadges, type LibraryCardActions } from './LibraryBookCard';
 import { PlainHeader, rowClass } from './LibraryControls';
 import type { LibraryBookActions } from './LibraryMissingSection';
+
+/** A library book has no provider key, so it is matched by title and author. */
+const rowActivityRef = (row: LibraryRow) =>
+  row.kind === 'owned'
+    ? { key: null, title: row.book.title, authors: row.book.authors }
+    : activityRef(row.book);
 
 const DEFAULT_BUTTON_STATE: ButtonStateInfo = { text: 'Get', state: 'download' };
 
@@ -149,7 +156,7 @@ export const LibraryBookTable = ({
             <PlainHeader label="Series" className="w-1/5 max-sm:hidden" />
           )}
           <PlainHeader label="Year" align="right" className="w-16 max-sm:hidden" />
-          <PlainHeader label="Formats" className="w-28 sm:w-52" />
+          <PlainHeader label="Status" className="w-32 sm:w-64" />
           {showAdded && <PlainHeader label="Added" align="right" className="w-28 max-md:hidden" />}
           <th scope="col" className="w-28 px-3 py-2">
             <span className="sr-only">Actions</span>
@@ -219,11 +226,14 @@ export const LibraryBookTable = ({
                 {rowYear(row) ?? ''}
               </td>
               <td className="px-3 py-1.5">
-                {row.kind === 'owned' ? (
-                  <LibraryFormatBadges formats={row.book.formats} />
-                ) : (
-                  <MissingBadge formats={row.missingFormats} />
-                )}
+                <span className="flex flex-wrap items-center gap-1">
+                  {row.kind === 'owned' ? (
+                    <LibraryFormatBadges formats={row.book.formats} />
+                  ) : (
+                    <MissingBadge formats={row.missingFormats} />
+                  )}
+                  <ActivityChips book={rowActivityRef(row)} />
+                </span>
               </td>
               {showAdded && (
                 <td className="px-3 py-1.5 text-right whitespace-nowrap tabular-nums max-md:hidden">
