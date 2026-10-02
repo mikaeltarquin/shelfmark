@@ -9,7 +9,14 @@ import { isMetadataBook } from '../types';
 import { bookSupportsTargets } from '../utils/bookTargetLoader';
 import { isUserCancelledError } from '../utils/errors';
 import { BookTargetDropdown } from './BookTargetDropdown';
-import { ActivityChips, LibraryBadge, LibraryHoldings, activityRef, isInLibrary } from './shared';
+import {
+  ActivityChips,
+  LibraryBadge,
+  LibraryHoldings,
+  LibraryHoldingsLoader,
+  activityRef,
+  isInLibrary,
+} from './shared';
 
 interface DetailsModalProps {
   book: Book | null;
@@ -344,8 +351,13 @@ export const DetailsModal = ({
                       <p className={infoLabelClass}>Library</p>
                       <LibraryBadge library={book.library} sources={book.library_sources} />
                     </div>
-                    {book.library_holdings && book.library_holdings.length > 0 && (
-                      <LibraryHoldings holdings={book.library_holdings} />
+                    {book.library_holdings ? (
+                      book.library_holdings.length > 0 && (
+                        <LibraryHoldings holdings={book.library_holdings} />
+                      )
+                    ) : (
+                      // Opened from somewhere that didn't bring the copies along.
+                      <LibraryHoldingsLoader key={book.id} book={book} />
                     )}
                   </div>
                 )}

@@ -16,6 +16,7 @@ import type {
   PackBook,
   InspectReleaseResponse,
   LibraryBooksResponse,
+  LibraryHoldingItem,
   LibraryItemFile,
 } from '../types';
 import type {
@@ -663,6 +664,27 @@ export const lookupLibraryBook = async (
     `${API_BASE}/library/lookup/${encodeURIComponent(source)}/${encodeURIComponent(itemId)}?${params.toString()}`,
   );
   return transformMetadataToBook(response.book);
+};
+
+/** The library copies of a book, for the book details when they didn't come with it. */
+export const getLibraryHoldings = async (book: Book): Promise<LibraryHoldingItem[]> => {
+  const response = await fetchJSON<{ holdings: LibraryHoldingItem[] }>(
+    `${API_BASE}/library/holdings`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        provider: book.provider,
+        provider_id: book.provider_id,
+        title: book.title,
+        authors: book.authors && book.authors.length > 0 ? book.authors : [book.author],
+        isbn_10: book.isbn_10,
+        isbn_13: book.isbn_13,
+        search_title: book.search_title,
+        search_author: book.search_author,
+      }),
+    },
+  );
+  return response.holdings;
 };
 
 /** One library item's files, listed in the book details. */

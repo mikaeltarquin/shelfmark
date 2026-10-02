@@ -236,6 +236,23 @@ def holdings(book: BookMetadata) -> list[dict[str, Any]]:
     return rows
 
 
+def holdings_with_links(book: BookMetadata) -> list[dict[str, Any]]:
+    """`holdings`, each with a link that opens it in its library's web app (or None)."""
+    from shelfmark.core.config import config
+    from shelfmark.core.library_links import library_item_url
+
+    link_urls = (config.get("AUDIOBOOK_LIBRARY_URL", ""), config.get("CALIBRE_WEB_URL", ""))
+    rows = holdings(book)
+    for row in rows:
+        row["url"] = library_item_url(
+            row["source"],
+            row["item_id"],
+            audiobookshelf_url=config.get("ABS_URL", ""),
+            link_urls=link_urls,
+        )
+    return rows
+
+
 def owned_narrators(book: BookMetadata) -> set[str]:
     """Narrators (casefolded) of the audiobooks of ``book`` already in a library."""
     narrators: set[str] = set()

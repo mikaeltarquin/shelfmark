@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
-import { getLibraryItemFiles } from '../../services/api';
-import type { LibraryHoldingItem, LibraryItemFile } from '../../types';
+import { useMountEffect } from '../../hooks/useMountEffect';
+import { getLibraryHoldings, getLibraryItemFiles } from '../../services/api';
+import type { Book, LibraryHoldingItem, LibraryItemFile } from '../../types';
 
 /** "1.2 GB", "845 MB", "512 KB". */
 export function formatBytes(bytes?: number | null): string | null {
@@ -181,3 +182,23 @@ export const LibraryHoldings = ({ holdings }: { holdings: LibraryHoldingItem[] }
     ))}
   </ul>
 );
+
+/**
+ * The library copies of a book whose details arrived without them (from a library card,
+ * an Activity row or a search result): asked for once the details open. Shows nothing
+ * when they can't be listed (paths are for admins only).
+ */
+export const LibraryHoldingsLoader = ({ book }: { book: Book }) => {
+  const [holdings, setHoldings] = useState<LibraryHoldingItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useMountEffect(() => {
+    getLibraryHoldings(book)
+      .then(setHoldings)
+      .catch(() => setFailed(true));
+  });
+
+  if (failed || (holdings && holdings.length === 0)) return null;
+  if (!holdings) return <p className="text-xs opacity-60">Looking up your copies…</p>;
+  return <LibraryHoldings holdings={holdings} />;
+};

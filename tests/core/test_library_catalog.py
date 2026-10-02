@@ -309,6 +309,40 @@ class TestRoutes:
         assert client.get("/api/library/cover/calibre/1").status_code == 403
         assert client.get("/api/library/files/calibre/1").status_code == 403
 
+    def test_holdings_from_what_the_client_knows(self, main_module, monkeypatch):
+        from shelfmark.core import library_index
+
+        seen = []
+
+        def holdings(book):
+            seen.append(book)
+            return [{"source": "calibre", "item_id": "1", "url": None}]
+
+        monkeypatch.setattr(library_index, "holdings_with_links", holdings)
+        client = _client(main_module, is_admin=True)
+        body = client.post(
+            "/api/library/holdings",
+            json={
+                "provider": "hardcover",
+                "provider_id": "42",
+                "title": "The Martian",
+                "authors": ["Andy Weir"],
+                "isbn_13": "9780804139021",
+            },
+        ).get_json()
+        assert body == {"holdings": [{"source": "calibre", "item_id": "1", "url": None}]}
+        assert (seen[0].title, seen[0].authors, seen[0].isbn_13) == (
+            "The Martian",
+            ["Andy Weir"],
+            "9780804139021",
+        )
+        assert client.post("/api/library/holdings", json={"title": " "}).status_code == 400
+
+    def test_holdings_are_admin_only(self, main_module, monkeypatch):
+        monkeypatch.setattr("shelfmark.core.route_guards.load_active_auth_mode", lambda: "builtin")
+        client = _client(main_module, is_admin=False)
+        assert client.post("/api/library/holdings", json={"title": "X"}).status_code == 403
+
     def test_files(self, main_module, monkeypatch):
         provider = calibre_module.CalibreLibrary()
         monkeypatch.setattr(
