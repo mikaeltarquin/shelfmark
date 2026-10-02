@@ -1,5 +1,5 @@
 import type { ActivityItem } from '../components/activity/activityTypes';
-import { getMetadataBookInfo, searchMetadata } from '../services/api';
+import { getLibraryHoldings, getMetadataBookInfo, searchMetadata } from '../services/api';
 import type { Book } from '../types';
 import { isSameBook, parseBookKey } from './bookActivity';
 
@@ -36,4 +36,23 @@ export const findActivityBook = async (item: ActivityItem): Promise<Book | null>
       ),
     ) ?? null
   );
+};
+
+/**
+ * Where a finished download opens in its library app (Audiobookshelf, Calibre-Web):
+ * the copy in the format downloaded when there is one, else any copy with a link.
+ * Null when the library doesn't have it yet (it may still be scanning) or links nowhere.
+ */
+export const findLibraryLink = async (item: ActivityItem): Promise<string | null> => {
+  const key = parseBookKey(item.bookKey);
+  const holdings = await getLibraryHoldings({
+    id: item.bookKey ?? item.id,
+    title: item.title,
+    author: item.author,
+    ...(key ? { provider: key.provider, provider_id: key.providerId } : {}),
+  });
+  const wanted = item.contentType?.toLowerCase().includes('audio') ? 'audiobook' : 'ebook';
+  const linked = holdings.filter((holding) => holding.url);
+  const match = linked.find((holding) => holding.formats.includes(wanted)) ?? linked[0];
+  return match?.url ?? null;
 };

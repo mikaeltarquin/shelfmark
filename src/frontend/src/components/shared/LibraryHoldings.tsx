@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { getLibraryHoldings, getLibraryItemFiles } from '../../services/api';
 import type { Book, LibraryHoldingItem, LibraryItemFile } from '../../types';
+import { LibraryAppIcon } from './LibraryAppIcon';
 
 /** "1.2 GB", "845 MB", "512 KB". */
 export function formatBytes(bytes?: number | null): string | null {
@@ -98,14 +99,7 @@ const HoldingRow = ({ holding }: { holding: LibraryHoldingItem }) => {
             className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
           >
             {openLinkText(holding)}
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M14 5h5v5M19 5l-8 8M10 5H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-4"
-              />
-            </svg>
+            <LibraryAppIcon className="h-3.5 w-3.5" />
           </a>
         )}
       </div>
