@@ -27,6 +27,7 @@ import {
   SavedItemsLoader,
   SavedItemsProvider,
   useSavedItemsStore,
+  type SavedContentType,
 } from './contexts/SavedItemsContext';
 import { SearchModeProvider } from './contexts/SearchModeContext';
 import { useSocket } from './contexts/SocketContext';
@@ -132,7 +133,7 @@ import {
   applyDirectPolicyModeToButtonState,
   applyUniversalPolicyModeToButtonState,
 } from './utils/requestPolicyUi';
-import type { SavedItem } from './utils/savedItems';
+import { combinedPicks, type SavedItem, type SavedPick } from './utils/savedItems';
 import { getSearchByPreference, setSearchByPreference } from './utils/searchByPreference';
 import { buildUrlSearchHash } from './utils/urlSearchHash';
 
@@ -233,6 +234,14 @@ type CombinedSelectionState = {
   stagedEbook?: { book: Book; release: Release };
   // Any number: one per narration the user wants.
   stagedAudiobooks: Release[];
+};
+
+// What "Save for later" in the MAM hold-back prompt keeps: the exact picks being downloaded.
+type HoldBackSaveTarget = {
+  book: Book;
+  contentType: SavedContentType;
+  picks: SavedPick[];
+  onSaved?: () => void;
 };
 
 type PendingOnBehalfDownload =
@@ -698,6 +707,7 @@ function App() {
   const [mamBufferPrompt, setMamBufferPrompt] = useState<{
     check: MamBufferCheck;
     releases: DownloadReleasePayload[];
+    saveTarget?: HoldBackSaveTarget;
     resolve: (proceed: boolean) => void;
   } | null>(null);
   const [selfSettingsOpen, setSelfSettingsOpen] = useState(false);
@@ -1270,8 +1280,12 @@ function App() {
 
   // Resolves true when MyAnonamouse downloads may go ahead: they fit in the buffer,
   // or upload credit was bought for them. Never blocks when MAM can't be checked.
+  // saveTarget offers "Save for later" in the hold-back prompt, with exactly these picks.
   const ensureMamBuffer = useCallback(
-    async (payloads: DownloadReleasePayload[]): Promise<boolean> => {
+    async (
+      payloads: DownloadReleasePayload[],
+      saveTarget?: HoldBackSaveTarget,
+    ): Promise<boolean> => {
       if (!config?.mam_account_available || payloads.length === 0) return true;
       let check: MamBufferCheck;
       try {
@@ -1282,7 +1296,7 @@ function App() {
       }
       if (check.ok) return true;
       return new Promise<boolean>((resolve) => {
-        setMamBufferPrompt({ check, releases: payloads, resolve });
+        setMamBufferPrompt({ check, releases: payloads, saveTarget, resolve });
       });
     },
     [config?.mam_account_available],
@@ -1769,7 +1783,12 @@ function App() {
     }
 
     const payload = buildReleaseDownloadPayload(book, release, releaseContentType, options);
-    if (!(await ensureMamBuffer([payload]))) return;
+    const saveTarget: HoldBackSaveTarget = {
+      book,
+      contentType: toContentType(releaseContentType),
+      picks: [{ content_type: toContentType(releaseContentType), release }],
+    };
+    if (!(await ensureMamBuffer([payload], saveTarget))) return;
     await executeReleaseDownload(book, release, releaseContentType, undefined, options);
   };
 
@@ -1873,7 +1892,22 @@ function App() {
           .filter((audiobook) => getSourceMode(audiobook.source, 'audiobook') === 'download')
           .map((audiobook) => buildReleaseDownloadPayload(releaseBook, audiobook, 'audiobook')),
       ];
-      if (!(await ensureMamBuffer(mamPayloads))) return;
+      // Saving is for the signed-in user, so it isn't offered when acting for someone else.
+      const saveTarget: HoldBackSaveTarget | undefined = effectiveActingAsUser
+        ? undefined
+        : {
+            book: releaseBook,
+            contentType: 'combined',
+            picks: combinedPicks(
+              nextCombinedState.stagedEbook?.release,
+              nextCombinedState.stagedAudiobooks,
+            ),
+            onSaved: () => {
+              setCombinedState(null);
+              setReleaseBook(null);
+            },
+          };
+      if (!(await ensureMamBuffer(mamPayloads, saveTarget))) return;
 
       if (effectiveActingAsUser) {
         setPendingOnBehalfDownload({
@@ -3053,6 +3087,21 @@ function App() {
               mamBufferPrompt.resolve(proceed);
               setMamBufferPrompt(null);
             }}
+            onSaveForLater={
+              mamBufferPrompt.saveTarget
+                ? async () => {
+                    const target = mamBufferPrompt.saveTarget;
+                    if (!target) return false;
+                    const saved = await savedStore.savePicks(
+                      target.book,
+                      target.contentType,
+                      target.picks,
+                    );
+                    if (saved) target.onSaved?.();
+                    return saved;
+                  }
+                : undefined
+            }
           />
         )}
 

@@ -32,6 +32,15 @@ export interface SavedItem {
   updated_at: string;
 }
 
+/** A combined selection as saved picks: the ebook (if any) first, then each audiobook. */
+export const combinedPicks = (
+  ebook: Release | null | undefined,
+  audiobooks: readonly Release[],
+): SavedPick[] => [
+  ...(ebook ? [{ content_type: 'ebook' as const, release: ebook }] : []),
+  ...audiobooks.map((release) => ({ content_type: 'audiobook' as const, release })),
+];
+
 /** The key a book is saved under, as the server works it out: one saved item per book. */
 export const savedBookKey = (book: Pick<Book, 'id' | 'provider' | 'provider_id'>): string =>
   book.provider && book.provider_id ? `${book.provider}:${book.provider_id}` : `id:${book.id}`;

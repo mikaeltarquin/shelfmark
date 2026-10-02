@@ -11,6 +11,10 @@ or unsatisfied slots. Each user has their own list. With no login, everyone shar
   downloads exactly that release.
 - **A combined pick**: in the combined (ebook + audiobook) flow, **Save for later** in the
   footer keeps everything picked so far: the ebook and every audiobook (narrator).
+- **From the hold-back prompt**: when a download is held back for the MyAnonamouse buffer
+  or the unsatisfied limit, **Save for later** in that prompt keeps exactly what you were
+  downloading (one release, or the whole combined pick) instead of dropping it. It isn't
+  offered while acting on behalf of another user.
 
 A book is saved once. Saving it again with a release replaces the earlier pick, and
 saving it again on its own keeps the pick. A filled bookmark means the book (or, on a

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Release } from '../types';
-import { describeSavedPick, savedBookKey } from '../utils/savedItems';
+import { combinedPicks, describeSavedPick, savedBookKey } from '../utils/savedItems';
 
 const release = (extra: Partial<Release>): Release => ({
   source: 'prowlarr',
@@ -45,5 +45,26 @@ describe('describeSavedPick', () => {
         releases: [{ content_type: 'audiobook', release: release({}) }],
       }),
     ).toBe('Audiobook');
+  });
+});
+
+describe('combinedPicks', () => {
+  it('keeps the ebook first, then every audiobook, as the hold-back prompt saves them', () => {
+    const ebook = release({ source_id: 'e' });
+    const first = release({ source_id: 'a1' });
+    const second = release({ source_id: 'a2' });
+    expect(combinedPicks(ebook, [first, second])).toEqual([
+      { content_type: 'ebook', release: ebook },
+      { content_type: 'audiobook', release: first },
+      { content_type: 'audiobook', release: second },
+    ]);
+  });
+
+  it('leaves out a missing ebook', () => {
+    const audiobook = release({ source_id: 'a' });
+    expect(combinedPicks(undefined, [audiobook])).toEqual([
+      { content_type: 'audiobook', release: audiobook },
+    ]);
+    expect(combinedPicks(null, [])).toEqual([]);
   });
 });
