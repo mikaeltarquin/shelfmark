@@ -315,6 +315,7 @@ export interface AppConfig {
   show_combined_selector: boolean;
   force_combined_search: boolean;
   mam_account_available?: boolean; // A MyAnonamouse session ID is set
+  saved_auto_get_enabled?: boolean; // Saved items can be marked to download on their own
   library_browser_available?: boolean; // A library check is on, so the library browser has books
   books_output_mode: BooksOutputMode;
   auto_open_downloads_sidebar: boolean; // Auto-open sidebar when download is queued

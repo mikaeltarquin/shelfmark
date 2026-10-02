@@ -10,6 +10,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   flow, or straight from the MyAnonamouse hold-back prompt when a download doesn't fit.
   Saved items live in a new **Saved** tab in Activity, per user, with **+ Get** to
   download them through the usual checks.
+- **Get saved books automatically**: tick *Get automatically when there's room* on a saved
+  pick and it downloads once its MyAnonamouse torrents fit the buffer and unsatisfied
+  limit, optionally only when freeleech (checked live) and only while the ratio after the
+  download stays at or above a set value (2.0 by default). Never buys upload credit;
+  shows why each item is waiting; sends a *Saved book got automatically* notification.
 - **When unsatisfied slots free up**: the MyAnonamouse panel and the header button's
   tooltip estimate when the next unsatisfied torrent reaches 72 hours seeded and how many
   will in the next 6 hours ("Next slot in 2:05 · 3 slots in the next 6 hours"), from the

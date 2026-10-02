@@ -88,6 +88,11 @@ from shelfmark.core.requests_service import (
     reopen_failed_request,
     sync_delivery_states_from_queue_status,
 )
+from shelfmark.core.saved_autoget import AutoGetHooks as SavedAutoGetHooks
+from shelfmark.core.saved_autoget import Owner as SavedOwner
+from shelfmark.core.saved_autoget import SavedAutoGetter
+from shelfmark.core.saved_autoget import enabled as saved_auto_get_enabled
+from shelfmark.core.saved_items import NOAUTH_OWNER as SAVED_NOAUTH_OWNER
 from shelfmark.core.saved_items import SavedItemsService
 from shelfmark.core.saved_routes import register_saved_routes
 from shelfmark.core.user_db import UserDB
@@ -434,16 +439,33 @@ def _resolve_release_content_type(data: dict[str, Any], source: Any) -> tuple[st
 
 def _resolve_policy_mode_for_current_user(*, source: Any, content_type: Any) -> PolicyMode | None:
     """Resolve policy mode for current session, or None when policy guard is bypassed."""
+    return _resolve_policy_mode_for_user(
+        db_user_id=session.get("db_user_id"),
+        is_admin=bool(session.get("is_admin", False)),
+        username=session.get("user_id"),
+        source=source,
+        content_type=content_type,
+    )
+
+
+def _resolve_policy_mode_for_user(
+    *,
+    db_user_id: Any,
+    is_admin: bool,
+    username: Any,
+    source: Any,
+    content_type: Any,
+) -> PolicyMode | None:
+    """Resolve policy mode for a user, or None when policy guard is bypassed."""
     auth_mode = get_auth_mode()
     if auth_mode == "none":
         return None
-    if session.get("is_admin", False):
+    if is_admin:
         return None
     if user_db is None:
         return None
 
     global_settings = load_users_request_policy_settings()
-    db_user_id = session.get("db_user_id")
     user_settings: dict[str, Any] | None = None
     if db_user_id is not None:
         try:
@@ -463,9 +485,9 @@ def _resolve_policy_mode_for_current_user(*, source: Any, content_type: Any) -> 
     )
     logger.debug(
         "download policy resolve user=%s db_user_id=%s is_admin=%s source=%s content_type=%s mode=%s",
-        session.get("user_id"),
+        username,
         db_user_id,
-        bool(session.get("is_admin", False)),
+        is_admin,
         source,
         content_type,
         resolved_mode.value,
@@ -1153,8 +1175,81 @@ def _serialize_release(release: Release) -> dict:
 register_release_inspect_routes(app, login_required)
 register_mam_routes(app, login_required)
 register_library_routes(app, login_required)
+
+
+def _saved_owner(owner: str) -> SavedOwner | None:
+    """The user a saved item belongs to; None when that user is gone."""
+    if owner == SAVED_NOAUTH_OWNER:
+        return SavedOwner(user_id=None, username=None)
+    prefix, _, raw_id = owner.partition(":")
+    if prefix != "user" or not raw_id.isdigit() or user_db is None:
+        return None
+    user = user_db.get_user(user_id=int(raw_id))
+    if user is None:
+        return None
+    return SavedOwner(user_id=int(raw_id), username=user.get("username"))
+
+
+def _saved_owner_may_download(owner: SavedOwner, payload: dict[str, Any]) -> bool:
+    """Whether a saved item's owner may download this release without a request."""
+    if owner.user_id is None:
+        return get_auth_mode() == "none"
+    user = user_db.get_user(user_id=owner.user_id) if user_db is not None else None
+    if user is None:
+        return False
+    source = payload.get("source")
+    content_type, _ = _resolve_release_content_type(payload, source)
+    mode = _resolve_policy_mode_for_user(
+        db_user_id=owner.user_id,
+        is_admin=user.get("role") == "admin",
+        username=owner.username,
+        source=source,
+        content_type=content_type,
+    )
+    return mode is None or mode == PolicyMode.DOWNLOAD
+
+
+def _saved_queue_release(payload: dict[str, Any], owner: SavedOwner) -> tuple[bool, str | None]:
+    source = payload.get("source")
+    content_type, inferred = _resolve_release_content_type(payload, source)
+    release_payload = dict(payload)
+    if inferred and payload.get("content_type") is None:
+        release_payload["content_type"] = content_type
+    return backend.queue_release(release_payload, 0, user_id=owner.user_id, username=owner.username)
+
+
+def _saved_notify(item: dict[str, Any], owner: SavedOwner) -> None:
+    context = NotificationContext(
+        event=NotificationEvent.SAVED_AUTO_GET,
+        title=str(item.get("title") or "Unknown title"),
+        author=str(item.get("author") or "Unknown author"),
+        username=owner.username,
+        content_type=str(item.get("content_type") or ""),
+    )
+    notify_admin(NotificationEvent.SAVED_AUTO_GET, context)
+    if owner.user_id is not None:
+        notify_user(owner.user_id, NotificationEvent.SAVED_AUTO_GET, context)
+
+
+saved_autogetter: SavedAutoGetter | None = None
 if saved_items_service is not None:
-    register_saved_routes(app, saved_items_service, login_required, get_auth_mode)
+    saved_autogetter = SavedAutoGetter(
+        saved_items_service,
+        SavedAutoGetHooks(
+            resolve_owner=_saved_owner,
+            may_download=_saved_owner_may_download,
+            queue_release=_saved_queue_release,
+            notify=_saved_notify,
+        ),
+    )
+    register_saved_routes(
+        app,
+        saved_items_service,
+        login_required,
+        get_auth_mode,
+        on_auto_get=saved_autogetter.check_soon,
+    )
+    saved_autogetter.start()
 
 
 def _library_browser_available() -> bool:
@@ -1347,6 +1442,8 @@ def api_config() -> Response | tuple[Response, int]:
             "mam_account_available": bool(
                 normalize_optional_text(app_config.get("PROWLARR_MAM_ID", ""))
             ),
+            # Whether saved items can be marked to download on their own.
+            "saved_auto_get_enabled": saved_auto_get_enabled(),
             # Whether the library browser has a library to show (admins only, like its API).
             "library_browser_available": _library_browser_available(),
             "auto_open_downloads_sidebar": app_config.get("AUTO_OPEN_DOWNLOADS_SIDEBAR", True),

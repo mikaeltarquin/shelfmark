@@ -169,3 +169,81 @@ class TestRoutes:
             client.post("/api/saved", json={"book": BOOK, "content_type": "video"}).status_code
             == 400
         )
+
+
+def test_an_older_table_gains_the_new_columns(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "users.db")
+    conn = sqlite3.connect(path)
+    conn.execute(
+        """CREATE TABLE saved_items (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL,
+           book_key TEXT NOT NULL, kind TEXT NOT NULL, content_type TEXT NOT NULL,
+           title TEXT NOT NULL, author TEXT, book TEXT NOT NULL, releases TEXT NOT NULL
+           DEFAULT '[]', payloads TEXT, auto_get INTEGER NOT NULL DEFAULT 0, conditions TEXT
+           NOT NULL DEFAULT '{}', last_error TEXT, created_at TEXT NOT NULL,
+           updated_at TEXT NOT NULL, UNIQUE (owner, book_key))"""
+    )
+    conn.commit()
+    conn.close()
+    svc = SavedItemsService(path)
+    svc.initialize()
+    item = svc.save("user:1", book=BOOK, content_type="ebook")
+    assert item["auto_status"] is None
+    updated = svc.update("user:1", item["id"], auto_status="Waiting for freeleech")
+    assert updated is not None
+    assert updated["auto_status"] == "Waiting for freeleech"
+    assert updated["auto_checked_at"]
+    # A check's status alone doesn't count as an edit.
+    assert updated["updated_at"] == item["updated_at"]
+
+
+class TestAutoGetRoute:
+    def _saved(self, client, *, payloads=True):
+        body = {
+            "book": BOOK,
+            "content_type": "ebook",
+            "releases": [{"content_type": "ebook", "release": RELEASE}],
+        }
+        if payloads:
+            body["payloads"] = [{"source": "prowlarr", "source_id": "r1"}]
+        return client.post("/api/saved", json=body).get_json()
+
+    def test_marks_an_item_and_asks_for_a_check(self, service):
+        calls = []
+        app = Flask(__name__)
+        app.secret_key = "test"
+        register_saved_routes(
+            app, service, lambda f: f, lambda: "none", on_auto_get=lambda: calls.append(1)
+        )
+        client = app.test_client()
+        item = self._saved(client)
+        assert item["has_payloads"] is True
+        response = client.patch(
+            f"/api/saved/{item['id']}",
+            json={"auto_get": True, "conditions": {"freeleech_only": True}},
+        )
+        assert response.status_code == 200
+        body = response.get_json()
+        assert body["auto_get"] is True
+        assert body["conditions"]["freeleech_only"] is True
+        assert calls == [1]
+        off = client.patch(f"/api/saved/{item['id']}", json={"auto_get": False}).get_json()
+        assert off["auto_get"] is False
+        assert calls == [1]
+
+    def test_needs_a_pick_and_its_payloads(self, service):
+        client = _app(service, "none").test_client()
+        book_only = client.post("/api/saved", json={"book": BOOK, "content_type": "ebook"})
+        book_id = book_only.get_json()["id"]
+        assert client.patch(f"/api/saved/{book_id}", json={"auto_get": True}).status_code == 400
+        item = self._saved(client, payloads=False)
+        assert client.patch(f"/api/saved/{item['id']}", json={"auto_get": True}).status_code == 400
+        sent = client.patch(
+            f"/api/saved/{item['id']}",
+            json={"auto_get": True, "payloads": [{"source": "prowlarr", "source_id": "r1"}]},
+        )
+        assert sent.status_code == 200
+        mismatched = client.patch(f"/api/saved/{item['id']}", json={"payloads": [{}, {}]})
+        assert mismatched.status_code == 400
+        assert client.patch("/api/saved/999", json={"auto_get": True}).status_code == 404

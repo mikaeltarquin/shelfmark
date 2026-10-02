@@ -606,6 +606,37 @@ def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
     )
 
 
+def _flag(value: object) -> bool:
+    """MAM sends its yes/no flags as 1/0, as numbers or strings."""
+    number = parse_number(value)
+    return bool(number) if number is not None else bool(value is True)
+
+
+def is_vip_class(classname: str | None) -> bool:
+    """Whether the account's class gets VIP freeleech: VIP or Elite VIP.
+
+    Kept to the VIP classes, so any doubt means waiting rather than spending buffer.
+    """
+    return "vip" in (classname or "").lower()
+
+
+def torrent_is_freeleech(torrent_id: int, *, vip: bool) -> bool:
+    """Whether a MAM torrent is freeleech for this account right now.
+
+    Site-wide freeleech, a personal freeleech wedge, or VIP freeleech for a VIP account.
+    Raises a MAM error when the torrent can't be read.
+    """
+    item = _client().get_torrent(torrent_id)
+    if item is None:
+        msg = f"MyAnonamouse has no torrent {torrent_id}"
+        raise MamError(msg)
+    return (
+        _flag(item.get("free"))
+        or _flag(item.get("personal_freeleech"))
+        or (vip and _flag(item.get("fl_vip")))
+    )
+
+
 def warning_ratio() -> float:
     """Where the ratio line turns amber: the auto-buy ratio threshold (2.0 by default)."""
     value = parse_number(config.get("MAM_AUTOBUY_RATIO_THRESHOLD", RATIO_WARNING))

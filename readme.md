@@ -58,8 +58,11 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
 **Saved for later** ([docs](docs/saved-for-later.md))
 - Bookmark a book, one release, or a combined ebook + audiobook pick to download later (when
   you're out of upload credit or unsatisfied slots, say), including straight from the
-  hold-back prompt. They wait in **Activity → Saved**,
-  per user, with **+ Get** to download them through the usual checks.
+  hold-back prompt. They wait in **Activity → Saved**, per user, with **+ Get** to download
+  them through the usual checks.
+- Mark a saved pick to **get automatically when there's room**: once it fits the
+  MyAnonamouse buffer and unsatisfied limit, optionally only when freeleech or while the
+  ratio after the download stays above a threshold (2.0 by default).
 
 **Library integration** ([docs](docs/library-check.md))
 - **Audiobookshelf library check** next to upstream's Calibre one. It marks search results you
