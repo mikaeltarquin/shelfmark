@@ -42,6 +42,9 @@ MAX_AFFORDABLE = "max"
 _MAX_AFFORDABLE_PARAM = "Max Affordable "
 
 _STATS_TTL_SECONDS = 60
+# How far behind MAM's unsatisfied count may be: snatches this long before the stats
+# were read are counted as Shelfmark's own too.
+_UNSAT_LAG_SECONDS = 15 * 60
 _GIB = 1024**3
 _SIZE_RE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*([KMGTP]?i?B)?\s*$", re.IGNORECASE)
 _SIZE_UNITS = {"": _GIB, "B": 1, "K": 1024, "M": 1024**2, "G": _GIB, "T": 1024**4, "P": 1024**5}
@@ -497,18 +500,28 @@ def pending_charge_bytes() -> int:
     return sum(task.mam_charge_bytes or 0 for _status, task in _active_mam_tasks())
 
 
-def pending_unsat_count() -> int:
-    """Shelfmark's MAM downloads not yet handed to the torrent client.
+def pending_unsat_count(stats_fetched_at: float | None = None) -> int:
+    """Shelfmark's MAM torrents that the account's unsatisfied count may not show yet.
 
-    MAM counts a torrent as unsatisfied from when it is snatched, so the ones already
-    downloading are in its count; the queued ones are not yet.
+    MAM counts a torrent as unsatisfied from when it is snatched, but the stats are read
+    at `stats_fetched_at` (and MAM's own figure lags), so this counts the ones not yet
+    handed to the torrent client, plus every one handed off since shortly before the
+    stats were read, finished or not: a small ebook can finish before MAM's count moves.
+    Erring towards counting one twice holds a download back a few minutes; erring the
+    other way gets torrents refused at the limit.
     """
     from shelfmark.core.models import QueueStatus
+    from shelfmark.core.queue import book_queue
 
     not_started = {QueueStatus.QUEUED, QueueStatus.RESOLVING}
-    return sum(
-        1 for status, task in _active_mam_tasks() if task.mam_torrent_id and status in not_started
-    )
+    counted = {
+        task.task_id
+        for status, task in _active_mam_tasks()
+        if task.mam_torrent_id and status in not_started
+    }
+    since = (stats_fetched_at if stats_fetched_at is not None else time.time()) - _UNSAT_LAG_SECONDS
+    counted |= {task.task_id for task in book_queue.handoffs_since(since) if task.mam_torrent_id}
+    return len(counted)
 
 
 def recommended_purchase_gb(missing_bytes: int) -> int:
@@ -580,7 +593,7 @@ def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
     missing = request_bytes + pending - stats.buffer_bytes if check_buffer_size else 0
     recommended = recommended_purchase_gb(missing) if missing > 0 else 0
 
-    unsat_pending = pending_unsat_count()
+    unsat_pending = pending_unsat_count(stats.fetched_at)
     reserve = unsat_reserve_slots()
     unsat_ok = True
     if check_unsat and stats.unsat_count is not None and stats.unsat_limit is not None:
@@ -661,6 +674,6 @@ def ratio_snapshot() -> dict[str, Any]:
         "warning_ratio": warning_ratio(),
         "unsat_count": stats.unsat_count,
         "unsat_limit": stats.unsat_limit,
-        "unsat_pending": pending_unsat_count(),
+        "unsat_pending": pending_unsat_count(stats.fetched_at),
         "unsat_reserve": unsat_reserve_slots(),
     }

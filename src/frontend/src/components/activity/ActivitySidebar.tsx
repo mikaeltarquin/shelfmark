@@ -507,13 +507,12 @@ export const ActivitySidebar = ({
     const seen = new Set<string>();
 
     visibleItems.forEach((item) => {
-      const isTerminalDownload =
+      // Failed downloads stay until dismissed one by one: they still need attention.
+      const isClearable =
         item.kind === 'download' &&
-        (item.visualStatus === 'complete' ||
-          item.visualStatus === 'error' ||
-          item.visualStatus === 'cancelled');
+        (item.visualStatus === 'complete' || item.visualStatus === 'cancelled');
 
-      if (!isTerminalDownload || !item.downloadBookId) {
+      if (!isClearable || !item.downloadBookId) {
         return;
       }
 

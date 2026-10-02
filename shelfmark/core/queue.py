@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 
 logger = setup_logger(__name__)
 _QUEUE_HOOK_ERRORS = (OSError, RuntimeError, TypeError, ValueError)
+_NOT_STARTED = frozenset({QueueStatus.QUEUED, QueueStatus.RESOLVING})
+# How long a handoff is remembered (see `handoffs_since`).
+_HANDOFF_MEMORY_SECONDS = 2 * 3600
 
 
 def _coerce_status_timeout_seconds(value: object, *, default: int) -> int:
@@ -51,6 +54,9 @@ class BookQueue:
         self._active_downloads: dict[str, bool] = {}  # Track currently downloading tasks
         self._terminal_status_hook: Callable[[str, QueueStatus, DownloadTask], None] | None = None
         self._queue_hook: Callable[[str, DownloadTask], None] | None = None
+        # Tasks that left the queue for the download stage, by task id: (time, task).
+        # Kept after the task is cleared from the list, for `handoffs_since`.
+        self._handoffs: dict[str, tuple[float, DownloadTask]] = {}
 
     @property
     def _status_timeout(self) -> timedelta:
@@ -153,6 +159,17 @@ class BookQueue:
         hook_task: DownloadTask | None = None
         previous_status = self._status.get(book_id)
         self._update_status(book_id, status)
+        task = self._task_data.get(book_id)
+        if (
+            task is not None
+            and previous_status in _NOT_STARTED
+            and status not in _NOT_STARTED
+            and status != QueueStatus.CANCELLED
+        ):
+            now = time.time()
+            self._handoffs[book_id] = (now, task)
+            cutoff = now - _HANDOFF_MEMORY_SECONDS
+            self._handoffs = {k: v for k, v in self._handoffs.items() if v[0] >= cutoff}
 
         if (
             status in TERMINAL_QUEUE_STATUSES
@@ -170,6 +187,16 @@ class BookQueue:
             self._cancel_flags.pop(book_id, None)
 
         return hook, hook_task
+
+    def handoffs_since(self, since: float) -> list[DownloadTask]:
+        """Tasks that left the queue for the download stage at or after `since`.
+
+        Includes ones that have finished or failed since, and ones cleared from the
+        list: an external count (MyAnonamouse's unsatisfied torrents) may not show them
+        yet. Remembered for two hours.
+        """
+        with self._lock:
+            return [task for at, task in self._handoffs.values() if at >= since]
 
     def update_status(self, book_id: str, status: QueueStatus) -> None:
         """Update status of a book in the queue."""
