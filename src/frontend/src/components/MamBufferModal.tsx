@@ -133,6 +133,8 @@ export const MamBufferModal = ({
   const titleId = 'mam-buffer-modal-title';
   // Upload credit only fixes the buffer; at the unsatisfied limit it would be wasted.
   const offerPurchase = check.can_buy && check.unsat_ok && !check.buffer_ok;
+  // Only short of slots: the download can wait in the queue and start when one frees up.
+  const offerWait = !check.unsat_ok && check.buffer_ok;
   let title = 'Not enough MyAnonamouse buffer';
   if (!check.unsat_ok) {
     title = check.buffer_ok
@@ -176,8 +178,9 @@ export const MamBufferModal = ({
                 .
               </p>
               <p className="opacity-80">
-                Wait for some torrents to finish seeding, or pick fewer. Upload credit doesn&apos;t
-                help here.
+                {offerWait
+                  ? 'Queue it to start on its own once a slot frees up (checked every few minutes), or save it for later. Upload credit doesn’t help here.'
+                  : 'Wait for some torrents to finish seeding, or pick fewer. Upload credit doesn’t help here.'}
               </p>
             </div>
           )}
@@ -282,8 +285,18 @@ export const MamBufferModal = ({
             disabled={isBuying || isSaving}
             className="rounded-lg border border-(--border-muted) bg-(--bg-soft) px-4 py-2 text-sm font-medium transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {offerPurchase ? 'Cancel' : 'Close'}
+            {offerPurchase || offerWait ? 'Cancel' : 'Close'}
           </button>
+          {offerWait && (
+            <button
+              type="button"
+              onClick={() => onResolve(true)}
+              disabled={isBuying || isSaving}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Queue and wait for a slot
+            </button>
+          )}
           {offerPurchase && (
             <button
               type="button"

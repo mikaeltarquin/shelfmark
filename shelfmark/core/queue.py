@@ -198,6 +198,28 @@ class BookQueue:
         with self._lock:
             return [task for at, task in self._handoffs.values() if at >= since]
 
+    def forget_handoff(self, task_id: str) -> None:
+        """Drop a task's handoff: it never reached the indexer (refused at grab)."""
+        with self._lock:
+            self._handoffs.pop(task_id, None)
+
+    def hold(self, task_id: str, message: str) -> bool:
+        """Put a picked-up task back as queued without queueing it, to wait for room.
+
+        It shows as queued with `message`, and goes nowhere until `enqueue_existing`
+        releases it (or it is cancelled). Not for a task still running.
+        """
+        with self._lock:
+            task = self._task_data.get(task_id)
+            if task is None or self._status.get(task_id) == QueueStatus.CANCELLED:
+                return False
+            self._active_downloads.pop(task_id, None)
+            self._cancel_flags.pop(task_id, None)
+            task.status_message = message
+            task.progress = 0.0
+            self._update_status(task_id, QueueStatus.QUEUED)
+            return True
+
     def update_status(self, book_id: str, status: QueueStatus) -> None:
         """Update status of a book in the queue."""
         with self._lock:

@@ -1321,18 +1321,16 @@ def api_download_release() -> Response | tuple[Response, int]:
         if on_behalf_error:
             return on_behalf_error
         # A MyAnonamouse torrent must fit in the account's buffer (the UI checks first
-        # and offers upload credit; this catches anything that skipped that).
+        # and offers upload credit; this catches anything that skipped that). One that
+        # only lacks an unsatisfied slot is queued anyway: it waits in the queue until a
+        # slot frees up (see the orchestrator).
         buffer_check = buffer_check_payload([release_payload])
-        if not buffer_check["ok"]:
+        if not buffer_check["buffer_ok"]:
             return jsonify(
                 {
                     **buffer_check,
                     "code": "insufficient_mam_buffer",
-                    "error": (
-                        "Not enough MyAnonamouse buffer for this download"
-                        if buffer_check["unsat_ok"]
-                        else "This download would pass your MyAnonamouse unsatisfied limit"
-                    ),
+                    "error": "Not enough MyAnonamouse buffer for this download",
                 }
             ), 409
 
@@ -1344,7 +1342,10 @@ def api_download_release() -> Response | tuple[Response, int]:
         )
 
         if success:
-            return jsonify({"status": "queued", "priority": priority})
+            queued: dict[str, Any] = {"status": "queued", "priority": priority}
+            if not buffer_check["unsat_ok"]:
+                queued["waiting_for_slot"] = True  # Starts once a slot frees up
+            return jsonify(queued)
         return jsonify({"error": error_msg or "Failed to queue release"}), 500
     except _OPERATIONAL_ERRORS as e:
         logger.error_trace(f"Release download error: {e}")
