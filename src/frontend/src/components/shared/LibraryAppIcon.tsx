@@ -1,7 +1,7 @@
 /**
  * "Open in your library app" (Audiobookshelf, Calibre-Web): books on a shelf with an
  * arrow leaving it. Used wherever Shelfmark links out to a library, so it reads apart
- * from the Library browser (a building) and from links to a release's source page.
+ * from the Library browser (a database) and from links to a release's source page.
  */
 export const LibraryAppIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg
