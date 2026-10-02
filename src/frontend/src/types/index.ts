@@ -33,6 +33,7 @@ export interface Book {
   added_time?: number; // Timestamp when added to queue
   content_type?: string; // "ebook", "audiobook", or related book subtype
   book_key?: string | null; // Downloads: the metadata book it was got for ("hardcover:42")
+  info_url?: string | null; // Downloads: the release's page at its source (MAM torrent page)
   library?: LibraryOwnership; // "already in your library" flags from the library check
   library_sources?: LibrarySources; // which libraries hold it, per format
   library_holdings?: LibraryHoldingItem[]; // the library items that hold it (book details, admins)

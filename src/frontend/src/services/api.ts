@@ -593,6 +593,7 @@ export type DownloadReleasePayload = {
   // saved straight into their Audiobookshelf folders.
   companion_audiobook_narrators?: (string[] | string | null)[];
   book_key?: string; // "provider:provider_id" of the metadata book
+  info_url?: string; // The release's page at its source, linked from Activity
 };
 
 /** Inspect a release's file list before download (same body as downloadRelease). */

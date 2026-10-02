@@ -1778,3 +1778,29 @@ class TestBookActivity:
                 "status": "downloading",
             }
         ]
+
+
+class TestSourcePage:
+    def test_history_rows_link_the_release_page(self, main_module):
+        svc = main_module.download_history_service
+        common: dict = {
+            "user_id": None,
+            "username": None,
+            "request_id": None,
+            "source": "prowlarr",
+            "source_display_name": "Prowlarr",
+            "title": "Example Book",
+            "author": None,
+            "file_format": None,
+            "size": None,
+            "preview": None,
+            "content_type": "ebook",
+            "downloads": None,
+            "origin": "direct",
+        }
+        svc.record_download(task_id="with-page", info_url="https://indexer.example/r/1", **common)
+        svc.record_download(task_id="old-mam", retry_payload={"mam_torrent_id": 77}, **common)
+        page = svc.to_download_payload(svc.get_by_task_id("with-page"))["info_url"]
+        old = svc.to_download_payload(svc.get_by_task_id("old-mam"))["info_url"]
+        assert page == "https://indexer.example/r/1"
+        assert old == "https://www.myanonamouse.net/t/77"

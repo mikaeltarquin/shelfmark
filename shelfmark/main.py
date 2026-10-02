@@ -1634,6 +1634,7 @@ def _record_download_queued(task_id: str, task: Any) -> None:
             origin=origin,
             retry_payload=backend.serialize_task_for_retry(task),
             book_key=normalize_optional_text(getattr(task, "book_key", None)),
+            info_url=normalize_optional_text(getattr(task, "info_url", None)),
         )
     except _OPERATIONAL_ERRORS as exc:
         logger.warning("Failed to record download at queue time for task %s: %s", task_id, exc)

@@ -217,8 +217,17 @@ class DownloadHistoryService:
             "username": row.get("username"),
             "request_id": row.get("request_id"),
             "book_key": row.get("book_key"),
+            "info_url": row.get("info_url") or DownloadHistoryService._mam_page(row),
             "retry_available": DownloadHistoryService.is_retry_available(row),
         }
+
+    @classmethod
+    def _mam_page(cls, row: dict[str, Any]) -> str | None:
+        """The MyAnonamouse page of a download recorded before pages were kept."""
+        from shelfmark.release_sources.prowlarr.mam_charge import mam_torrent_page
+
+        payload = cls._deserialize_retry_payload(row.get("retry_payload"))
+        return mam_torrent_page(payload.get("mam_torrent_id")) if payload else None
 
     @staticmethod
     def _iso_to_epoch(value: object) -> float | None:
@@ -278,6 +287,7 @@ class DownloadHistoryService:
         origin: str,
         retry_payload: dict[str, Any] | None = None,
         book_key: str | None = None,
+        info_url: str | None = None,
     ) -> None:
         """Record a download at queue time with final_status='active'.
 
@@ -311,9 +321,9 @@ class DownloadHistoryService:
                     title, author, format, size, preview, content_type,
                     origin, final_status,
                     status_message, download_path, retry_payload,
-                    queued_at, terminal_at, downloads, book_key
+                    queued_at, terminal_at, downloads, book_key, info_url
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     final_status = 'active',
                     status_message = NULL,
@@ -321,7 +331,8 @@ class DownloadHistoryService:
                     retry_payload = excluded.retry_payload,
                     terminal_at = ?,
                     downloads = excluded.downloads,
-                    book_key = COALESCE(excluded.book_key, download_history.book_key)
+                    book_key = COALESCE(excluded.book_key, download_history.book_key),
+                    info_url = COALESCE(excluded.info_url, download_history.info_url)
                 """,
                     (
                         normalized_task_id,
@@ -342,6 +353,7 @@ class DownloadHistoryService:
                         recorded_at,
                         downloads,
                         normalize_optional_text(book_key),
+                        normalize_optional_text(info_url),
                         recorded_at,
                     ),
                 )
