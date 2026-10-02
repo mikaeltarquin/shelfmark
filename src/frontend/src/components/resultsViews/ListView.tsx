@@ -8,7 +8,7 @@ import { getFormatColor, getLanguageColor } from '../../utils/colorMaps';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
 import { SaveForLaterButton } from '../SaveForLaterButton';
-import { DisplayFieldIcon, DisplayFieldBadge, LibraryBadge } from '../shared';
+import { DisplayFieldIcon, DisplayFieldBadge, BookStatusBadges } from '../shared';
 
 interface ListViewProps {
   books: Book[];
@@ -204,7 +204,8 @@ export const ListView = ({
                     {book.author || 'Unknown author'}
                     {book.year && <span className="sm:hidden"> • {book.year}</span>}
                   </p>
-                  <LibraryBadge
+                  <BookStatusBadges
+                    book={book}
                     library={book.library}
                     sources={book.library_sources}
                     className="mt-0.5"

@@ -350,6 +350,7 @@ def queue_release(
             user_id=user_id,
             username=username,
             request_id=request_id,
+            book_key=_book_key(release_data.get("book_key")),
             **retry_resolution_fields,
         )
 
@@ -528,6 +529,12 @@ def _normalize_book_plan(value: object) -> list[dict[str, Any]] | None:
     return books or None
 
 
+def _book_key(value: object) -> str | None:
+    """A metadata book key ("hardcover:446681") as the client sent it, bounded."""
+    key = normalize_optional_text(value)
+    return key[:200] if key else None
+
+
 def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
     """Serialize the task state needed for restart-safe retries."""
     raw_search_mode = getattr(task, "search_mode", None)
@@ -570,6 +577,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "user_id": getattr(task, "user_id", None),
         "username": getattr(task, "username", None),
         "request_id": getattr(task, "request_id", None),
+        "book_key": getattr(task, "book_key", None),
         "staged_path": getattr(task, "staged_path", None),
         "retry_download_url": getattr(task, "retry_download_url", None),
         "retry_download_protocol": getattr(task, "retry_download_protocol", None),
@@ -637,6 +645,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         user_id=normalize_positive_int(payload.get("user_id")),
         username=normalize_optional_text(payload.get("username")),
         request_id=normalize_positive_int(payload.get("request_id")),
+        book_key=_book_key(payload.get("book_key")),
         staged_path=normalize_optional_text(payload.get("staged_path")),
         retry_download_url=normalize_optional_text(payload.get("retry_download_url")),
         retry_download_protocol=normalize_optional_text(payload.get("retry_download_protocol")),
@@ -732,6 +741,7 @@ def _task_to_dict(
         "user_id": task.user_id,
         "username": task.username,
         "request_id": task.request_id,
+        "book_key": task.book_key,
         "retry_available": can_retry_download_task(task, retry_status),
     }
 

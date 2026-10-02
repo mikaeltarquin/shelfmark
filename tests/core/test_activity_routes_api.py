@@ -1670,3 +1670,111 @@ class TestActivityRoutes:
             ANY,
             to="admins",
         )
+
+
+class TestBookActivity:
+    def test_lists_each_download_with_its_book_and_state(self, main_module, client):
+        user = _create_user(main_module, prefix="reader")
+        other = _create_user(main_module, prefix="other")
+        _set_session(client, user_id=user["username"], db_user_id=user["id"], is_admin=False)
+        svc = main_module.download_history_service
+        svc.record_download(
+            task_id="book-key-task",
+            user_id=user["id"],
+            username=user["username"],
+            request_id=None,
+            source="direct_download",
+            source_display_name="Direct Download",
+            title="Example Book",
+            author="Jane Author",
+            file_format="epub",
+            size="1 MB",
+            preview=None,
+            content_type="ebook",
+            downloads=None,
+            origin="direct",
+            book_key="hardcover:42",
+        )
+        svc.finalize_download(task_id="book-key-task", final_status="complete", status_message=None)
+        _record_terminal_download(
+            main_module, task_id="old-task", user_id=user["id"], username=user["username"]
+        )
+        _record_terminal_download(
+            main_module, task_id="not-mine", user_id=other["id"], username=other["username"]
+        )
+        # Dismissed downloads still count: the book was downloaded.
+        main_module.activity_view_state_service.dismiss(
+            viewer_scope=f"user:{user['id']}", item_type="download", item_key="download:old-task"
+        )
+
+        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
+            with patch.object(
+                main_module.backend, "queue_status", return_value=_sample_status_payload()
+            ):
+                response = client.get("/api/activity/books")
+
+        assert response.status_code == 200
+        downloads = sorted(response.json["downloads"], key=lambda d: d["title"])
+        assert downloads == [
+            {
+                "id": "book-key-task",
+                "book_key": "hardcover:42",
+                "title": "Example Book",
+                "author": "Jane Author",
+                "content_type": "ebook",
+                "status": "complete",
+            },
+            {
+                "id": "old-task",
+                "book_key": None,
+                "title": "Recorded Download",
+                "author": "Recorded Author",
+                "content_type": "ebook",
+                "status": "complete",
+            },
+        ]
+
+    def test_live_download_reports_its_queue_state(self, main_module, client):
+        user = _create_user(main_module, prefix="reader")
+        _set_session(client, user_id=user["username"], db_user_id=user["id"], is_admin=False)
+        main_module.download_history_service.record_download(
+            task_id="live-task",
+            user_id=user["id"],
+            username=user["username"],
+            request_id=None,
+            source="prowlarr",
+            source_display_name="Prowlarr",
+            title="Live Book",
+            author=None,
+            file_format=None,
+            size=None,
+            preview=None,
+            content_type="audiobook",
+            downloads=None,
+            origin="direct",
+            book_key="hardcover:7",
+        )
+        status = _sample_status_payload()
+        status["downloading"] = {
+            "live-task": {
+                "id": "live-task",
+                "title": "Live Book",
+                "book_key": "hardcover:7",
+                "content_type": "audiobook",
+            }
+        }
+
+        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
+            with patch.object(main_module.backend, "queue_status", return_value=status):
+                response = client.get("/api/activity/books")
+
+        assert response.json["downloads"] == [
+            {
+                "id": "live-task",
+                "book_key": "hardcover:7",
+                "title": "Live Book",
+                "author": None,
+                "content_type": "audiobook",
+                "status": "downloading",
+            }
+        ]

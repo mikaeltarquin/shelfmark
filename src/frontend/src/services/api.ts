@@ -26,6 +26,7 @@ import type {
   UpdateResult,
 } from '../types/settings';
 import { getApiBase, withBasePath } from '../utils/basePath';
+import type { BookDownloadEntry } from '../utils/bookActivity';
 import type { MetadataBookData, SourceRecordData } from '../utils/bookTransformers';
 import {
   transformMetadataToBook,
@@ -590,6 +591,7 @@ export type DownloadReleasePayload = {
   // Ebook queued with audiobooks: each audiobook's narrators, so the ebook can be
   // saved straight into their Audiobookshelf folders.
   companion_audiobook_narrators?: (string[] | string | null)[];
+  book_key?: string; // "provider:provider_id" of the metadata book
 };
 
 /** Inspect a release's file list before download (same body as downloadRelease). */
@@ -682,6 +684,10 @@ export const getMamAccount = async (refresh = false): Promise<MamAccountResponse
 
 export const getMamRatio = async (): Promise<MamRatioSnapshot> =>
   fetchJSON<MamRatioSnapshot>(`${API_BASE}/mam/ratio`);
+
+/** Every download of the user's, reduced to the book it was for and its state. */
+export const getBookActivity = async (): Promise<BookDownloadEntry[]> =>
+  (await fetchJSON<{ downloads: BookDownloadEntry[] }>(`${API_BASE}/activity/books`)).downloads;
 
 export const getSavedItems = async (): Promise<SavedItem[]> =>
   (await fetchJSON<{ items: SavedItem[] }>(`${API_BASE}/saved`)).items;

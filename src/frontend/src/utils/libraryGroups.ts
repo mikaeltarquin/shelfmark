@@ -157,15 +157,22 @@ export const seriesRangeLabel = (group: LibrarySeriesGroup): string | null => {
   return low === high ? `#${low}` : `#${low}–${high}`;
 };
 
-export type AuthorSortField = 'first' | 'last' | 'books' | 'series' | 'added';
+/**
+ * How authors are ordered. "series" is the series count (a table column); "series_order"
+ * is Author › Series › Book: authors by last name, each one's books by series, then number.
+ */
+export type AuthorSortField = 'first' | 'last' | 'books' | 'series' | 'series_order' | 'added';
 export type SortDirection = 'asc' | 'desc';
 
 /** The direction a field starts in: names A–Z, counts and dates biggest first. */
 export const defaultAuthorSortDirection = (field: AuthorSortField): SortDirection =>
-  field === 'first' || field === 'last' ? 'asc' : 'desc';
+  field === 'first' || field === 'last' || field === 'series_order' ? 'asc' : 'desc';
+
+const isNameSort = (field: AuthorSortField): boolean =>
+  field === 'first' || field === 'last' || field === 'series_order';
 
 const authorNameKey = (group: LibraryAuthorGroup, field: AuthorSortField): string =>
-  field === 'last' ? lastFirstSortKey(group.name) : firstLastSortKey(group.name);
+  field === 'first' ? firstLastSortKey(group.name) : lastFirstSortKey(group.name);
 
 /** Authors sorted by a field; ties fall back to the name (First Last). */
 export const sortAuthorGroups = (
@@ -180,7 +187,7 @@ export const sortAuthorGroups = (
     return group.latestAdded ?? 0;
   };
   return groups.toSorted((a, b) => {
-    if (field === 'first' || field === 'last') {
+    if (isNameSort(field)) {
       return sign * authorNameKey(a, field).localeCompare(authorNameKey(b, field));
     }
     return (

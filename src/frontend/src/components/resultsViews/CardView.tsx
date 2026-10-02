@@ -7,7 +7,7 @@ import { bookSupportsTargets } from '../../utils/bookTargetLoader';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
 import { SaveForLaterButton } from '../SaveForLaterButton';
-import { DisplayFieldBadges, LibraryBadge } from '../shared';
+import { DisplayFieldBadges, BookStatusBadges } from '../shared';
 
 const SkeletonLoader = () => (
   <div className="h-full w-full animate-pulse bg-linear-to-r from-gray-300 via-gray-200 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700" />
@@ -100,7 +100,8 @@ export const CardView = ({
               #{book.series_position}
             </div>
           )}
-          <LibraryBadge
+          <BookStatusBadges
+            book={book}
             library={book.library}
             sources={book.library_sources}
             overlay

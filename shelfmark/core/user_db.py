@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS download_history (
     retry_payload TEXT,
     queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     terminal_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    downloads INTEGER
+    downloads INTEGER,
+    book_key TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_download_history_user_status
@@ -205,6 +206,7 @@ class UserDB:
                 self._migrate_download_history_queued_at(conn)
                 self._migrate_download_history_retry_payload(conn)
                 self._migrate_download_history_downloads(conn)
+                self._migrate_download_history_book_key(conn)
                 conn.commit()
                 # WAL mode must be changed outside an open transaction.
                 conn.execute("PRAGMA journal_mode=WAL")
@@ -278,6 +280,17 @@ class UserDB:
         column_names = {str(col["name"]) for col in columns}
         if "downloads" not in column_names:
             conn.execute("ALTER TABLE download_history ADD COLUMN downloads INTEGER")
+
+    def _migrate_download_history_book_key(self, conn: sqlite3.Connection) -> None:
+        """Ensure download_history.book_key exists: the metadata book a download was for."""
+        columns = conn.execute("PRAGMA table_info(download_history)").fetchall()
+        column_names = {str(col["name"]) for col in columns}
+        if "book_key" not in column_names:
+            conn.execute("ALTER TABLE download_history ADD COLUMN book_key TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_download_history_book_key "
+            "ON download_history (user_id, book_key)"
+        )
 
     def create_user(
         self,

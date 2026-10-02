@@ -3,3 +3,4 @@ export { CircularProgress } from './CircularProgress';
 export { ToggleSwitch } from './ToggleSwitch';
 export { LibraryBadge, isInLibrary, isCollectionOnly } from './LibraryBadge';
 export { LibraryHoldings } from './LibraryHoldings';
+export { ActivityChips, BookStatusBadges, activityRef } from './BookStatusBadges';

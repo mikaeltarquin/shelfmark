@@ -342,6 +342,8 @@ def _parse_item_key(item_key: object, prefix: str) -> str | None:
 
 
 _ALL_BUCKET_KEYS = (*ACTIVE_QUEUE_STATUSES, *TERMINAL_QUEUE_STATUSES)
+# Downloads looked at when marking books as downloaded (the history service's maximum).
+_BOOK_ACTIVITY_LIMIT = 1000
 
 
 def _build_queue_index(
@@ -584,6 +586,50 @@ def register_activity_routes(
                 "dismissed": dismissed_entries,
             }
         )
+
+    @app.route("/api/activity/books", methods=["GET"])
+    def api_activity_books() -> Response | tuple[Response, int]:
+        """Each of the user's downloads, reduced to the book it was for and its state.
+
+        For marking books already in the Downloads list (queued, downloading, done or
+        failed) wherever they appear. Dismissed downloads count too: the book was still
+        downloaded. ``book_key`` is the metadata book ("hardcover:446681") when the
+        download recorded one; older ones are matched by title and author.
+        """
+        auth_gate = _require_authenticated(resolve_auth_mode, action="books")
+        if auth_gate is not None:
+            return auth_gate
+
+        actor, actor_error = _resolve_activity_actor(
+            user_db=user_db,
+            resolve_auth_mode=resolve_auth_mode,
+            action="books",
+        )
+        if actor_error is not None:
+            return actor_error
+        actor = _require_activity_actor(actor, action="books")
+
+        status = _build_download_status_from_db(
+            db_rows=download_history_service.list_recent(
+                user_id=actor.owner_scope,
+                limit=_BOOK_ACTIVITY_LIMIT,
+            ),
+            queue_status=queue_status(user_id=actor.owner_scope),
+        )
+        downloads = [
+            {
+                "id": task_id,
+                "book_key": payload.get("book_key"),
+                "title": payload.get("title"),
+                "author": payload.get("author"),
+                "content_type": payload.get("content_type"),
+                "status": bucket.value if isinstance(bucket, QueueStatus) else str(bucket),
+            }
+            for bucket, entries in status.items()
+            for task_id, payload in entries.items()
+            if isinstance(payload, dict)
+        ]
+        return jsonify({"downloads": downloads})
 
     @app.route("/api/activity/dismiss", methods=["POST"])
     def api_activity_dismiss() -> Response | tuple[Response, int]:

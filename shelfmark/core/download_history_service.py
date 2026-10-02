@@ -216,6 +216,7 @@ class DownloadHistoryService:
             "user_id": row.get("user_id"),
             "username": row.get("username"),
             "request_id": row.get("request_id"),
+            "book_key": row.get("book_key"),
             "retry_available": DownloadHistoryService.is_retry_available(row),
         }
 
@@ -276,6 +277,7 @@ class DownloadHistoryService:
         downloads: int | None,
         origin: str,
         retry_payload: dict[str, Any] | None = None,
+        book_key: str | None = None,
     ) -> None:
         """Record a download at queue time with final_status='active'.
 
@@ -309,16 +311,17 @@ class DownloadHistoryService:
                     title, author, format, size, preview, content_type,
                     origin, final_status,
                     status_message, download_path, retry_payload,
-                    queued_at, terminal_at, downloads
+                    queued_at, terminal_at, downloads, book_key
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?, ?, ?, ?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     final_status = 'active',
                     status_message = NULL,
                     download_path = NULL,
                     retry_payload = excluded.retry_payload,
                     terminal_at = ?,
-                    downloads = excluded.downloads
+                    downloads = excluded.downloads,
+                    book_key = COALESCE(excluded.book_key, download_history.book_key)
                 """,
                     (
                         normalized_task_id,
@@ -338,6 +341,7 @@ class DownloadHistoryService:
                         recorded_at,
                         recorded_at,
                         downloads,
+                        normalize_optional_text(book_key),
                         recorded_at,
                     ),
                 )

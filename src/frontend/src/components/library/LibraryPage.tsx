@@ -96,7 +96,15 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
       />
     );
   } else if (route.tab === 'authors') {
-    body = <LibraryAuthorsView books={data.books} onOpen={openAuthor} />;
+    body = (
+      <LibraryAuthorsView
+        books={data.books}
+        onOpen={openAuthor}
+        onSeriesClick={openSeries}
+        actions={actions}
+        cardActions={cardActions}
+      />
+    );
   } else if (route.tab === 'series' && route.name) {
     body = (
       <LibrarySeriesPage
@@ -109,7 +117,15 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
       />
     );
   } else if (route.tab === 'series') {
-    body = <LibrarySeriesView books={data.books} onOpen={openSeries} />;
+    body = (
+      <LibrarySeriesView
+        books={data.books}
+        onOpen={openSeries}
+        onAuthorClick={openAuthor}
+        actions={actions}
+        cardActions={cardActions}
+      />
+    );
   } else {
     body = (
       <LibraryAllView
@@ -117,6 +133,7 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
         onAuthorClick={openAuthor}
         onSeriesClick={openSeries}
         cardActions={cardActions}
+        actions={actions}
       />
     );
   }

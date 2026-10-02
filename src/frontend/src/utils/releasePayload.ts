@@ -66,6 +66,10 @@ export function buildReleaseDownloadPayload(
     language: release.language ?? undefined,
   };
 
+  // The metadata book this is for, so Downloads can mark the book wherever it shows.
+  if (book.provider && book.provider_id && !isManual) {
+    payload.book_key = `${book.provider}:${book.provider_id}`;
+  }
   if (options.multiBook || options.bookPlan) {
     payload.multi_book = true;
   }

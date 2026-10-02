@@ -8,6 +8,7 @@ import { seriesLabel } from '../../utils/libraryBrowser';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
 import { SaveForLaterButton } from '../SaveForLaterButton';
+import { ActivityChips, activityRef } from '../shared';
 
 const FORMAT_LABELS: Record<LibraryFormat, string> = {
   ebook: 'Ebook',
@@ -281,6 +282,14 @@ export const LibraryBookCard = ({
             )}
           </p>
         )}
+        <ActivityChips
+          book={{
+            key: found ? activityRef(found).key : null,
+            title: book.title,
+            authors: book.authors,
+          }}
+          className="pt-1"
+        />
       </div>
 
       {actions && (

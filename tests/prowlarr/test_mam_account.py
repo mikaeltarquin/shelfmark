@@ -393,6 +393,27 @@ class TestQueueRecordsCharge:
         )
         assert restored is not None and restored.mam_charge_bytes == 2 * GIB
 
+    def test_queued_task_remembers_its_book(self, monkeypatch):
+        from shelfmark.download import orchestrator
+
+        captured = {}
+        monkeypatch.setattr(orchestrator.config, "get", lambda _k, default=None, **_kw: default)
+        monkeypatch.setattr(orchestrator, "_source_unavailable_message", lambda _s: None)
+        monkeypatch.setattr(orchestrator.book_queue, "add", lambda t: captured.setdefault("t", t))
+        monkeypatch.setattr(orchestrator, "ws_manager", None)
+
+        release = {**_mam_release(2), "content_type": "audiobook", "book_key": " hardcover:42 "}
+        ok, _error = orchestrator.queue_release(release, 0)
+
+        assert ok
+        task = captured["t"]
+        assert task.book_key == "hardcover:42"
+        assert orchestrator._task_to_dict(task)["book_key"] == "hardcover:42"
+        restored = orchestrator._restore_task_from_retry_payload(
+            orchestrator.serialize_task_for_retry(task)
+        )
+        assert restored is not None and restored.book_key == "hardcover:42"
+
 
 class TestRatioAndBufferRoutes:
     def test_ratio_hides_account_details(self, main_module, mam, no_pending, auth_required):
