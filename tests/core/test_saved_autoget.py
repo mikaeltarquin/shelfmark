@@ -151,51 +151,67 @@ def test_waits_for_unsatisfied_slots_and_says_how_many(service, mam):
     assert item["auto_get"] is True
 
 
-def test_freeleech_only_is_checked_live_on_mam(service, mam):
+def test_freeleech_goes_even_below_the_target_ratio(service, mam):
+    # Ratio 1.5, under the 2.0 target: a freeleech torrent can't lower it, so it goes.
+    mam.stats = _stats(uploaded=150 * GIB, downloaded=100 * GIB)
+    mam.freeleech[5] = True
     recorder = Recorder()
-    getter = SavedAutoGetter(service, recorder.hooks())
-    item_id = _mark(service, [_payload("r1", torrent_id=7)], conditions={"freeleech_only": True})
-    assert getter.run_check().waiting[item_id] == "Waiting for freeleech"
-    mam.freeleech[7] = True
-    assert getter.run_check().queued == [item_id]
+    item_id = _mark(service, [_payload("r1", torrent_id=5, size=50 * GIB)])
+    assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
     # Queued as freeleech, so the buffer check and the download don't count its size.
     assert recorder.queued[0]["extra"]["freeleech"] is True
 
 
-def test_freeleech_only_waits_when_mam_cannot_say(service, mam):
-    mam.lookup_error = True
+def test_a_small_download_goes_even_below_the_target_ratio(service, mam):
+    # A 5 MB ebook moves a 1.5 ratio on 100 GB by well under 0.01.
+    mam.stats = _stats(uploaded=150 * GIB, downloaded=100 * GIB)
     recorder = Recorder()
-    item_id = _mark(service, [_payload("r1")], conditions={"freeleech_only": True})
-    report = SavedAutoGetter(service, recorder.hooks()).run_check()
-    assert report.waiting[item_id].startswith("Couldn't check freeleech")
+    item_id = _mark(service, [_payload("r1", size=5 * 1024**2)])
+    assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
 
 
-def test_minimum_ratio_after_the_download(service, mam):
+def test_a_large_download_waits_for_the_ratio_or_freeleech(service, mam):
     # 300 up / 100 down; a 60 GB download leaves 300 / 160 = 1.88.
     mam.stats = _stats(uploaded=300 * GIB, downloaded=100 * GIB)
     recorder = Recorder()
     getter = SavedAutoGetter(service, recorder.hooks())
-    item_id = _mark(
-        service,
-        [_payload("r1", size=60 * GIB)],
-        conditions={"min_ratio_enabled": True, "min_ratio": 2.0},
-    )
+    item_id = _mark(service, [_payload("r1", torrent_id=7, size=60 * GIB)])
     assert getter.run_check().waiting[item_id] == (
-        "Waiting: ratio after download would be 1.88 (needs 2.00)"
+        "Waiting for freeleech or ratio 2.00: 60.00 GB would take it from 3.00 to 1.88"
     )
+    # Freeleech is checked live on every run.
+    mam.freeleech[7] = True
+    assert getter.run_check().queued == [item_id]
+
+
+def test_a_large_download_goes_once_the_ratio_allows(service, mam):
+    mam.stats = _stats(uploaded=300 * GIB, downloaded=100 * GIB)
+    recorder = Recorder()
+    getter = SavedAutoGetter(service, recorder.hooks())
+    item_id = _mark(service, [_payload("r1", size=60 * GIB)])
+    assert item_id in getter.run_check().waiting
     mam.stats = _stats(uploaded=400 * GIB, downloaded=100 * GIB)
     assert getter.run_check().queued == [item_id]
 
 
-def test_a_freeleech_download_keeps_the_ratio(service, mam):
+def test_the_target_ratio_is_a_setting(service, mam, monkeypatch):
     mam.stats = _stats(uploaded=300 * GIB, downloaded=100 * GIB)
-    mam.freeleech[5] = True
     recorder = Recorder()
-    item_id = _mark(
-        service,
-        [_payload("r1", torrent_id=5, size=500 * GIB)],
-        conditions={"min_ratio_enabled": True, "min_ratio": 2.0},
-    )
+    item_id = _mark(service, [_payload("r1", size=60 * GIB)])
+    monkeypatch.setattr(saved_autoget, "target_ratio", lambda: 1.5)
+    assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
+
+
+def test_when_mam_cannot_say_freeleech_the_search_result_stands(service, mam):
+    mam.lookup_error = True
+    recorder = Recorder()
+    item_id = _mark(service, [_payload("r1", size=GIB)])
+    assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
+
+
+def test_old_per_item_conditions_are_ignored(service, mam):
+    recorder = Recorder()
+    item_id = _mark(service, [_payload("r1")], conditions={"freeleech_only": True})
     assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
 
 

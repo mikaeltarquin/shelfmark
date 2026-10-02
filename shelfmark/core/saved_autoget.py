@@ -8,8 +8,12 @@ it once all of these hold:
 - MyAnonamouse torrents fit the buffer and the unsatisfied limit, the same check as a
   manual download, except that it never buys upload credit and waits when MAM can't be
   read;
-- the item's own conditions: freeleech only (checked live on MAM), and a minimum ratio
-  after the download.
+- the ratio stays healthy, by one rule for every item rather than per-item settings:
+  freeleech torrents (checked live on MAM) never touch the ratio, so they go as soon as
+  there is room; anything else goes when the ratio afterwards is still at the target
+  (``SAVED_AUTO_GET_TARGET_RATIO``), or when it is small enough to barely move the ratio
+  (an ebook, say). The rest waits until the ratio recovers or the torrent turns
+  freeleech, whichever comes first.
 
 Items wait in order of saving, so earlier ones get the free slots first. Every check
 records why an item is still waiting, shown in the Saved tab.
@@ -43,6 +47,9 @@ _DEFAULT_INTERVAL_MINUTES = 10
 _MIN_INTERVAL_MINUTES = 5
 _STARTUP_DELAY_SECONDS = 90
 _SOON_DELAY_SECONDS = 5
+_DEFAULT_TARGET_RATIO = 2.0
+# A download that lowers the ratio by less than this goes even below the target.
+SMALL_RATIO_DROP = 0.01
 
 
 @dataclass(frozen=True)
@@ -89,8 +96,42 @@ def interval_minutes() -> float:
     return max(float(_MIN_INTERVAL_MINUTES), value)
 
 
+def target_ratio() -> float:
+    """The ratio non-freeleech automatic downloads keep (0 turns the check off)."""
+    value = mam_account.parse_number(
+        config.get("SAVED_AUTO_GET_TARGET_RATIO", _DEFAULT_TARGET_RATIO)
+    )
+    if value is None or not math.isfinite(value) or value < 0:
+        return _DEFAULT_TARGET_RATIO
+    return value
+
+
 def _gib(value: int) -> str:
     return f"{value / _GIB:.2f} GB"
+
+
+def _size(value: int) -> str:
+    return _gib(value) if value >= _GIB else f"{value / 1024**2:.0f} MB"
+
+
+def _ratio(uploaded: int, downloaded: int) -> float:
+    return uploaded / downloaded if downloaded > 0 else math.inf
+
+
+def _ratio_wait(stats: mam_account.MamStats, charge: int) -> str | None:
+    """Why a non-freeleech download should wait for the ratio, or None when it may go."""
+    target = target_ratio()
+    if charge <= 0 or target <= 0:
+        return None
+    downloaded = stats.downloaded_bytes + mam_account.pending_charge_bytes()
+    before = _ratio(stats.uploaded_bytes, downloaded)
+    after = _ratio(stats.uploaded_bytes, downloaded + charge)
+    if after >= target or before - after < SMALL_RATIO_DROP:
+        return None
+    return (
+        f"Waiting for freeleech or ratio {target:.2f}: {_size(charge)} would take it "
+        f"from {before:.2f} to {after:.2f}"
+    )
 
 
 class _RunContext:
@@ -139,14 +180,11 @@ def evaluate(item: dict[str, Any], owner: Owner, hooks: AutoGetHooks, run: _RunC
     if not all(hooks.may_download(owner, payload) for payload in payloads):
         return Decision(False, "Needs approval: use Get to request it")
 
-    conditions = item.get("conditions") or {}
     mam_indexes = [i for i, p in enumerate(payloads) if mam_torrent_id_for_release(p)]
     if not mam_indexes:
         # Nothing here counts against MyAnonamouse, so nothing to wait for.
         return Decision(True, payloads=payloads)
     if not mam_account.is_configured():
-        if conditions.get("freeleech_only") or conditions.get("min_ratio_enabled"):
-            return Decision(False, "Set a MyAnonamouse session ID to check the conditions")
         return Decision(True, payloads=payloads)
 
     stats, error = run.stats()
@@ -161,18 +199,9 @@ def evaluate(item: dict[str, Any], owner: Owner, hooks: AutoGetHooks, run: _RunC
             continue
         try:
             freeleech = mam_account.torrent_is_freeleech(torrent_id, vip=vip)
-        except mam_account.MAM_ERRORS as exc:
-            if conditions.get("freeleech_only"):
-                return Decision(
-                    False, f"Couldn't check freeleech: {mam_account.describe_error(exc)}"
-                )
-            continue
+        except mam_account.MAM_ERRORS:
+            continue  # Keep what the search said; the ratio check covers a wrong guess
         payloads[index] = _with_freeleech(payloads[index], freeleech)
-
-    if conditions.get("freeleech_only") and not all(
-        (payloads[i].get("extra") or {}).get("freeleech") for i in mam_indexes
-    ):
-        return Decision(False, "Waiting for freeleech")
 
     check = mam_account.check_buffer(payloads)
     if not check.ok:
@@ -182,16 +211,9 @@ def evaluate(item: dict[str, Any], owner: Owner, hooks: AutoGetHooks, run: _RunC
     if not check.checked and check.error:
         return Decision(False, f"Couldn't check MyAnonamouse: {check.error}")
 
-    if conditions.get("min_ratio_enabled"):
-        min_ratio = float(conditions.get("min_ratio") or 0)
-        charge = sum(mam_charge_bytes_for_release(p) for p in payloads)
-        downloaded = stats.downloaded_bytes + mam_account.pending_charge_bytes() + charge
-        ratio_after = stats.uploaded_bytes / downloaded if downloaded > 0 else math.inf
-        if ratio_after < min_ratio:
-            return Decision(
-                False,
-                f"Waiting: ratio after download would be {ratio_after:.2f} (needs {min_ratio:.2f})",
-            )
+    wait = _ratio_wait(stats, sum(mam_charge_bytes_for_release(p) for p in payloads))
+    if wait:
+        return Decision(False, wait)
 
     return Decision(True, payloads=payloads)
 

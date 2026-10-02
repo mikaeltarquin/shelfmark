@@ -7,15 +7,13 @@ import { buildReleaseDownloadPayload } from './releasePayload';
 
 export type SavedKind = 'book' | 'release' | 'combined';
 
-// Ratio an automatic download keeps by default (matches the server).
-export const DEFAULT_MIN_RATIO = 2.0;
-
 export interface SavedPick {
   content_type: ContentType; // What this release is: the ebook or an audiobook
   release: Release;
 }
 
-export interface SavedConditions {
+/** Per-item conditions from before the one ratio rule; still reported, no longer used. */
+interface SavedConditions {
   freeleech_only: boolean;
   min_ratio_enabled: boolean;
   min_ratio: number; // Ratio the account keeps after the download
@@ -70,7 +68,7 @@ export const savedPayloads = (
   );
 };
 
-/** Whether any pick is a MyAnonamouse torrent: only those wait for room or conditions. */
+/** Whether any pick is a MyAnonamouse torrent: only those wait for room or the ratio. */
 export const hasMamPick = (item: Pick<SavedItem, 'releases'>): boolean =>
   item.releases.some((pick) => Boolean(pick.release.extra?.mam_torrent_id));
 

@@ -330,8 +330,10 @@ def prowlarr_config_settings() -> list[SettingsField]:
             title="Saved for Later",
             description=(
                 'Saved books marked "Get automatically" download on their own once their '
-                "MyAnonamouse torrents fit the buffer and the unsatisfied limit, and the "
-                "item's own conditions (freeleech only, a minimum ratio afterwards) hold. "
+                "MyAnonamouse torrents fit the buffer and the unsatisfied limit. Freeleech "
+                "torrents (checked live) go as soon as there is room; others go when the "
+                "ratio stays at the target below, or when they're small enough to barely "
+                "move it (an ebook, say), and otherwise wait for the ratio or for freeleech. "
                 "Upload credit is never bought for them."
             ),
             show_when={"field": "PROWLARR_ENABLED", "value": True},
@@ -342,6 +344,18 @@ def prowlarr_config_settings() -> list[SettingsField]:
             description="Turn off to pause every automatic download; items stay marked.",
             default=True,
             show_when={"field": "PROWLARR_ENABLED", "value": True},
+        ),
+        NumberField(
+            key="SAVED_AUTO_GET_TARGET_RATIO",
+            label="Keep Ratio At Least",
+            description=(
+                "Non-freeleech downloads that would take the ratio below this wait, unless "
+                "they'd lower it by less than 0.01. 0 turns the ratio check off."
+            ),
+            default=2.0,
+            min_value=0,
+            step=0.1,
+            show_when={"field": "SAVED_AUTO_GET_ENABLED", "value": True},
         ),
         NumberField(
             key="SAVED_AUTO_GET_INTERVAL_MINUTES",

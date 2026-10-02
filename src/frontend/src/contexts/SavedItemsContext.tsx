@@ -3,13 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { useMountEffect } from '../hooks/useMountEffect';
 import { deleteSavedItem, getSavedItems, saveForLater, updateSavedItem } from '../services/api';
 import type { Book, ContentType, Release } from '../types';
-import {
-  savedBookKey,
-  savedPayloads,
-  type SavedConditions,
-  type SavedItem,
-  type SavedPick,
-} from '../utils/savedItems';
+import { savedBookKey, savedPayloads, type SavedItem, type SavedPick } from '../utils/savedItems';
 
 export type SavedContentType = ContentType | 'combined';
 
@@ -26,11 +20,8 @@ export interface SavedItemsContextValue {
   // Resolves true once saved; failures are shown as a toast.
   savePicks: (book: Book, contentType: SavedContentType, picks: SavedPick[]) => Promise<boolean>;
   remove: (item: SavedItem, options?: { quiet?: boolean }) => Promise<void>;
-  /** Turn automatic downloading on or off, or change its conditions. */
-  setAutoGet: (
-    item: SavedItem,
-    changes: { auto_get?: boolean; conditions?: SavedConditions },
-  ) => Promise<void>;
+  /** Turn automatic downloading on or off. */
+  setAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -128,7 +119,7 @@ export const useSavedItemsStore = ({
   );
 
   const setAutoGet = useCallback(
-    async (item: SavedItem, changes: { auto_get?: boolean; conditions?: SavedConditions }) => {
+    async (item: SavedItem, changes: { auto_get: boolean }) => {
       try {
         const updated = await updateSavedItem(item.id, {
           ...changes,

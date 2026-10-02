@@ -43,7 +43,7 @@ import type {
 } from '../utils/mamAccount';
 import type { MamBufferCheck, MamRatioSnapshot } from '../utils/mamRatio';
 import { isRecord, toStringValue } from '../utils/objectHelpers';
-import type { SavedConditions, SavedItem, SavedPick } from '../utils/savedItems';
+import type { SavedItem, SavedPick } from '../utils/savedItems';
 import type { FulfilAdminRequestBody, RejectAdminRequestBody } from './requestApiHelpers';
 import {
   buildAdminRequestActionUrl,
@@ -705,7 +705,6 @@ export const updateSavedItem = async (
   id: number,
   changes: {
     auto_get?: boolean;
-    conditions?: SavedConditions;
     payloads?: DownloadReleasePayload[];
   },
 ): Promise<SavedItem> =>
