@@ -461,6 +461,12 @@ def _unsat_user(count: int, limit: int, *, nested: bool = True) -> dict:
     return {**USER, "snatch_summary": {"unsat": unsat}} if nested else {**USER, "unsat": unsat}
 
 
+class SimpleTask:
+    def __init__(self, task_id: str, mam_torrent_id: int | None) -> None:
+        self.task_id = task_id
+        self.mam_torrent_id = mam_torrent_id
+
+
 class TestUnsatisfied:
     @pytest.mark.parametrize("nested", [True, False])
     def test_parsed_from_either_shape(self, nested):
@@ -538,6 +544,20 @@ class TestUnsatisfied:
             assert mam_account.pending_unsat_count(before) == 2
             # Long after the handoffs (past the lag allowance), MAM's count has them.
             assert mam_account.pending_unsat_count(before + 3600) == 0
+
+    def test_free_slots_count_recent_snatches_but_not_the_asker(self, mam, monkeypatch):
+        from shelfmark.core.queue import book_queue
+
+        mam.user = _unsat_user(97, 100)
+        snatched = [
+            SimpleTask("a", 1),
+            SimpleTask("asker", 2),
+            SimpleTask("not-mam", None),
+        ]
+        monkeypatch.setattr(book_queue, "handoffs_since", lambda _since: snatched)
+        assert mam_account.unsat_free_slots(exclude={"asker"}) == 2  # 100 - 97 - "a"
+        monkeypatch.setattr(mam_account, "unsat_check_enabled", lambda: False)
+        assert mam_account.unsat_free_slots() is None
 
     def test_download_route_names_the_unsat_limit(self, main_module, mam, no_pending, monkeypatch):
         monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 0)

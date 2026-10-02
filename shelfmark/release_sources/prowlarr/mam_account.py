@@ -524,6 +524,37 @@ def pending_unsat_count(stats_fetched_at: float | None = None) -> int:
     return len(counted)
 
 
+def unsat_free_slots(
+    *, exclude: set[str] | frozenset[str] = frozenset(), refresh: bool = False
+) -> int | None:
+    """Unsatisfied slots free right now, up to MAM's hard limit; None when unknown.
+
+    For downloads already accepted (queued, or waiting for room), so the slots kept free
+    for manual downloads don't apply. Counts what MAM reports plus Shelfmark's torrents
+    snatched since shortly before the stats were read (see `pending_unsat_count`),
+    leaving out the tasks in `exclude` (the ones asking). None when the check is off,
+    MAM isn't set up or can't be read, or reports no limit.
+    """
+    from shelfmark.core.queue import book_queue
+
+    if not unsat_check_enabled() or not is_configured():
+        return None
+    try:
+        stats = get_stats(refresh=refresh)
+    except MAM_ERRORS as exc:
+        logger.debug("Could not read MAM unsatisfied slots: %s", exc)
+        return None
+    if stats.unsat_count is None or stats.unsat_limit is None:
+        return None
+    since = stats.fetched_at - _UNSAT_LAG_SECONDS
+    snatched = {
+        task.task_id
+        for task in book_queue.handoffs_since(since)
+        if task.mam_torrent_id and task.task_id not in exclude
+    }
+    return stats.unsat_limit - stats.unsat_count - len(snatched)
+
+
 def recommended_purchase_gb(missing_bytes: int) -> int:
     """The smallest amount MAM sells that covers `missing_bytes`."""
     missing_gb = max(missing_bytes, 0) / _GIB

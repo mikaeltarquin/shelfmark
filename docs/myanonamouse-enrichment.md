@@ -87,6 +87,8 @@ Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonu
 
 MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by class. With **Hold Back Downloads at the Unsatisfied Limit** (`MAM_BLOCK_ON_UNSAT_LIMIT`, on by default), MAM torrents are held back when they, plus Shelfmark's MAM downloads not yet handed to the torrent client, would leave fewer free slots than **Unsatisfied Slots to Keep Free** (`MAM_UNSAT_RESERVE_SLOTS`, 5). Every MAM torrent counts, freeleech too. Upload credit can't fix this, so none is offered: wait for torrents to finish seeding or pick fewer. The projected-ratio line also shows `unsatisfied 94 → 98 / 100`, red when the picks would be held back.
 
+A queued MAM download that reaches its turn while the account is at the limit (or whose grab MAM refuses for that reason) doesn't fail: it goes back to the queue as **Waiting for an unsatisfied slot on MyAnonamouse**, and is released, longest waiting first, once a slot is free (checked every 5 minutes). Shelfmark's own snatches since shortly before the account was read count too, since MAM's figure lags. Cancel it from Activity to drop it. Waiting downloads don't survive a restart; they show as interrupted, with Retry.
+
 ### When slots free up
 
 The account panel (and the header button's tooltip) also estimates when unsatisfied

@@ -1086,8 +1086,118 @@ def _finalize_download_failure(task_id: str) -> None:
     book_queue.update_status(task_id, QueueStatus.ERROR)
 
 
+# --- Waiting for a MyAnonamouse unsatisfied slot -------------------------------------
+#
+# MAM refuses a torrent while the account is at its unsatisfied limit. Rather than fail
+# such a download (and leave it to be retried by hand), it goes back to the queue,
+# marked as waiting, and is released oldest first once a slot is free: checked before
+# each MAM grab, and after a grab fails while the account is at the limit.
+
+UNSAT_WAIT_MESSAGE = "Waiting for an unsatisfied slot on MyAnonamouse"
+_UNSAT_RECHECK_SECONDS = 5 * 60
+_held_lock = Lock()
+_held_for_slot: dict[str, float] = {}  # task id -> when it started waiting
+_slot_watcher: threading.Thread | None = None
+
+
+def _mam_free_slots(task_id: str, *, refresh: bool = False) -> int | None:
+    from shelfmark.release_sources.prowlarr import mam_account
+
+    return mam_account.unsat_free_slots(exclude={task_id}, refresh=refresh)
+
+
+def _hold_for_slot(task_id: str) -> bool:
+    """Send a picked-up MAM download back to wait for an unsatisfied slot."""
+    if not book_queue.hold(task_id, UNSAT_WAIT_MESSAGE):
+        return False
+    book_queue.forget_handoff(task_id)  # MAM never had it
+    with _held_lock:
+        _held_for_slot.setdefault(task_id, time.time())
+    _ensure_slot_watcher()
+    logger.info("Download %s waits for a MyAnonamouse unsatisfied slot", task_id)
+    if ws_manager:
+        ws_manager.broadcast_status_update(queue_status())
+    return True
+
+
+def held_for_slot() -> list[str]:
+    """Downloads waiting for an unsatisfied slot, longest waiting first."""
+    with _held_lock:
+        return [task_id for task_id, _ in sorted(_held_for_slot.items(), key=lambda kv: kv[1])]
+
+
+def release_held_downloads() -> list[str]:
+    """Queue the waiting downloads that now fit, longest waiting first."""
+    from shelfmark.release_sources.prowlarr import mam_account
+
+    waiting = held_for_slot()
+    if not waiting:
+        return []
+    live = [
+        task_id
+        for task_id in waiting
+        if book_queue.get_task(task_id) is not None
+        and book_queue.get_task_status(task_id) == QueueStatus.QUEUED
+    ]
+    with _held_lock:
+        for task_id in set(waiting) - set(live):  # cancelled, or retried by hand
+            _held_for_slot.pop(task_id, None)
+    if not live:
+        return []
+    if mam_account.unsat_check_enabled():
+        free = mam_account.unsat_free_slots(exclude=set(live), refresh=True)
+        if free is None:
+            return []  # MAM can't be read: keep waiting rather than be refused again
+    else:
+        free = len(live)  # The check was turned off: let them all go
+    released: list[str] = []
+    for task_id in live[: max(free, 0)]:
+        with _held_lock:
+            _held_for_slot.pop(task_id, None)
+        if book_queue.enqueue_existing(task_id):
+            book_queue.update_status_message(task_id, "An unsatisfied slot is free")
+            released.append(task_id)
+    if released:
+        logger.info("Released downloads waiting for MAM slots: %s", released)
+        if ws_manager:
+            ws_manager.broadcast_status_update(queue_status())
+    return released
+
+
+def _slot_watch_loop() -> None:
+    while True:
+        time.sleep(_UNSAT_RECHECK_SECONDS)
+        try:
+            release_held_downloads()
+        except Exception:  # the watcher must outlive any one check
+            logger.exception("Checking downloads waiting for MAM slots failed")
+        with _held_lock:
+            if not _held_for_slot:
+                return
+
+
+def _ensure_slot_watcher() -> None:
+    global _slot_watcher
+    with _held_lock:
+        if _slot_watcher is not None and _slot_watcher.is_alive():
+            return
+        _slot_watcher = threading.Thread(
+            target=_slot_watch_loop, name="mam-slot-watcher", daemon=True
+        )
+        _slot_watcher.start()
+
+
 def _process_single_download(task_id: str, cancel_flag: Event) -> None:
     """Process a single download job."""
+    task = book_queue.get_task(task_id)
+    is_mam = bool(task and task.mam_torrent_id)
+    with _held_lock:
+        _held_for_slot.pop(task_id, None)  # Picked up: released, or retried by hand
+    if is_mam and not cancel_flag.is_set():
+        free = _mam_free_slots(task_id)
+        if free is not None and free < 1 and _hold_for_slot(task_id):
+            return
+
     # Status will be updated through callbacks during download process
     # (resolving -> downloading -> complete)
     download_path = _download_task(task_id, cancel_flag)
@@ -1106,6 +1216,11 @@ def _process_single_download(task_id: str, cancel_flag: Event) -> None:
         book_queue.update_download_path(task_id, download_path)
         book_queue.update_status(task_id, QueueStatus.COMPLETE)
     else:
+        # A refused grab at the unsatisfied limit waits for a slot instead of failing.
+        if is_mam:
+            free = _mam_free_slots(task_id, refresh=True)
+            if free is not None and free < 1 and _hold_for_slot(task_id):
+                return
         _finalize_download_failure(task_id)
 
     # Broadcast final status (completed or error)
