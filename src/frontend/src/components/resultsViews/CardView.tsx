@@ -6,6 +6,7 @@ import { getDownloadsCount } from '../../types';
 import { bookSupportsTargets } from '../../utils/bookTargetLoader';
 import { BookActionButton } from '../BookActionButton';
 import { BookTargetDropdown } from '../BookTargetDropdown';
+import { SaveForLaterButton } from '../SaveForLaterButton';
 import { DisplayFieldBadges, LibraryBadge } from '../shared';
 
 const SkeletonLoader = () => (
@@ -149,6 +150,7 @@ export const CardView = ({
             pointerEvents: isHovered || dropdownOpen || isLoadingDetails ? 'auto' : 'none',
           }}
         >
+          <SaveForLaterButton book={book} />
           {bookSupportsTargets(book) && targetProvider && targetBookId && (
             <BookTargetDropdown
               provider={targetProvider}
@@ -246,6 +248,7 @@ export const CardView = ({
               className={`details-spinner h-3 w-3 rounded-full border-2 border-current border-t-transparent ${isLoadingDetails ? '' : 'hidden'}`}
             />
           </button>
+          <SaveForLaterButton book={book} variant="inline" />
           <BookActionButton
             book={book}
             buttonState={buttonState}

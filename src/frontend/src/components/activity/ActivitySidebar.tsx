@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type WheelEvent } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode, type WheelEvent } from 'react';
 
 import { useTabIndicator } from '../../hooks/ui/useTabIndicator';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
@@ -44,6 +44,9 @@ interface ActivitySidebarProps {
   onRequestDismiss?: (requestId: number) => void;
   onPinnedOpenChange?: (pinnedOpen: boolean) => void;
   pinnedTopOffset?: number;
+  // Saved for later: shown as its own tab when given.
+  savedCount?: number;
+  savedPanel?: ReactNode;
 }
 
 export interface ActivityDismissTarget {
@@ -65,7 +68,7 @@ const DOWNLOAD_STATUS_KEYS: DownloadStatusKey[] = [
 
 type ActivityCategoryKey = 'needs_review' | 'in_progress' | 'complete' | 'failed';
 
-type ActivityTabKey = 'all' | 'downloads' | 'requests' | 'history';
+type ActivityTabKey = 'all' | 'downloads' | 'requests' | 'saved' | 'history';
 const ALL_USERS_FILTER = '__all_users__';
 
 const getCategoryLabel = (key: ActivityCategoryKey, isAdmin: boolean): string => {
@@ -88,7 +91,7 @@ const getVisibleCategoryOrder = (tab: ActivityTabKey): ActivityCategoryKey[] => 
   if (tab === 'requests') {
     return ['needs_review', 'in_progress', 'complete', 'failed'];
   }
-  if (tab === 'history') {
+  if (tab === 'history' || tab === 'saved') {
     return [];
   }
   return ['needs_review', 'in_progress', 'complete', 'failed'];
@@ -255,6 +258,8 @@ export const ActivitySidebar = ({
   onRequestDismiss,
   onPinnedOpenChange,
   pinnedTopOffset = 0,
+  savedCount = 0,
+  savedPanel,
 }: ActivitySidebarProps) => {
   const [isPinned, setIsPinned] = useState<boolean>(() => getInitialPinnedPreference());
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -278,7 +283,10 @@ export const ActivitySidebar = ({
   );
 
   const isPinnedOpen = isOpen && isDesktop && isPinned;
-  const effectiveActiveTab = !showRequestsTab && activeTab === 'requests' ? 'all' : activeTab;
+  const effectiveActiveTab =
+    (!showRequestsTab && activeTab === 'requests') || (!savedPanel && activeTab === 'saved')
+      ? 'all'
+      : activeTab;
   if (effectiveActiveTab !== activeTab) {
     setActiveTab(effectiveActiveTab);
   }
@@ -573,7 +581,11 @@ export const ActivitySidebar = ({
 
   // Tab indicator (sliding underline, same pattern as ReleaseModal)
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const tabIndicatorStyle = useTabIndicator(tabRefs, effectiveActiveTab, showRequestsTab);
+  const tabIndicatorStyle = useTabIndicator(
+    tabRefs,
+    effectiveActiveTab,
+    `${showRequestsTab}-${Boolean(savedPanel)}`,
+  );
 
   const panel = (
     <>
@@ -818,6 +830,28 @@ export const ActivitySidebar = ({
                   )}
                 </button>
               )}
+              {savedPanel && (
+                <button
+                  type="button"
+                  ref={(el) => {
+                    tabRefs.current.saved = el;
+                  }}
+                  onClick={() => handleTabChange('saved')}
+                  className={`border-b-2 border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                    effectiveActiveTab === 'saved'
+                      ? 'text-sky-600 dark:text-sky-400'
+                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                  aria-current={effectiveActiveTab === 'saved' ? 'page' : undefined}
+                >
+                  Saved
+                  {savedCount > 0 && (
+                    <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500/15 px-1 text-[11px] leading-none text-amber-700 dark:text-amber-300">
+                      {savedCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -829,6 +863,9 @@ export const ActivitySidebar = ({
         style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       >
         {(() => {
+          if (effectiveActiveTab === 'saved') {
+            return savedPanel;
+          }
           if (visibleItems.length === 0) {
             return <p className="mt-8 text-center text-sm opacity-70">{emptyStateMessage}</p>;
           }

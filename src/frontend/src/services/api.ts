@@ -1,5 +1,6 @@
 import type {
   Book,
+  ContentType,
   StatusData,
   AppConfig,
   LoginCredentials,
@@ -40,6 +41,7 @@ import type {
 } from '../utils/mamAccount';
 import type { MamBufferCheck, MamRatioSnapshot } from '../utils/mamRatio';
 import { isRecord, toStringValue } from '../utils/objectHelpers';
+import type { SavedItem, SavedPick } from '../utils/savedItems';
 import type { FulfilAdminRequestBody, RejectAdminRequestBody } from './requestApiHelpers';
 import {
   buildAdminRequestActionUrl,
@@ -668,6 +670,20 @@ export const getMamAccount = async (refresh = false): Promise<MamAccountResponse
 
 export const getMamRatio = async (): Promise<MamRatioSnapshot> =>
   fetchJSON<MamRatioSnapshot>(`${API_BASE}/mam/ratio`);
+
+export const getSavedItems = async (): Promise<SavedItem[]> =>
+  (await fetchJSON<{ items: SavedItem[] }>(`${API_BASE}/saved`)).items;
+
+export const saveForLater = async (payload: {
+  book: Book;
+  content_type: ContentType | 'combined';
+  releases?: SavedPick[];
+}): Promise<SavedItem> =>
+  fetchJSON<SavedItem>(`${API_BASE}/saved`, { method: 'POST', body: JSON.stringify(payload) });
+
+export const deleteSavedItem = async (id: number): Promise<void> => {
+  await fetchJSON<{ deleted: boolean }>(`${API_BASE}/saved/${id}`, { method: 'DELETE' });
+};
 
 export const getMamUnsatTiming = async (): Promise<MamUnsatTiming> =>
   fetchJSON<MamUnsatTiming>(`${API_BASE}/mam/unsat-timing`);

@@ -88,6 +88,8 @@ from shelfmark.core.requests_service import (
     reopen_failed_request,
     sync_delivery_states_from_queue_status,
 )
+from shelfmark.core.saved_items import SavedItemsService
+from shelfmark.core.saved_routes import register_saved_routes
 from shelfmark.core.user_db import UserDB
 from shelfmark.core.utils import AUDIOBOOK_FORMATS, normalize_base_path
 from shelfmark.download import orchestrator as backend
@@ -191,11 +193,14 @@ _user_db_path = str(Path(os.environ.get("CONFIG_DIR", "/config")) / "users.db")
 user_db: UserDB | None = None
 download_history_service: DownloadHistoryService | None = None
 activity_view_state_service: ActivityViewStateService | None = None
+saved_items_service: SavedItemsService | None = None
 try:
     user_db = UserDB(_user_db_path)
     user_db.initialize()
     download_history_service = DownloadHistoryService(_user_db_path)
     activity_view_state_service = ActivityViewStateService(_user_db_path)
+    saved_items_service = SavedItemsService(_user_db_path)
+    saved_items_service.initialize()
     import_module("shelfmark.config.users_settings")
     from shelfmark.core.admin_routes import register_admin_routes
     from shelfmark.core.oidc_routes import register_oidc_routes
@@ -1148,6 +1153,8 @@ def _serialize_release(release: Release) -> dict:
 register_release_inspect_routes(app, login_required)
 register_mam_routes(app, login_required)
 register_library_routes(app, login_required)
+if saved_items_service is not None:
+    register_saved_routes(app, saved_items_service, login_required, get_auth_mode)
 
 
 def _library_browser_available() -> bool:
