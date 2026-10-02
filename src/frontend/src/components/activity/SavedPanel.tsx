@@ -2,13 +2,7 @@ import { useState } from 'react';
 
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { withBasePath } from '../../utils/basePath';
-import {
-  DEFAULT_MIN_RATIO,
-  describeSavedPick,
-  hasMamPick,
-  type SavedConditions,
-  type SavedItem,
-} from '../../utils/savedItems';
+import { describeSavedPick, hasMamPick, type SavedItem } from '../../utils/savedItems';
 
 interface SavedPanelProps {
   items: SavedItem[];
@@ -19,10 +13,7 @@ interface SavedPanelProps {
   onRemove: (item: SavedItem) => Promise<void>;
   // Re-reads the list, for what the background checks found since.
   onRefresh: () => Promise<void>;
-  onAutoGet: (
-    item: SavedItem,
-    changes: { auto_get?: boolean; conditions?: SavedConditions },
-  ) => Promise<void>;
+  onAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
 }
 
 const savedAgo = (iso: string): string => {
@@ -37,14 +28,6 @@ const savedAgo = (iso: string): string => {
   return days === 1 ? 'yesterday' : `${days} days ago`;
 };
 
-// The ratio box commits on blur or Enter; empty or invalid falls back to the default.
-const parseRatio = (value: string): number => {
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) && parsed >= 0
-    ? Math.round(parsed * 100) / 100
-    : DEFAULT_MIN_RATIO;
-};
-
 const AutoGetControls = ({
   item,
   onAutoGet,
@@ -52,23 +35,14 @@ const AutoGetControls = ({
   item: SavedItem;
   onAutoGet: SavedPanelProps['onAutoGet'];
 }) => {
-  const [ratioText, setRatioText] = useState(String(item.conditions.min_ratio));
   const [busy, setBusy] = useState(false);
-  const mam = hasMamPick(item);
-  const change = async (changes: { auto_get?: boolean; conditions?: SavedConditions }) => {
+  const toggle = async (autoGet: boolean) => {
     setBusy(true);
     try {
-      await onAutoGet(item, changes);
+      await onAutoGet(item, { auto_get: autoGet });
     } finally {
       setBusy(false);
     }
-  };
-  const setConditions = (next: Partial<SavedConditions>) =>
-    void change({ conditions: { ...item.conditions, ...next } });
-  const commitRatio = () => {
-    const ratio = parseRatio(ratioText);
-    setRatioText(String(ratio));
-    if (ratio !== item.conditions.min_ratio) setConditions({ min_ratio: ratio });
   };
   const checkedAgo = item.auto_checked_at ? savedAgo(item.auto_checked_at) : null;
   let status = 'Waiting for the next check';
@@ -78,61 +52,27 @@ const AutoGetControls = ({
 
   return (
     <div className="mt-1.5 space-y-1 text-xs">
-      <label className="flex cursor-pointer items-center gap-2">
+      <label
+        className="flex cursor-pointer items-center gap-2"
+        title={
+          hasMamPick(item)
+            ? "Freeleech goes as soon as there's room; anything else once your ratio allows, or right away if it's too small to matter"
+            : undefined
+        }
+      >
         <input
           type="checkbox"
           checked={item.auto_get}
           disabled={busy}
-          onChange={(event) => void change({ auto_get: event.target.checked })}
+          onChange={(event) => void toggle(event.target.checked)}
           className="h-3.5 w-3.5 accent-emerald-600"
         />
-        <span>Get automatically when there&apos;s room</span>
+        <span>Get automatically</span>
       </label>
       {item.auto_get && (
-        <div className="space-y-1 pl-5.5">
-          {mam && (
-            <>
-              <label className="flex cursor-pointer items-center gap-2 opacity-90">
-                <input
-                  type="checkbox"
-                  checked={item.conditions.freeleech_only}
-                  disabled={busy}
-                  onChange={(event) => setConditions({ freeleech_only: event.target.checked })}
-                  className="h-3.5 w-3.5 accent-emerald-600"
-                />
-                <span>Freeleech only</span>
-              </label>
-              <div className="flex flex-wrap items-center gap-2 opacity-90">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={item.conditions.min_ratio_enabled}
-                    disabled={busy}
-                    onChange={(event) => setConditions({ min_ratio_enabled: event.target.checked })}
-                    className="h-3.5 w-3.5 accent-emerald-600"
-                  />
-                  <span>Ratio after download at least</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={ratioText}
-                  disabled={busy || !item.conditions.min_ratio_enabled}
-                  aria-label="Minimum ratio after download"
-                  onChange={(event) => setRatioText(event.target.value)}
-                  onBlur={commitRatio}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') commitRatio();
-                  }}
-                  className="w-14 rounded border border-(--border-muted) bg-(--bg-soft) px-1.5 py-0.5 tabular-nums disabled:opacity-50"
-                />
-              </div>
-            </>
-          )}
-          <p className="opacity-60" role="status">
-            {status}
-          </p>
-        </div>
+        <p className="pl-5.5 opacity-60" role="status">
+          {status}
+        </p>
       )}
     </div>
   );
@@ -178,7 +118,7 @@ const SavedRow = ({
           <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{item.last_error}</p>
         )}
         {autoGetAvailable && item.releases.length > 0 && (
-          <AutoGetControls key={item.conditions.min_ratio} item={item} onAutoGet={onAutoGet} />
+          <AutoGetControls item={item} onAutoGet={onAutoGet} />
         )}
         <div className="mt-1.5 flex items-center gap-2">
           <button

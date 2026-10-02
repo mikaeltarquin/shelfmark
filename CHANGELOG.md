@@ -5,6 +5,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Smarter automatic downloads from Saved**: one **Get automatically** switch per item
+  instead of freeleech and ratio checkboxes. Freeleech torrents go as soon as there's
+  room, even while the ratio is below target; small downloads that barely move the ratio
+  (ebooks) go too; anything else waits for the ratio or for freeleech. The target is one
+  setting, **Keep Ratio At Least** (2.0), under Prowlarr → Saved for Later.
 - **See what's already saved or downloaded**: search results (cards, list and compact),
   the library's book tables and covers, author and series rows, and the book details show
   **Saved** and **Downloading / Downloaded / Failed** marks, so you don't save or get a
