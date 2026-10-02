@@ -29,6 +29,24 @@ class LibraryItem:
     year: int | None = None
     has_cover: bool = False
     isbn: str | None = None
+    # Where the item lives, as the library reports it (a folder, or a single file).
+    path: str | None = None
+    size: int | None = None  # Bytes on disk
+    duration: float | None = None  # Seconds of audio
+    # File formats held, lowercase ("epub", "m4b"); audio formats are not known from
+    # the Audiobookshelf listing, so an audiobook there gives none, only `audio_files`.
+    file_formats: tuple[str, ...] = ()
+    audio_files: int = 0
+
+
+@dataclass(frozen=True)
+class LibraryFile:
+    """One file of a library item, for the book details' library section."""
+
+    name: str
+    path: str
+    kind: str  # "audio", "ebook" or "other"
+    size: int | None = None
 
 
 @dataclass(frozen=True)

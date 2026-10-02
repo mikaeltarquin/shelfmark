@@ -1063,6 +1063,9 @@ function App() {
           series_name: fullBook.series_name,
           series_position: fullBook.series_position,
           series_count: fullBook.series_count,
+          library: fullBook.library ?? metadataBook.library,
+          library_sources: fullBook.library_sources ?? metadataBook.library_sources,
+          library_holdings: fullBook.library_holdings,
         });
       } catch (error) {
         console.error('Failed to load book description, using search data:', error);

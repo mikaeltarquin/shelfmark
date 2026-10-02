@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import requests
 
 from shelfmark.core.config import config as app_config
-from shelfmark.core.library_providers import LibraryEntry, LibraryItem, setting
+from shelfmark.core.library_providers import LibraryEntry, LibraryFile, LibraryItem, setting
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.release_parts import strip_part
 from shelfmark.core.text_match import isbn_variants, tokens
@@ -79,6 +79,14 @@ def _added_at(value: object) -> float | None:
     return value / 1000 if isinstance(value, (int, float)) and value > 0 else None
 
 
+def _size(value: object) -> int | None:
+    return int(value) if isinstance(value, (int, float)) and value > 0 else None
+
+
+def _duration(value: object) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and value > 0 else None
+
+
 def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
     """A matchable entry for one minified library item, or None when it holds no book."""
     media = item.get("media")
@@ -92,9 +100,11 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
         return None
 
     content_types = set()
-    if (media.get("numAudioFiles") or media.get("numTracks") or 0) > 0:
+    audio_files = media.get("numAudioFiles") or media.get("numTracks") or 0
+    if audio_files > 0:
         content_types.add("audiobook")
-    if media.get("ebookFormat"):
+    ebook_format = str(media.get("ebookFormat") or "").strip().lower()
+    if ebook_format:
         content_types.add("ebook")
     if not content_types:
         return None  # an empty item: its files are missing
@@ -128,6 +138,11 @@ def entry_from_item(item: dict[str, Any]) -> LibraryEntry | None:
             year=_year(metadata.get("publishedYear")),
             has_cover=bool(media.get("coverPath")),
             isbn=isbn or None,
+            path=str(item.get("path") or "").strip() or None,
+            size=_size(item.get("size") or media.get("size")),
+            duration=_duration(media.get("duration")),
+            file_formats=(ebook_format,) if ebook_format else (),
+            audio_files=int(audio_files),
         )
         if item_id
         else None
@@ -234,6 +249,32 @@ class AudiobookshelfLibrary:
         )
         response.raise_for_status()
         return response.content, response.headers.get("Content-Type", "image/jpeg")
+
+    def item_files(self, item_id: str) -> list[LibraryFile]:
+        """An item's audio and ebook files (every file when it has neither)."""
+        data = self._get(f"/api/items/{item_id}")
+        raw = data.get("libraryFiles") if isinstance(data, dict) else None
+        files: list[LibraryFile] = []
+        for library_file in raw if isinstance(raw, list) else []:
+            if not isinstance(library_file, dict):
+                continue
+            metadata = library_file.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            name = str(metadata.get("filename") or "").strip()
+            if not name:
+                continue
+            file_type = library_file.get("fileType")
+            files.append(
+                LibraryFile(
+                    name=name,
+                    path=str(metadata.get("path") or name),
+                    kind=file_type if file_type in {"audio", "ebook"} else "other",
+                    size=_size(metadata.get("size")),
+                )
+            )
+        media_files = [f for f in files if f.kind != "other"]
+        return sorted(media_files or files, key=lambda f: f.path)
 
     def libraries(self, timeout: float = _TIMEOUT_SECONDS) -> list[dict[str, Any]]:
         """The server's book libraries (podcast libraries are left out)."""

@@ -55,7 +55,7 @@ from shelfmark.core.config import config as app_config
 from shelfmark.core.cwa_user_sync import upsert_cwa_user
 from shelfmark.core.download_history_service import DownloadHistoryService
 from shelfmark.core.external_user_linking import upsert_external_user
-from shelfmark.core.library_links import library_link_name
+from shelfmark.core.library_links import library_item_url, library_link_name
 from shelfmark.core.library_routes import register_library_routes
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.mam_routes import buffer_check_payload, register_mam_routes
@@ -2964,14 +2964,37 @@ def _mark_owned_narrations(book: Any, releases: list[dict[str, Any]]) -> None:
             extra["in_library"] = True
 
 
-def _attach_library_ownership(book: Any, book_dict: dict[str, Any]) -> None:
-    """Add per-format ownership under ``library`` when a library check is enabled."""
+def _attach_library_ownership(
+    book: Any, book_dict: dict[str, Any], *, with_holdings: bool = False
+) -> None:
+    """Add per-format ownership under ``library`` when a library check is enabled.
+
+    ``with_holdings`` also lists the library items that hold it, with their paths and a
+    link to each, under ``library_holdings``. Paths are the server's, so admins only.
+    """
     from shelfmark.core import library_index
 
     owned = library_index.ownership(book)
-    if owned is not None:
-        book_dict["library"] = owned
-        book_dict["library_sources"] = library_index.ownership_sources(book)
+    if owned is None:
+        return
+    book_dict["library"] = owned
+    book_dict["library_sources"] = library_index.ownership_sources(book)
+    if not with_holdings or (get_auth_mode() != "none" and not session.get("is_admin", False)):
+        return
+    try:
+        rows = library_index.holdings(book)
+    except Exception as exc:  # noqa: BLE001 - the library check fails open
+        logger.warning("Could not list library holdings: %s", exc)
+        return
+    link_urls = (app_config.get("AUDIOBOOK_LIBRARY_URL", ""), app_config.get("CALIBRE_WEB_URL", ""))
+    for row in rows:
+        row["url"] = library_item_url(
+            row["source"],
+            row["item_id"],
+            audiobookshelf_url=app_config.get("ABS_URL", ""),
+            link_urls=link_urls,
+        )
+    book_dict["library_holdings"] = rows
 
 
 def _resolve_metadata_provider(provider_name: str) -> MetadataProvider:
@@ -3022,7 +3045,7 @@ def api_metadata_book(provider: str, book_id: str) -> Response | tuple[Response,
             return jsonify({"error": "Book not found"}), 404
 
         book_dict = asdict(book)
-        _attach_library_ownership(book, book_dict)
+        _attach_library_ownership(book, book_dict, with_holdings=True)
 
         # Transform cover_url to local proxy URL when caching is enabled
         from shelfmark.core.utils import transform_cover_url

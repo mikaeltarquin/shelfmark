@@ -16,6 +16,7 @@ import type {
   PackBook,
   InspectReleaseResponse,
   LibraryBooksResponse,
+  LibraryItemFile,
 } from '../types';
 import type {
   ActionResult,
@@ -660,6 +661,17 @@ export const lookupLibraryBook = async (
     `${API_BASE}/library/lookup/${encodeURIComponent(source)}/${encodeURIComponent(itemId)}?${params.toString()}`,
   );
   return transformMetadataToBook(response.book);
+};
+
+/** One library item's files, listed in the book details. */
+export const getLibraryItemFiles = async (
+  source: string,
+  itemId: string,
+): Promise<LibraryItemFile[]> => {
+  const response = await fetchJSON<{ files: LibraryItemFile[] }>(
+    `${API_BASE}/library/files/${encodeURIComponent(source)}/${encodeURIComponent(itemId)}`,
+  );
+  return response.files;
 };
 
 export const getLibraryBooks = async (): Promise<LibraryBooksResponse> =>

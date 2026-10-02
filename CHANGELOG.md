@@ -5,6 +5,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **What's in your library, on the book details**: for admins, the Library section now
+  lists every library copy of the book, not just "Have ebook + audio". Each copy shows its
+  library, format (audiobook, ebook, EPUB/AZW3…), narrator, year, length, size and
+  folder path, with **Show files** to list its files and a link to open it in
+  Audiobookshelf or Calibre-Web.
 - **Saved for later**: bookmark a book, one release, or a combined ebook + audiobook pick to
   download later, from search results, library cards, release lists and the combined
   flow, or straight from the MyAnonamouse hold-back prompt when a download doesn't fit.
