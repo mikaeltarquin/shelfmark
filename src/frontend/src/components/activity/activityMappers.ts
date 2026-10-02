@@ -121,6 +121,7 @@ export const downloadToActivityItem = (book: Book, statusKey: DownloadStatusKey)
     downloadPath: toOptionalText(book.download_path),
     bookKey: toOptionalText(book.book_key),
     contentType: toOptionalText(book.content_type),
+    infoUrl: toOptionalText(book.info_url),
     sizeRaw: toOptionalText(book.size),
     downloads: downloadsCount ?? undefined,
     requestId,

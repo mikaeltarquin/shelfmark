@@ -5,6 +5,10 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Open a download's source page from Activity**: every download row (queued, done,
+  failed, in History) has a button that opens the release's page at its source, such as
+  the torrent's page on MyAnonamouse, to grab it by hand when a link has expired.
+  Older MyAnonamouse downloads link to their torrent page by its id.
 - **Your copies on every book page**: the library section of the book details lists the
   copies (format, narrator, size, folder, files, open link) wherever the details open,
   from an Activity row, a library card or a search result alike, not only from search.

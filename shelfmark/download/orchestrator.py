@@ -39,6 +39,7 @@ from shelfmark.release_sources import (
 from shelfmark.release_sources.prowlarr.mam_charge import (
     mam_charge_bytes_for_release,
     mam_torrent_id_for_release,
+    mam_torrent_page,
 )
 
 if TYPE_CHECKING:
@@ -351,6 +352,7 @@ def queue_release(
             username=username,
             request_id=request_id,
             book_key=_book_key(release_data.get("book_key")),
+            info_url=_info_url(release_data.get("info_url") or extra.get("info_url")),
             **retry_resolution_fields,
         )
 
@@ -535,6 +537,14 @@ def _book_key(value: object) -> str | None:
     return key[:200] if key else None
 
 
+def _info_url(value: object) -> str | None:
+    """A release's web page, when it is one (http or https), bounded."""
+    url = normalize_optional_text(value)
+    if url is None or not url.lower().startswith(("http://", "https://")):
+        return None
+    return url[:2000]
+
+
 def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
     """Serialize the task state needed for restart-safe retries."""
     raw_search_mode = getattr(task, "search_mode", None)
@@ -578,6 +588,7 @@ def serialize_task_for_retry(task: DownloadTask) -> dict[str, Any]:
         "username": getattr(task, "username", None),
         "request_id": getattr(task, "request_id", None),
         "book_key": getattr(task, "book_key", None),
+        "info_url": getattr(task, "info_url", None),
         "staged_path": getattr(task, "staged_path", None),
         "retry_download_url": getattr(task, "retry_download_url", None),
         "retry_download_protocol": getattr(task, "retry_download_protocol", None),
@@ -646,6 +657,7 @@ def _restore_task_from_retry_payload(payload: object) -> DownloadTask | None:
         username=normalize_optional_text(payload.get("username")),
         request_id=normalize_positive_int(payload.get("request_id")),
         book_key=_book_key(payload.get("book_key")),
+        info_url=_info_url(payload.get("info_url")),
         staged_path=normalize_optional_text(payload.get("staged_path")),
         retry_download_url=normalize_optional_text(payload.get("retry_download_url")),
         retry_download_protocol=normalize_optional_text(payload.get("retry_download_protocol")),
@@ -742,6 +754,7 @@ def _task_to_dict(
         "username": task.username,
         "request_id": task.request_id,
         "book_key": task.book_key,
+        "info_url": task.info_url or mam_torrent_page(task.mam_torrent_id),
         "retry_available": can_retry_download_task(task, retry_status),
     }
 

@@ -89,7 +89,8 @@ CREATE TABLE IF NOT EXISTS download_history (
     queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     terminal_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     downloads INTEGER,
-    book_key TEXT
+    book_key TEXT,
+    info_url TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_download_history_user_status
@@ -291,6 +292,8 @@ class UserDB:
             "CREATE INDEX IF NOT EXISTS idx_download_history_book_key "
             "ON download_history (user_id, book_key)"
         )
+        if "info_url" not in column_names:
+            conn.execute("ALTER TABLE download_history ADD COLUMN info_url TEXT")
 
     def create_user(
         self,

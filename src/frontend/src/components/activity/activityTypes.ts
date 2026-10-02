@@ -42,6 +42,7 @@ export interface ActivityItem {
   downloadPath?: string;
   bookKey?: string; // The metadata book it was downloaded for ("hardcover:42")
   contentType?: string;
+  infoUrl?: string; // The release's page at its source (the MAM torrent page)
   requestId?: number;
   requestLevel?: 'book' | 'release';
   requestNote?: string;

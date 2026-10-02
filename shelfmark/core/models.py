@@ -164,6 +164,9 @@ class DownloadTask:
     # The metadata book this release was got for ("hardcover:446681"), so the UI can tell
     # a book is downloading or downloaded; None for direct-mode and older downloads.
     book_key: str | None = None
+    # The release's page at its source (the MAM torrent page, an indexer's details page),
+    # for a link in Activity. Never the download link, which can carry a passkey.
+    info_url: str | None = None
 
     # Runtime state
     priority: int = 0

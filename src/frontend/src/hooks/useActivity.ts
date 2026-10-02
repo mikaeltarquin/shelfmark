@@ -106,6 +106,7 @@ const parseHistoryBook = (value: unknown): Book | null => {
     ...(typeof value.downloads === 'number' ? { downloads: value.downloads } : {}),
     ...(typeof value.content_type === 'string' ? { content_type: value.content_type } : {}),
     ...(typeof value.book_key === 'string' ? { book_key: value.book_key } : {}),
+    ...(typeof value.info_url === 'string' ? { info_url: value.info_url } : {}),
   };
 };
 

@@ -43,3 +43,9 @@ def mam_charge_bytes_for_release(release_data: dict[str, Any]) -> int:
     if isinstance(extra, dict) and extra.get("freeleech"):
         return 0
     return _positive_int(release_data.get("size_bytes")) or 0
+
+
+def mam_torrent_page(torrent_id: object) -> str | None:
+    """The torrent's page on MyAnonamouse, from its id (None without one)."""
+    value = _positive_int(torrent_id)
+    return f"https://www.myanonamouse.net/t/{value}" if value is not None else None

@@ -476,6 +476,16 @@ const RejectInlinePanel = ({
 
 const MAX_ADMIN_NOTE_LENGTH = 1000;
 
+/** "MyAnonamouse" for its pages, else the site's host: where a source link goes. */
+export const sourcePageName = (url: string): string => {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return host === 'myanonamouse.net' ? 'MyAnonamouse' : host;
+  } catch {
+    return 'its source';
+  }
+};
+
 export const ActivityCard = ({
   item,
   isAdmin,
@@ -757,6 +767,36 @@ export const ActivityCard = ({
               </Tooltip>
             </div>
             <div className="-my-1 inline-flex shrink-0 items-center gap-1">
+              {item.infoUrl && (
+                <Tooltip
+                  content={`Open on ${sourcePageName(item.infoUrl)}`}
+                  delay={0}
+                  position="bottom"
+                >
+                  <a
+                    href={item.infoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open on ${sourcePageName(item.infoUrl)}`}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-sky-100 hover:text-sky-600 dark:hover:bg-sky-900/30 dark:hover:text-sky-400"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14 5h5v5M19 5l-8 8M10 5H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-4"
+                      />
+                    </svg>
+                  </a>
+                </Tooltip>
+              )}
               {canShowDownloadLink && item.downloadBookId && (
                 <Tooltip content="Save file to this device" delay={0} position="bottom">
                   <a

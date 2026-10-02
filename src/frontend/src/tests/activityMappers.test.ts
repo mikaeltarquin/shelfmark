@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
+import { sourcePageName } from '../components/activity/ActivityCard';
 import {
   downloadToActivityItem,
   requestToActivityItem,
@@ -77,6 +78,17 @@ describe('activityMappers.downloadToActivityItem', () => {
     expect(item.bookKey).toBe('hardcover:42');
     expect(item.contentType).toBe('audiobook');
     expect(downloadToActivityItem(makeBook(), 'complete').bookKey).toBeUndefined();
+  });
+
+  it('keeps the release page at its source', () => {
+    const item = downloadToActivityItem(
+      makeBook({ info_url: 'https://www.myanonamouse.net/t/5' }),
+      'error',
+    );
+    expect(item.infoUrl).toBe('https://www.myanonamouse.net/t/5');
+    expect(sourcePageName('https://www.myanonamouse.net/t/5')).toBe('MyAnonamouse');
+    expect(sourcePageName('https://indexer.example/r/1')).toBe('indexer.example');
+    expect(sourcePageName('not a url')).toBe('its source');
   });
 
   it('maps download items with meta line and status fields', () => {
