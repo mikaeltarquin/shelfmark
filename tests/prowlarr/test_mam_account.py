@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -471,7 +472,7 @@ class TestUnsatisfied:
         assert (stats.unsat_count, stats.unsat_limit) == (None, None)
 
     def test_blocks_when_slots_to_keep_free_would_be_used(self, mam, no_pending, monkeypatch):
-        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 0)
         mam.user = _unsat_user(94, 100)
 
         one = mam_account.check_buffer([_mam_release(1)])
@@ -482,7 +483,7 @@ class TestUnsatisfied:
         assert (two.unsat_count, two.unsat_limit, two.unsat_reserve) == (94, 100, 5)
 
     def test_freeleech_counts_and_queued_downloads_count(self, mam, no_pending, monkeypatch):
-        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 3)
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 3)
         mam.user = _unsat_user(92, 100)
 
         result = mam_account.check_buffer([_mam_release(1, freeleech=True)])
@@ -491,7 +492,7 @@ class TestUnsatisfied:
         assert result.unsat_pending == 3 and result.request_bytes == 0
 
     def test_off_or_no_limit_reported(self, mam, no_pending, monkeypatch):
-        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 0)
         mam.user = USER
         assert mam_account.check_buffer([_mam_release(1)]).unsat_ok
         mam.user = _unsat_user(100, 100)
@@ -512,11 +513,34 @@ class TestUnsatisfied:
         status[QueueStatus.RESOLVING] = {"c": task("c", 2)}
         status[QueueStatus.DOWNLOADING] = {"d": task("d", 3)}  # already in MAM's count
         monkeypatch.setattr(book_queue, "get_status", lambda: status)
+        monkeypatch.setattr(book_queue, "handoffs_since", lambda _since: [])
 
         assert mam_account.pending_unsat_count() == 2
 
+    def test_pending_counts_snatches_since_the_stats_were_read(self):
+        """A torrent handed to the client after (or just before) the stats were read is
+        not in MAM's count yet, even once it has finished: small ebooks finish in
+        seconds, and counting them as done let a run queue past the limit."""
+        from shelfmark.core.models import DownloadTask, QueueStatus
+        from shelfmark.core.queue import BookQueue
+
+        queue = BookQueue()
+        for task_id, mam_id in (("e1", 1), ("e2", 2), ("other", None)):
+            queue.add(
+                DownloadTask(task_id=task_id, source="prowlarr", title="T", mam_torrent_id=mam_id)
+            )
+        before = time.time()
+        for task_id in ("e1", "e2", "other"):
+            queue.update_status(task_id, QueueStatus.DOWNLOADING)
+        queue.update_status("e1", QueueStatus.COMPLETE)
+
+        with patch("shelfmark.core.queue.book_queue", queue):
+            assert mam_account.pending_unsat_count(before) == 2
+            # Long after the handoffs (past the lag allowance), MAM's count has them.
+            assert mam_account.pending_unsat_count(before + 3600) == 0
+
     def test_download_route_names_the_unsat_limit(self, main_module, mam, no_pending, monkeypatch):
-        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda: 0)
+        monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 0)
         mam.user = _unsat_user(96, 100)
         with patch.object(main_module.backend, "queue_release") as queue_release:
             resp = _client(main_module, is_admin=True).post(

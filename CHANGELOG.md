@@ -41,6 +41,14 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   will in the next 6 hours ("Next slot in 2:05 · 3 slots in the next 6 hours"), from the
   seeding time Deluge, qBittorrent or Transmission reports.
 
+### Fixed
+- Automatic downloads from Saved could queue past the MyAnonamouse unsatisfied limit:
+  a torrent handed to the client (an ebook that finished in seconds, say) stopped
+  counting before MAM's own count caught up, and MAM then refused the rest. Snatches
+  since shortly before the account was read now count until MAM's figure includes them.
+- **Clear Completed** in Activity no longer clears failed downloads; dismiss those one
+  by one (cleared items are still under History).
+
 ## v1.0.2
 
 ### Added
