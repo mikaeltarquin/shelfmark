@@ -548,24 +548,29 @@ class TestUnsatisfied:
     def test_free_slots_count_recent_snatches_but_not_the_asker(self, mam, monkeypatch):
         from shelfmark.core.queue import book_queue
 
-        mam.user = _unsat_user(97, 100)
+        mam.user = _unsat_user(90, 100)
+        monkeypatch.setattr(mam_account, "unsat_reserve_slots", lambda: 3)
         snatched = [
             SimpleTask("a", 1),
             SimpleTask("asker", 2),
             SimpleTask("not-mam", None),
         ]
         monkeypatch.setattr(book_queue, "handoffs_since", lambda _since: snatched)
-        assert mam_account.unsat_free_slots(exclude={"asker"}) == 2  # 100 - 97 - "a"
+        # 100 - 3 kept free - 90 - "a" (the asker doesn't count against itself)
+        assert mam_account.unsat_free_slots(exclude={"asker"}) == 6
         monkeypatch.setattr(mam_account, "unsat_check_enabled", lambda: False)
         assert mam_account.unsat_free_slots() is None
 
-    def test_download_route_names_the_unsat_limit(self, main_module, mam, no_pending, monkeypatch):
+    def test_download_route_queues_a_download_that_waits_for_a_slot(
+        self, main_module, mam, no_pending, monkeypatch
+    ):
+        """Only short of unsatisfied slots: queued anyway, to wait for one."""
         monkeypatch.setattr(mam_account, "pending_unsat_count", lambda *_: 0)
         mam.user = _unsat_user(96, 100)
-        with patch.object(main_module.backend, "queue_release") as queue_release:
+        with patch.object(main_module.backend, "queue_release", return_value=(True, None)) as qr:
             resp = _client(main_module, is_admin=True).post(
                 "/api/releases/download", json={**_mam_release(1), "content_type": "audiobook"}
             )
-        assert resp.status_code == 409
-        assert "unsatisfied limit" in resp.get_json()["error"]
-        queue_release.assert_not_called()
+        assert resp.status_code == 200
+        assert resp.get_json()["waiting_for_slot"] is True
+        qr.assert_called_once()

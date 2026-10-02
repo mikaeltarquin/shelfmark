@@ -6,9 +6,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ### Added
 - **Downloads wait for an unsatisfied slot instead of failing**: a MyAnonamouse torrent
-  that reaches its turn at the unsatisfied limit, or whose grab MAM refuses for that
-  reason, goes back to the queue as "Waiting for an unsatisfied slot" and starts on its
-  own once a slot frees up (checked every 5 minutes), longest waiting first.
+  that reaches its turn with no slot free (counting **Unsatisfied Slots to Keep Free**),
+  or whose grab MAM refuses at the limit, goes back to the queue as "Waiting for an
+  unsatisfied slot" and starts on its own once a slot frees up (checked every 5
+  minutes), longest waiting first. The hold-back prompt offers **Queue and wait for a
+  slot** when slots are all that's missing.
 - **Activity rows open the book**: click a download (in Downloads or History) to see the
   book's details and your library copies. A failed or cancelled one says why, with
   **Retry download**; History rows get a Retry button too. Saving a finished file to this
