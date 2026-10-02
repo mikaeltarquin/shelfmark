@@ -1,4 +1,4 @@
-import type { Book, LibraryOwnership, LibrarySources, Release } from '../types';
+import type { Book, LibraryHoldingItem, LibraryOwnership, LibrarySources, Release } from '../types';
 import { isRecord, isStringArray } from './objectHelpers';
 
 /**
@@ -8,6 +8,7 @@ import { isRecord, isStringArray } from './objectHelpers';
 export interface MetadataBookData {
   library?: LibraryOwnership; // ownership flags from the library check
   library_sources?: LibrarySources;
+  library_holdings?: LibraryHoldingItem[];
   provider: string;
   provider_display_name?: string;
   provider_id: string;
@@ -106,6 +107,7 @@ export function transformMetadataToBook(data: MetadataBookData): Book {
     titles_by_language: data.titles_by_language,
     library: data.library,
     library_sources: data.library_sources,
+    library_holdings: data.library_holdings,
     info: {
       ...(data.isbn_13 && { ISBN: data.isbn_13 }),
       ...(data.isbn_10 && !data.isbn_13 && { ISBN: data.isbn_10 }),

@@ -102,6 +102,32 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
     def api_library_cover(source: str, item_id: str) -> ResponseReturnValue:
         return library_cover(source, item_id)
 
+    @app.route("/api/library/files/<source>/<item_id>", methods=["GET"])
+    @login_required
+    @admin_only
+    def api_library_files(source: str, item_id: str) -> ResponseReturnValue:
+        """One library item's files, for the book details' library section."""
+        if not _ITEM_ID.match(item_id):
+            return jsonify({"error": "Invalid item id"}), 400
+        found = library_catalog.find_entry(source, item_id)
+        if found is None:
+            return jsonify({"error": "Not in the library"}), 404
+        provider, _entry = found
+        if not isinstance(provider, (AudiobookshelfLibrary, CalibreLibrary)):
+            return jsonify({"files": []})
+        try:
+            files = provider.item_files(item_id)
+        except Exception as exc:  # noqa: BLE001 - shown on the page
+            logger.warning("Files of %s:%s unavailable: %s", source, item_id, exc)
+            return jsonify({"error": f"{provider.display_name} could not be read: {exc}"}), 502
+        return jsonify(
+            {
+                "files": [
+                    {"name": f.name, "path": f.path, "kind": f.kind, "size": f.size} for f in files
+                ]
+            }
+        )
+
     @app.route("/api/library/missing", methods=["GET"])
     @login_required
     @admin_only

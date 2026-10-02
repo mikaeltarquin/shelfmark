@@ -34,6 +34,7 @@ export interface Book {
   content_type?: string; // "ebook", "audiobook", or related book subtype
   library?: LibraryOwnership; // "already in your library" flags from the library check
   library_sources?: LibrarySources; // which libraries hold it, per format
+  library_holdings?: LibraryHoldingItem[]; // the library items that hold it (book details, admins)
   source?: string; // Release source handler (e.g., "direct_download", "prowlarr")
   source_display_name?: string; // Human-readable source name (e.g., "Direct Download")
   // Metadata provider fields (used in universal search mode)
@@ -284,6 +285,33 @@ export type LibrarySources = Partial<Record<'ebook' | 'audiobook', string[]>>;
 
 /** How the library holds a book, per format: owned outright, or inside a collection. */
 export type LibraryHolding = 'owned' | 'collection';
+
+/** One library item holding a book: where it is and what it holds. */
+export interface LibraryHoldingItem {
+  source: string; // Provider name, e.g. "audiobookshelf"
+  library: string; // Display name, e.g. "Audiobookshelf"
+  item_id: string;
+  title: string;
+  authors: string[];
+  narrators: string[];
+  year: number | null;
+  formats: ('ebook' | 'audiobook')[];
+  holding: LibraryHolding;
+  path: string | null;
+  size: number | null; // Bytes
+  duration: number | null; // Seconds of audio
+  file_formats: string[]; // "epub", "m4b"
+  audio_files: number;
+  url: string | null; // Opens the item in its library's web app
+}
+
+/** One file of a library item. */
+export interface LibraryItemFile {
+  name: string;
+  path: string;
+  kind: 'audio' | 'ebook' | 'other';
+  size: number | null;
+}
 
 export interface LibraryOwnership {
   ebook?: LibraryHolding | null;

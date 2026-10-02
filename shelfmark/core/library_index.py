@@ -197,6 +197,45 @@ def ownership_sources(book: BookMetadata) -> dict[str, list[str]]:
     return {content_type: names for content_type, names in sources.items() if names}
 
 
+def holdings(book: BookMetadata) -> list[dict[str, Any]]:
+    """Every library item that holds ``book``, with where it is and what it holds.
+
+    For the book details: one row per item, so a book held as an ebook in Calibre and
+    as two audiobook editions in Audiobookshelf lists three. Fail-open like the rest.
+    """
+    rows: list[dict[str, Any]] = []
+    for provider in enabled_providers():
+        for entry in _entries_for(provider):
+            item = entry.item
+            if item is None:
+                continue
+            kind = match_entries(book, [entry])
+            if kind is None:
+                continue
+            formats = (
+                entry.content_types if entry.content_types is not None else provider.content_types
+            )
+            rows.append(
+                {
+                    "source": provider.name,
+                    "library": provider.display_name,
+                    "item_id": item.item_id,
+                    "title": item.title,
+                    "authors": list(item.authors),
+                    "narrators": list(item.narrators),
+                    "year": item.year,
+                    "formats": sorted(formats),
+                    "holding": kind,
+                    "path": item.path,
+                    "size": item.size,
+                    "duration": item.duration,
+                    "file_formats": list(item.file_formats),
+                    "audio_files": item.audio_files,
+                }
+            )
+    return rows
+
+
 def owned_narrators(book: BookMetadata) -> set[str]:
     """Narrators (casefolded) of the audiobooks of ``book`` already in a library."""
     narrators: set[str] = set()

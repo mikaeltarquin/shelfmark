@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shelfmark.core.config import config as app_config
-from shelfmark.core.library_providers import LibraryEntry, LibraryItem, setting
+from shelfmark.core.library_providers import LibraryEntry, LibraryFile, LibraryItem, setting
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.text_match import isbn_variants, tokens
 
@@ -51,6 +51,7 @@ _BOOK_DETAILS_SQL = "SELECT id, timestamp, pubdate, has_cover, path, series_inde
 _AUTHORS_SQL = "SELECT l.book, a.name FROM books_authors_link l JOIN authors a ON a.id = l.author"
 _SERIES_SQL = "SELECT l.book, s.name FROM books_series_link l JOIN series s ON s.id = l.series"
 _IDENTIFIERS_SQL = "SELECT book, type, val FROM identifiers"
+_DATA_SQL = "SELECT book, format, name, uncompressed_size FROM data"
 
 
 def _db_path(overrides: Mapping[str, Any] | None = None) -> Path:
@@ -114,9 +115,30 @@ def _read_details(conn: sqlite3.Connection) -> dict[int, tuple[Any, ...]]:
     return {row[0]: row[1:] for row in rows}
 
 
-def _read_entries(conn: sqlite3.Connection) -> list[LibraryEntry]:
+def _read_data(
+    conn: sqlite3.Connection, book_id: int | None = None
+) -> dict[int, list[tuple[str, str, int | None]]]:
+    """Each book's (format, file name without extension, size) rows."""
+    try:
+        if book_id is None:
+            rows = conn.execute(_DATA_SQL).fetchall()
+        else:
+            rows = conn.execute(f"{_DATA_SQL} WHERE book = ?", (book_id,)).fetchall()
+    except sqlite3.Error:
+        return {}
+    data: dict[int, list[tuple[str, str, int | None]]] = {}
+    for row_book, fmt, name, size in rows:
+        if fmt and name:
+            data.setdefault(row_book, []).append(
+                (str(fmt).lower(), str(name), size if isinstance(size, int) and size > 0 else None)
+            )
+    return data
+
+
+def _read_entries(conn: sqlite3.Connection, root: Path | None = None) -> list[LibraryEntry]:
     titles: dict[int, str] = dict(conn.execute(_BOOKS_SQL).fetchall())
     details = _read_details(conn)
+    data = _read_data(conn)
     series: dict[int, str] = dict(conn.execute(_SERIES_SQL).fetchall())
 
     authors: dict[int, list[str]] = {}
@@ -149,7 +171,7 @@ def _read_entries(conn: sqlite3.Connection) -> list[LibraryEntry]:
         for name in authors.get(book_id, ()):
             context_tok |= set(tokens(name))
         tok = title_tok | context_tok
-        added, published, has_cover, _path, series_index = details.get(
+        added, published, has_cover, folder, series_index = details.get(
             book_id, (None, None, False, None, None)
         )
         book_isbns = isbns.get(book_id, set())
@@ -165,6 +187,9 @@ def _read_entries(conn: sqlite3.Connection) -> list[LibraryEntry]:
             year=_pub_year(published),
             has_cover=bool(has_cover),
             isbn=next((i for i in sorted(book_isbns) if len(i) == 13), None),
+            path=str(root / folder) if root is not None and folder else folder or None,
+            size=sum(size or 0 for _, _, size in data.get(book_id, ())) or None,
+            file_formats=tuple(sorted({fmt for fmt, _, _ in data.get(book_id, ())})),
         )
         entries.append(
             LibraryEntry(
@@ -216,9 +241,25 @@ class CalibreLibrary:
         cover = (root / str(row[0]) / "cover.jpg").resolve()
         return cover if cover.is_relative_to(root) and cover.is_file() else None
 
+    def item_files(self, item_id: str) -> list[LibraryFile]:
+        """A book's format files, at the paths beside ``metadata.db``."""
+        path = _db_path(self._overrides)
+        if not item_id.isdigit() or not path.is_file():
+            return []
+        with closing(_connect(path)) as conn:
+            row = conn.execute("SELECT path FROM books WHERE id = ?", (int(item_id),)).fetchone()
+            rows = _read_data(conn, int(item_id)).get(int(item_id), []) if row else []
+        folder = path.parent / str(row[0]) if row else path.parent
+        return [
+            LibraryFile(
+                name=f"{name}.{fmt}", path=str(folder / f"{name}.{fmt}"), kind="ebook", size=size
+            )
+            for fmt, name, size in sorted(rows)
+        ]
+
     def fetch_entries(self) -> list[LibraryEntry]:
         path = _db_path(self._overrides)
         if not path.is_file():
             raise FileNotFoundError(f"No Calibre database at {path}")
         with closing(_connect(path)) as conn:
-            return _read_entries(conn)
+            return _read_entries(conn, path.parent)

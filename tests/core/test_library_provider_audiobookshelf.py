@@ -203,3 +203,79 @@ class TestOwnedNarrationMarks:
         _mark_owned_narrations(_book(), releases)
 
         assert [r["extra"].get("in_library") for r in releases] == [True, None, None]
+
+
+class TestHoldings:
+    def test_lists_each_item_that_holds_the_book(self, abs_library):
+        rows = library_index.holdings(_book())
+        assert [(r["library"], r["item_id"], r["formats"]) for r in rows] == [
+            ("Audiobookshelf", "Dungeon Crawler Carl", ["audiobook"])
+        ]
+        assert rows[0]["narrators"] == ["Jeff Hays"]
+        assert rows[0]["holding"] == "owned"
+
+    def test_nothing_held(self, abs_library):
+        assert library_index.holdings(_book(title="Mistborn", authors=["Brandon Sanderson"])) == []
+
+
+class TestItemDetails:
+    def test_location_size_and_duration_from_the_listing(self):
+        item = {
+            **_item(ebook="EPUB"),
+            "path": "/audiobooks/Matt Dinniman/Dungeon Crawler Carl",
+            "size": 812_000_000,
+        }
+        item["media"]["duration"] = 49_320.5
+        entry = entry_from_item(item)
+        assert entry is not None and entry.item is not None
+        assert entry.item.path == "/audiobooks/Matt Dinniman/Dungeon Crawler Carl"
+        assert entry.item.size == 812_000_000
+        assert entry.item.duration == 49_320.5
+        assert entry.item.file_formats == ("epub",)
+        assert entry.item.audio_files == 1
+
+    def test_item_files_lists_audio_and_ebook_files(self):
+        class Files(FakeAbs):
+            def _get(self, path, params=None, timeout=30):
+                assert path == "/api/items/li_1"
+                return {
+                    "libraryFiles": [
+                        {
+                            "metadata": {"filename": "cover.jpg", "path": "/a/cover.jpg"},
+                            "fileType": "image",
+                        },
+                        {
+                            "metadata": {"filename": "02.mp3", "path": "/a/02.mp3", "size": 20},
+                            "fileType": "audio",
+                        },
+                        {
+                            "metadata": {"filename": "01.mp3", "path": "/a/01.mp3", "size": 10},
+                            "fileType": "audio",
+                        },
+                        {
+                            "metadata": {"filename": "book.epub", "path": "/a/book.epub"},
+                            "fileType": "ebook",
+                        },
+                    ]
+                }
+
+        files = Files({}).item_files("li_1")
+        assert [(f.name, f.kind, f.size) for f in files] == [
+            ("01.mp3", "audio", 10),
+            ("02.mp3", "audio", 20),
+            ("book.epub", "ebook", None),
+        ]
+
+    def test_item_files_falls_back_to_every_file(self):
+        class Files(FakeAbs):
+            def _get(self, path, params=None, timeout=30):
+                return {
+                    "libraryFiles": [
+                        {
+                            "metadata": {"filename": "notes.txt", "path": "/a/notes.txt"},
+                            "fileType": "text",
+                        }
+                    ]
+                }
+
+        assert [f.kind for f in Files({}).item_files("li_1")] == ["other"]

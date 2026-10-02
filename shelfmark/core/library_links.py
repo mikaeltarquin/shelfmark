@@ -89,3 +89,42 @@ def library_link_name(
     except ValueError:
         return host.removeprefix("www.")
     return fallback
+
+
+def _with_scheme(url: str) -> str:
+    url = url.strip().rstrip("/")
+    return url if "://" in url else f"http://{url}"
+
+
+def library_item_url(
+    source: str,
+    item_id: str,
+    *,
+    audiobookshelf_url: object = None,
+    link_urls: tuple[object, ...] = (),
+) -> str | None:
+    """A link that opens one library item in the app that serves it, or None.
+
+    ``link_urls`` are the header's library links. One that names the right app (by the
+    rules of :func:`library_link_name`) wins, since it is the address a browser reaches;
+    the Audiobookshelf server Shelfmark reads is the fallback for Audiobookshelf items.
+    Calibre's book ids are Calibre-Web's, so a Calibre book opens there.
+    """
+    app, route = {
+        "audiobookshelf": ("Audiobookshelf", "item"),
+        "calibre": ("Calibre-Web", "book"),
+    }.get(source, (None, None))
+    if app is None or not item_id:
+        return None
+    for url in link_urls:
+        if not isinstance(url, str) or not url.strip():
+            continue
+        if library_link_name(url, audiobookshelf_url=audiobookshelf_url) == app:
+            return f"{_with_scheme(url)}/{route}/{item_id}"
+    if (
+        source == "audiobookshelf"
+        and isinstance(audiobookshelf_url, str)
+        and audiobookshelf_url.strip()
+    ):
+        return f"{_with_scheme(audiobookshelf_url)}/item/{item_id}"
+    return None

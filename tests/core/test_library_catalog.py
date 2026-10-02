@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from shelfmark.core import library_catalog
-from shelfmark.core.library_providers import LibraryEntry, LibraryItem
+from shelfmark.core.library_providers import LibraryEntry, LibraryFile, LibraryItem
 from shelfmark.core.library_providers import calibre as calibre_module
 from shelfmark.core.library_providers.audiobookshelf import entry_from_item
 from shelfmark.core.text_match import tokens
@@ -307,6 +307,23 @@ class TestRoutes:
         client = _client(main_module, is_admin=False)
         assert client.get("/api/library/books").status_code == 403
         assert client.get("/api/library/cover/calibre/1").status_code == 403
+        assert client.get("/api/library/files/calibre/1").status_code == 403
+
+    def test_files(self, main_module, monkeypatch):
+        provider = calibre_module.CalibreLibrary()
+        monkeypatch.setattr(
+            provider,
+            "item_files",
+            lambda item_id: [LibraryFile("a.epub", "/lib/a/a.epub", "ebook", 12)],
+        )
+        entry = _entry("calibre", "1", "The Martian")
+        monkeypatch.setattr(
+            library_catalog, "find_entry", lambda source, item_id: (provider, entry)
+        )
+        body = _client(main_module, is_admin=True).get("/api/library/files/calibre/1").get_json()
+        assert body == {
+            "files": [{"name": "a.epub", "path": "/lib/a/a.epub", "kind": "ebook", "size": 12}]
+        }
 
     def test_cover_falls_back_to_metadata_provider(self, main_module, monkeypatch):
         entry = _entry("calibre", "1", "The Martian", has_cover=False)

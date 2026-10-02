@@ -9,7 +9,7 @@ import { isMetadataBook } from '../types';
 import { bookSupportsTargets } from '../utils/bookTargetLoader';
 import { isUserCancelledError } from '../utils/errors';
 import { BookTargetDropdown } from './BookTargetDropdown';
-import { LibraryBadge, isInLibrary } from './shared';
+import { LibraryBadge, LibraryHoldings, isInLibrary } from './shared';
 
 interface DetailsModalProps {
   book: Book | null;
@@ -294,9 +294,14 @@ export const DetailsModal = ({
                 </div>
 
                 {isMetadata && isInLibrary(book.library) && (
-                  <div className={`${infoCardClass} space-y-1`}>
-                    <p className={infoLabelClass}>Library</p>
-                    <LibraryBadge library={book.library} sources={book.library_sources} />
+                  <div className={`${infoCardClass} space-y-2`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={infoLabelClass}>Library</p>
+                      <LibraryBadge library={book.library} sources={book.library_sources} />
+                    </div>
+                    {book.library_holdings && book.library_holdings.length > 0 && (
+                      <LibraryHoldings holdings={book.library_holdings} />
+                    )}
                   </div>
                 )}
 

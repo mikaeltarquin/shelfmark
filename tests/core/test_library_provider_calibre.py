@@ -316,3 +316,50 @@ def test_fingerprint_follows_the_database_and_wal_mtime(
     os.utime(wal, (later, later))
 
     assert provider.fingerprint() == later
+
+
+def _make_library_with_files(path: Path) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        CREATE TABLE books (id INTEGER PRIMARY KEY, title TEXT NOT NULL, path TEXT,
+            timestamp TEXT, pubdate TEXT, has_cover INTEGER, series_index REAL);
+        CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_authors_link (id INTEGER PRIMARY KEY, book INTEGER, author INTEGER);
+        CREATE TABLE series (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_series_link (id INTEGER PRIMARY KEY, book INTEGER, series INTEGER);
+        CREATE TABLE identifiers (id INTEGER PRIMARY KEY, book INTEGER, type TEXT, val TEXT);
+        CREATE TABLE data (id INTEGER PRIMARY KEY, book INTEGER, format TEXT, name TEXT,
+            uncompressed_size INTEGER);
+        INSERT INTO books VALUES (7, 'The Martian', 'Andy Weir/The Martian (7)',
+            '2024-01-01 00:00:00+00:00', '2014-02-11', 0, 1);
+        INSERT INTO data(book, format, name, uncompressed_size) VALUES
+            (7, 'EPUB', 'The Martian - Andy Weir', 1000),
+            (7, 'AZW3', 'The Martian - Andy Weir', 3000);
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_indexes_the_folder_and_formats_and_lists_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "metadata.db"
+    _make_library_with_files(path)
+    _configure(monkeypatch, path)
+    library = calibre.CalibreLibrary()
+
+    [entry] = library.fetch_entries()
+    assert entry.item is not None
+    assert entry.item.path == str(tmp_path / "Andy Weir/The Martian (7)")
+    assert entry.item.file_formats == ("azw3", "epub")
+    assert entry.item.size == 4000
+
+    files = library.item_files("7")
+    assert [(f.name, f.kind, f.size) for f in files] == [
+        ("The Martian - Andy Weir.azw3", "ebook", 3000),
+        ("The Martian - Andy Weir.epub", "ebook", 1000),
+    ]
+    assert files[1].path == str(tmp_path / "Andy Weir/The Martian (7)/The Martian - Andy Weir.epub")
+    assert library.item_files("8") == []
