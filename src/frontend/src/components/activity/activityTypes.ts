@@ -40,6 +40,8 @@ export interface ActivityItem {
   downloadBookId?: string;
   downloadRetryAvailable?: boolean;
   downloadPath?: string;
+  bookKey?: string; // The metadata book it was downloaded for ("hardcover:42")
+  contentType?: string;
   requestId?: number;
   requestLevel?: 'book' | 'release';
   requestNote?: string;

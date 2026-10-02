@@ -16,6 +16,8 @@ interface ActivitySidebarProps {
   status: StatusData;
   isAdmin: boolean;
   onClearCompleted: (items: ActivityDismissTarget[]) => void;
+  /** Opens an item's book details. */
+  onOpenDetails?: (item: ActivityItem) => void;
   onCancel: (id: string) => void;
   onRetry?: (id: string) => void;
   onDownloadDismiss?: (bookId: string, linkedRequestId?: number) => void;
@@ -237,6 +239,7 @@ export const ActivitySidebar = ({
   status,
   isAdmin,
   onClearCompleted,
+  onOpenDetails,
   onCancel,
   onRetry,
   onDownloadDismiss,
@@ -873,7 +876,13 @@ export const ActivitySidebar = ({
             return (
               <div className="divide-y divide-[color-mix(in_srgb,var(--border-muted)_60%,transparent)]">
                 {visibleItems.map((item) => (
-                  <ActivityCard key={item.id} item={item} isAdmin={isAdmin} />
+                  <ActivityCard
+                    key={item.id}
+                    item={item}
+                    isAdmin={isAdmin}
+                    onDownloadRetry={onRetry}
+                    onOpenDetails={onOpenDetails}
+                  />
                 ))}
                 {historyHasMore && (
                   <div className="pt-3 text-center">
@@ -953,6 +962,7 @@ export const ActivitySidebar = ({
                           onDownloadCancel={onCancel}
                           onDownloadRetry={onRetry}
                           onDownloadDismiss={onDownloadDismiss}
+                          onOpenDetails={onOpenDetails}
                           onRequestCancel={
                             onRequestCancel
                               ? (nextRequestId) => {

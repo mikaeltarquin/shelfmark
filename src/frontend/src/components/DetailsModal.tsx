@@ -20,7 +20,49 @@ interface DetailsModalProps {
   buttonState: ButtonStateInfo;
   showReleaseSourceLinks?: boolean;
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
+  /** A note above the details, e.g. that this book's download failed, with an action. */
+  notice?: DetailsNotice | null;
 }
+
+export interface DetailsNotice {
+  tone: 'error' | 'info';
+  title: string;
+  detail?: string;
+  actionLabel?: string;
+  onAction?: () => Promise<void>;
+}
+
+const NoticeBanner = ({ notice }: { notice: DetailsNotice }) => {
+  const [busy, setBusy] = useState(false);
+  const tone =
+    notice.tone === 'error'
+      ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200'
+      : 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200';
+  const { onAction } = notice;
+  return (
+    <div
+      className={`mb-5 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{notice.title}</p>
+        {notice.detail && <p className="text-xs opacity-80">{notice.detail}</p>}
+      </div>
+      {notice.actionLabel && onAction && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void onAction().finally(() => setBusy(false));
+          }}
+          className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+        >
+          {busy ? 'Working…' : notice.actionLabel}
+        </button>
+      )}
+    </div>
+  );
+};
 
 interface DetailsModalAutoCloseProps {
   clearQueuing: () => void;
@@ -46,6 +88,7 @@ export const DetailsModal = ({
   buttonState,
   showReleaseSourceLinks = true,
   onShowToast,
+  notice,
 }: DetailsModalProps) => {
   const [isQueuing, setIsQueuing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -201,6 +244,7 @@ export const DetailsModal = ({
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+            {notice && <NoticeBanner notice={notice} />}
             <div className="flex flex-col gap-6 lg:min-h-0 lg:flex-row lg:items-stretch lg:gap-8">
               <div className="flex w-full justify-center lg:w-auto lg:flex-none lg:justify-start lg:self-stretch lg:pr-4">
                 {book.preview ? (

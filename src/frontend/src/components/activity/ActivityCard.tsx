@@ -39,6 +39,8 @@ interface ActivityCardProps {
   isRequestRejectOpen?: boolean;
   onRequestRejectClose?: () => void;
   isSelected?: boolean;
+  /** Opens the book's details (info, library copies, and Retry for a failed download). */
+  onOpenDetails?: (item: ActivityItem) => void;
 }
 
 const BookFallback = () => (
@@ -493,6 +495,7 @@ export const ActivityCard = ({
   isRequestRejectOpen = false,
   onRequestRejectClose,
   isSelected = false,
+  onOpenDetails,
 }: ActivityCardProps) => {
   const model = useMemo(() => buildActivityCardModel(item, isAdmin), [item, isAdmin]);
   const noteLine = model.noteLine;
@@ -689,19 +692,27 @@ export const ActivityCard = ({
     Boolean(item.downloadBookId) &&
     Boolean(item.downloadPath);
 
-  const titleNode =
-    canShowDownloadLink && item.downloadBookId ? (
-      <Tooltip content="Download file" position="top" delay={0}>
-        <a
-          href={withBasePath(`/api/localdownload?id=${encodeURIComponent(item.downloadBookId)}`)}
-          className="text-sky-600 hover:underline"
-        >
-          {item.title}
-        </a>
-      </Tooltip>
-    ) : (
-      item.title
-    );
+  const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
+  const titleNode = openDetails ? (
+    <button
+      type="button"
+      onClick={openDetails}
+      className="text-left hover:underline focus-visible:underline"
+    >
+      {item.title}
+    </button>
+  ) : (
+    item.title
+  );
+  const cover = item.preview ? (
+    <img
+      src={item.preview}
+      alt={`${item.title} cover`}
+      className="h-full w-full object-cover object-top"
+    />
+  ) : (
+    <BookFallback />
+  );
 
   return (
     <div className={`-mx-4 cursor-default px-4 py-2 ${isSelected ? 'relative' : 'hover-row'}`}>
@@ -713,17 +724,20 @@ export const ActivityCard = ({
       )}
       <div className="flex items-start gap-3">
         {/* Artwork */}
-        <div className="h-18 w-12 shrink-0 overflow-hidden rounded-sm bg-gray-200 dark:bg-gray-700">
-          {item.preview ? (
-            <img
-              src={item.preview}
-              alt={`${item.title} cover`}
-              className="h-full w-full object-cover object-top"
-            />
-          ) : (
-            <BookFallback />
-          )}
-        </div>
+        {openDetails ? (
+          <button
+            type="button"
+            onClick={openDetails}
+            aria-label={`Details: ${item.title}`}
+            className="h-18 w-12 shrink-0 overflow-hidden rounded-sm bg-gray-200 transition-opacity hover:opacity-80 dark:bg-gray-700"
+          >
+            {cover}
+          </button>
+        ) : (
+          <div className="h-18 w-12 shrink-0 overflow-hidden rounded-sm bg-gray-200 dark:bg-gray-700">
+            {cover}
+          </div>
+        )}
 
         {/* Content */}
         <div className="min-w-0 flex-1 py-0.5">
@@ -743,6 +757,32 @@ export const ActivityCard = ({
               </Tooltip>
             </div>
             <div className="-my-1 inline-flex shrink-0 items-center gap-1">
+              {canShowDownloadLink && item.downloadBookId && (
+                <Tooltip content="Save file to this device" delay={0} position="bottom">
+                  <a
+                    href={withBasePath(
+                      `/api/localdownload?id=${encodeURIComponent(item.downloadBookId)}`,
+                    )}
+                    aria-label="Save file to this device"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-sky-100 hover:text-sky-600 dark:hover:bg-sky-900/30 dark:hover:text-sky-400"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
+                      />
+                    </svg>
+                  </a>
+                </Tooltip>
+              )}
               {actions.map((action) => {
                 const config = actionUiConfig(action);
                 const icon =
