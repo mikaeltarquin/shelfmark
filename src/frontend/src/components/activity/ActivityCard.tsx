@@ -3,6 +3,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { RequestRecord } from '../../types';
 import { withBasePath } from '../../utils/basePath';
+import { LibraryAppIcon } from '../shared/LibraryAppIcon';
 import { Tooltip } from '../shared/Tooltip';
 import type { ActivityCardAction } from './activityCardModel';
 import { buildActivityCardModel } from './activityCardModel';
@@ -41,6 +42,8 @@ interface ActivityCardProps {
   isSelected?: boolean;
   /** Opens the book's details (info, library copies, and Retry for a failed download). */
   onOpenDetails?: (item: ActivityItem) => void;
+  /** Opens a finished download in its library app (Audiobookshelf, Calibre-Web). */
+  onOpenInLibrary?: (item: ActivityItem) => void;
 }
 
 const BookFallback = () => (
@@ -506,6 +509,7 @@ export const ActivityCard = ({
   onRequestRejectClose,
   isSelected = false,
   onOpenDetails,
+  onOpenInLibrary,
 }: ActivityCardProps) => {
   const model = useMemo(() => buildActivityCardModel(item, isAdmin), [item, isAdmin]);
   const noteLine = model.noteLine;
@@ -767,6 +771,17 @@ export const ActivityCard = ({
               </Tooltip>
             </div>
             <div className="-my-1 inline-flex shrink-0 items-center gap-1">
+              {onOpenInLibrary && item.kind === 'download' && item.visualStatus === 'complete' && (
+                <Tooltip content="Open in your library" delay={0} position="bottom">
+                  <IconButton
+                    title="Open in your library"
+                    className="text-gray-500 hover:bg-sky-100 hover:text-sky-600 dark:hover:bg-sky-900/30 dark:hover:text-sky-400"
+                    onClick={() => onOpenInLibrary(item)}
+                  >
+                    <LibraryAppIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
               {item.infoUrl && (
                 <Tooltip
                   content={`Open on ${sourcePageName(item.infoUrl)}`}

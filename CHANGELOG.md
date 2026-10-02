@@ -5,6 +5,11 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Open a finished download in your library**: completed rows in Activity have an
+  "Open in your library" button that opens the book in Audiobookshelf or Calibre-Web
+  (the copy in the format downloaded). Every link out to a library app (the header
+  buttons, the details' "Open in Audiobookshelf", this button) now shares one icon,
+  books on a shelf with an arrow, apart from the Library browser and source-page links.
 - **Open a download's source page from Activity**: every download row (queued, done,
   failed, in History) has a button that opens the release's page at its source, such as
   the torrent's page on MyAnonamouse, to grab it by hand when a link has expired.

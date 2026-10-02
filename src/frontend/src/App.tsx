@@ -101,7 +101,7 @@ import type {
 } from './types';
 import { isMetadataBook } from './types';
 import { formatActingAsUserName } from './utils/actingAsUser';
-import { findActivityBook } from './utils/activityBook';
+import { findActivityBook, findLibraryLink } from './utils/activityBook';
 import { buildLoginRedirectPath, getReturnToFromSearch } from './utils/authRedirect';
 import { withBasePath } from './utils/basePath';
 import { emitBookTargetChange } from './utils/bookTargetEvents';
@@ -1648,6 +1648,31 @@ function App() {
   };
 
   // An Activity row opens its book's details, with a note and Retry for a failed download.
+  // A finished download opens in its library app. The tab opens at once (a tab opened
+  // after the lookup would be taken for a popup) and goes there, or closes if it's not
+  // in the library yet.
+  const handleOpenInLibrary = async (item: ActivityItem) => {
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    try {
+      const url = await findLibraryLink(item);
+      if (url && tab) {
+        tab.location.href = url;
+        return;
+      }
+      tab?.close();
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      showToast(`"${item.title}" isn't in your library yet. It may still be scanning.`, 'info');
+    } catch (error) {
+      tab?.close();
+      console.error('Could not find the book in the library:', error);
+      showToast('Could not look up the book in your library', 'error');
+    }
+  };
+
   const handleOpenActivityDetails = async (item: ActivityItem) => {
     const failed =
       item.kind === 'download' &&
@@ -3120,6 +3145,13 @@ function App() {
             onOpenDetails={(item) => {
               void handleOpenActivityDetails(item);
             }}
+            onOpenInLibrary={
+              requestRoleIsAdmin
+                ? (item) => {
+                    void handleOpenInLibrary(item);
+                  }
+                : undefined
+            }
             onCancel={(id) => {
               void handleCancel(id);
             }}

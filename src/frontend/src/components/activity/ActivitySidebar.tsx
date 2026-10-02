@@ -18,6 +18,8 @@ interface ActivitySidebarProps {
   onClearCompleted: (items: ActivityDismissTarget[]) => void;
   /** Opens an item's book details. */
   onOpenDetails?: (item: ActivityItem) => void;
+  /** Opens a finished download in its library app. */
+  onOpenInLibrary?: (item: ActivityItem) => void;
   onCancel: (id: string) => void;
   onRetry?: (id: string) => void;
   onDownloadDismiss?: (bookId: string, linkedRequestId?: number) => void;
@@ -240,6 +242,7 @@ export const ActivitySidebar = ({
   isAdmin,
   onClearCompleted,
   onOpenDetails,
+  onOpenInLibrary,
   onCancel,
   onRetry,
   onDownloadDismiss,
@@ -882,6 +885,7 @@ export const ActivitySidebar = ({
                     isAdmin={isAdmin}
                     onDownloadRetry={onRetry}
                     onOpenDetails={onOpenDetails}
+                    onOpenInLibrary={onOpenInLibrary}
                   />
                 ))}
                 {historyHasMore && (
@@ -963,6 +967,7 @@ export const ActivitySidebar = ({
                           onDownloadRetry={onRetry}
                           onDownloadDismiss={onDownloadDismiss}
                           onOpenDetails={onOpenDetails}
+                          onOpenInLibrary={onOpenInLibrary}
                           onRequestCancel={
                             onRequestCancel
                               ? (nextRequestId) => {

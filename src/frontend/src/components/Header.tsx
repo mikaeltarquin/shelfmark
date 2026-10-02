@@ -18,6 +18,7 @@ import { DropdownList } from './DropdownList';
 import { MamHeaderButton } from './MamHeaderButton';
 import type { SearchBarHandle, SuggestionPickResult } from './SearchBar';
 import { SearchBar } from './SearchBar';
+import { LibraryAppIcon } from './shared/LibraryAppIcon';
 
 interface HeaderHandle {
   submitSearch: () => void;
@@ -346,20 +347,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
             aria-label={`Open ${calibreWebName}`}
             title={calibreWebName}
           >
-            <svg
-              className="h-5 w-5"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-              />
-            </svg>
+            <LibraryAppIcon className="h-5 w-5" />
             <span className={linkLabelClass}>{calibreWebName}</span>
           </a>
         )}
@@ -374,20 +362,7 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
             aria-label={`Open ${audiobookLibraryName}`}
             title={audiobookLibraryName}
           >
-            <svg
-              className="h-5 w-5"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
-              />
-            </svg>
+            <LibraryAppIcon className="h-5 w-5" />
             <span className={linkLabelClass}>{audiobookLibraryName}</span>
           </a>
         )}
