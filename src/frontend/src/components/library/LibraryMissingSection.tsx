@@ -21,7 +21,7 @@ export interface LibraryBookActions {
 // Provider lookups are remembered for the session, so revisiting a page is instant.
 const lookups = new Map<string, Promise<LibraryMissingResult>>();
 
-const lookup = (
+export const lookupMissing = (
   kind: 'author' | 'series',
   name: string,
   contentType: ContentType,
@@ -60,7 +60,7 @@ export const LibraryMissingSection = ({ kind, name, actions }: LibraryMissingSec
 
   const load = (contentType: ContentType) => {
     setError(null);
-    lookup(kind, name, contentType)
+    lookupMissing(kind, name, contentType)
       .then((loaded) => setResults((current) => ({ ...current, [contentType]: loaded })))
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not list missing books');

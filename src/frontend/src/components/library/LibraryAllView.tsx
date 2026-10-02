@@ -7,16 +7,24 @@ import {
   type LibraryFormatFilter,
   type LibrarySort,
 } from '../../utils/libraryBrowser';
+import { loadStoredPrefs, saveStoredPrefs } from '../../utils/libraryPrefs';
+import { ownedRow } from '../../utils/libraryRows';
 import type { LibraryCardActions } from './LibraryBookCard';
 import { LibraryBookGrid } from './LibraryBookGrid';
+import { LibraryBookTable } from './LibraryBookTable';
+import {
+  FormatSelect,
+  LayoutToggle,
+  isLayout,
+  tableShellClass,
+  tableShellStyle,
+  type LibraryLayout,
+} from './LibraryControls';
+import type { LibraryBookActions } from './LibraryMissingSection';
 import { inputClass } from './libraryStyles';
 
-const FORMAT_OPTIONS: Array<{ value: LibraryFormatFilter; label: string }> = [
-  { value: 'any', label: 'All formats' },
-  { value: 'ebook', label: 'Ebook' },
-  { value: 'audiobook', label: 'Audiobook' },
-  { value: 'both', label: 'Both' },
-];
+const PREFS_KEY = 'shelfmark.library.all';
+const TABLE_PAGE_SIZE = 200;
 
 const SORT_OPTIONS: Array<{ value: LibrarySort; label: string }> = [
   { value: 'title', label: 'Title' },
@@ -24,29 +32,35 @@ const SORT_OPTIONS: Array<{ value: LibrarySort; label: string }> = [
   { value: 'added', label: 'Recently added' },
 ];
 
-const isFormatFilter = (value: string): value is LibraryFormatFilter =>
-  FORMAT_OPTIONS.some((option) => option.value === value);
-
 const isSort = (value: string): value is LibrarySort =>
   SORT_OPTIONS.some((option) => option.value === value);
+
+const loadView = (): LibraryLayout => {
+  const view: unknown = Reflect.get(loadStoredPrefs(PREFS_KEY) ?? {}, 'view');
+  return isLayout(view) ? view : 'grid';
+};
 
 interface LibraryAllViewProps {
   books: LibraryBook[];
   onAuthorClick: (author: string) => void;
   onSeriesClick: (series: string) => void;
   cardActions: LibraryCardActions;
+  actions: LibraryBookActions;
 }
 
-/** Every book, with a text filter, a format filter and sorting. */
+/** Every book, as covers or a table, with a text filter, a format filter and sorting. */
 export const LibraryAllView = ({
   books,
   onAuthorClick,
   onSeriesClick,
   cardActions,
+  actions,
 }: LibraryAllViewProps) => {
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<LibraryFormatFilter>('any');
   const [sort, setSort] = useState<LibrarySort>('title');
+  const [view, setView] = useState<LibraryLayout>(loadView);
+  const [shown, setShown] = useState(TABLE_PAGE_SIZE);
 
   const visible = useMemo(
     () => sortLibraryBooks(filterLibraryBooks(books, { query, format }), sort),
@@ -59,26 +73,21 @@ export const LibraryAllView = ({
         <input
           type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setShown(TABLE_PAGE_SIZE);
+          }}
           placeholder="Filter by title, author, series or narrator"
           aria-label="Filter books"
           className={`${inputClass} w-full sm:w-auto sm:max-w-sm sm:flex-1`}
         />
-        <select
+        <FormatSelect
           value={format}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (isFormatFilter(value)) setFormat(value);
+          onChange={(next) => {
+            setFormat(next);
+            setShown(TABLE_PAGE_SIZE);
           }}
-          aria-label="Format"
-          className={inputClass}
-        >
-          {FORMAT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        />
         <select
           value={sort}
           onChange={(event) => {
@@ -94,15 +103,46 @@ export const LibraryAllView = ({
             </option>
           ))}
         </select>
+        <LayoutToggle
+          value={view}
+          onChange={(next) => {
+            setView(next);
+            saveStoredPrefs(PREFS_KEY, { view: next });
+          }}
+        />
         {(query || format !== 'any') && (
           <span className="text-xs opacity-60">
             {visible.length} of {books.length}
           </span>
         )}
       </div>
-      {visible.length === 0 ? (
-        <p className="text-sm opacity-60">No books match these filters.</p>
-      ) : (
+      {visible.length === 0 && <p className="text-sm opacity-60">No books match these filters.</p>}
+      {visible.length > 0 && view === 'table' && (
+        <>
+          <div className={tableShellClass} style={tableShellStyle}>
+            <LibraryBookTable
+              rows={visible.slice(0, shown).map(ownedRow)}
+              showAdded
+              cardActions={cardActions}
+              actions={actions}
+              onAuthorClick={onAuthorClick}
+              onSeriesClick={onSeriesClick}
+            />
+          </div>
+          {visible.length > shown && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShown((count) => count + TABLE_PAGE_SIZE)}
+                className="rounded-lg border border-(--border-muted) bg-(--bg-soft) px-4 py-2 text-sm font-medium transition-colors hover:bg-(--hover-surface)"
+              >
+                Show more ({visible.length - shown} left)
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {visible.length > 0 && view === 'grid' && (
         // Keyed so a new filter starts from the first page again.
         <LibraryBookGrid
           key={`${query}|${format}|${sort}`}

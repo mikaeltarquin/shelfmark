@@ -148,6 +148,11 @@ describe('author sorting', () => {
     expect(names('books', 'asc')[0]).toBe('Neil Gaiman');
     expect(names('added', 'desc')[0]).toBe('Andy Weir');
   });
+
+  it('orders Author › Series › Book by last name', () => {
+    expect(names('series_order', 'asc')).toEqual(names('last', 'asc'));
+    expect(names('series', 'desc')[0]).toBe('Brandon Sanderson');
+  });
 });
 
 describe('series sorting', () => {

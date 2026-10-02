@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 import type { LibraryBook } from '../../types';
 import { lastFirstName } from '../../utils/authorNames';
+import { matchesFormat, type LibraryFormatFilter } from '../../utils/libraryBrowser';
 import {
   defaultAuthorSortDirection,
   groupByAuthor,
@@ -11,40 +12,71 @@ import {
   type SortDirection,
 } from '../../utils/libraryGroups';
 import { loadStoredPrefs, saveStoredPrefs } from '../../utils/libraryPrefs';
-import { LibraryFormatBadges } from './LibraryBookCard';
+import { ownedRow, rowSeriesSections, type OwnershipFilter } from '../../utils/libraryRows';
+import { LibraryFormatBadges, type LibraryCardActions } from './LibraryBookCard';
+import {
+  DirectionButton,
+  ExpandButton,
+  FormatSelect,
+  LayoutToggle,
+  OwnershipToggle,
+  PlainHeader,
+  SortHeader,
+  isFormatFilter,
+  isLayout,
+  isOwnershipFilter,
+  rowClass,
+  tableShellClass,
+  tableShellStyle,
+  type LibraryLayout,
+} from './LibraryControls';
+import { LibraryGroupBooks, missingLookupType } from './LibraryGroupBooks';
 import { LibraryGroupCard } from './LibraryGroupCard';
-import { inputClass, segmentClass } from './libraryStyles';
-
-type AuthorView = 'grid' | 'table';
+import type { LibraryBookActions } from './LibraryMissingSection';
+import { inputClass } from './libraryStyles';
 
 interface AuthorPrefs {
   sort: AuthorSortField;
   direction: SortDirection;
-  view: AuthorView;
+  view: LibraryLayout;
+  ownership: OwnershipFilter;
+  format: LibraryFormatFilter;
 }
 
 const PREFS_KEY = 'shelfmark.library.authors';
-const DEFAULT_PREFS: AuthorPrefs = { sort: 'first', direction: 'asc', view: 'grid' };
+const DEFAULT_PREFS: AuthorPrefs = {
+  sort: 'first',
+  direction: 'asc',
+  view: 'grid',
+  ownership: 'owned',
+  format: 'any',
+};
 
 const SORT_OPTIONS: Array<{ value: AuthorSortField; label: string }> = [
   { value: 'first', label: 'First Last' },
   { value: 'last', label: 'Last, First' },
+  { value: 'series_order', label: 'Author › Series › Book' },
   { value: 'books', label: 'Books' },
-  { value: 'series', label: 'Series' },
   { value: 'added', label: 'Recently added' },
 ];
 
+// "Series" (the count) is a table column, not a menu choice.
 const isSortField = (value: unknown): value is AuthorSortField =>
-  SORT_OPTIONS.some((option) => option.value === value);
+  value === 'series' || SORT_OPTIONS.some((option) => option.value === value);
 
 const loadPrefs = (): AuthorPrefs => {
   const raw = loadStoredPrefs(PREFS_KEY);
   if (!raw) return DEFAULT_PREFS;
   const sort: unknown = Reflect.get(raw, 'sort');
+  const view: unknown = Reflect.get(raw, 'view');
+  const ownership: unknown = Reflect.get(raw, 'ownership');
+  const format: unknown = Reflect.get(raw, 'format');
   return {
     sort: isSortField(sort) ? sort : DEFAULT_PREFS.sort,
     direction: Reflect.get(raw, 'direction') === 'desc' ? 'desc' : 'asc',
-    view: Reflect.get(raw, 'view') === 'table' ? 'table' : 'grid',
+    view: isLayout(view) ? view : DEFAULT_PREFS.view,
+    ownership: isOwnershipFilter(ownership) ? ownership : DEFAULT_PREFS.ownership,
+    format: isFormatFilter(format) ? format : DEFAULT_PREFS.format,
   };
 };
 
@@ -58,49 +90,41 @@ const groupDetail = (group: LibraryAuthorGroup): string =>
     ? `${plural(group.books.length, 'book')} · ${group.seriesCount} series`
     : plural(group.books.length, 'book');
 
-interface SortHeaderProps {
-  label: string;
-  field: AuthorSortField;
-  prefs: AuthorPrefs;
-  onSort: (field: AuthorSortField) => void;
-  align?: 'left' | 'right';
+// Author › Series › Book: the cover strip follows the same order as the opened row.
+const inSeriesOrder = (books: LibraryBook[]): LibraryBook[] =>
+  rowSeriesSections(books.map(ownedRow)).flatMap((section) =>
+    section.rows.flatMap((row) => (row.kind === 'owned' ? [row.book] : [])),
+  );
+
+interface LibraryAuthorsViewProps {
+  books: LibraryBook[];
+  onOpen: (author: string) => void;
+  onSeriesClick: (series: string) => void;
+  actions: LibraryBookActions;
+  cardActions: LibraryCardActions;
 }
 
-const SortHeader = ({ label, field, prefs, onSort, align = 'left' }: SortHeaderProps) => {
-  const active = prefs.sort === field;
-  let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
-  if (active) ariaSort = prefs.direction === 'asc' ? 'ascending' : 'descending';
-  return (
-    <th
-      scope="col"
-      aria-sort={ariaSort}
-      className={`px-3 py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(field)}
-        className={`inline-flex items-center gap-1 hover:underline ${active ? '' : 'opacity-70'}`}
-      >
-        {label}
-        {active && <span aria-hidden="true">{prefs.direction === 'asc' ? '▲' : '▼'}</span>}
-      </button>
-    </th>
-  );
-};
-
-/** Every author, as cards or a sortable table. */
+/** Every author, as cards or a sortable table whose rows open onto their books. */
 export const LibraryAuthorsView = ({
   books,
   onOpen,
-}: {
-  books: LibraryBook[];
-  onOpen: (author: string) => void;
-}) => {
+  onSeriesClick,
+  actions,
+  cardActions,
+}: LibraryAuthorsViewProps) => {
   const [query, setQuery] = useState('');
   const [prefs, setPrefs] = useState<AuthorPrefs>(loadPrefs);
-  const groups = useMemo(() => groupByAuthor(books), [books]);
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const seriesOrder = prefs.sort === 'series_order';
 
-  const lastFirst = prefs.sort === 'last';
+  // Grouped from the books in the chosen format, so counts and covers agree with the filter.
+  const groups = useMemo(() => {
+    const ownedOnly = prefs.ownership === 'owned' || prefs.view === 'grid';
+    const shelf = ownedOnly ? books.filter((book) => matchesFormat(book, prefs.format)) : books;
+    return groupByAuthor(shelf);
+  }, [books, prefs.format, prefs.ownership, prefs.view]);
+
+  const lastFirst = prefs.sort === 'last' || seriesOrder;
   const displayName = (group: LibraryAuthorGroup) =>
     lastFirst ? lastFirstName(group.name) : group.name;
 
@@ -119,6 +143,16 @@ export const LibraryAuthorsView = ({
     const merged = { ...prefs, ...next };
     setPrefs(merged);
     saveStoredPrefs(PREFS_KEY, merged);
+    // "Get" on a missing book follows the format looked at, as on the author page.
+    const wantsMissing = merged.ownership !== 'owned' && merged.view === 'table';
+    const lookupType = missingLookupType(merged.format, actions);
+    if (
+      wantsMissing &&
+      lookupType !== actions.contentType &&
+      actions.allowedContentTypes.includes(lookupType)
+    ) {
+      actions.onContentTypeChange(lookupType);
+    }
   };
   // Picking a field starts it in its natural direction; picking it again flips it.
   const sortBy = (field: AuthorSortField) =>
@@ -127,7 +161,16 @@ export const LibraryAuthorsView = ({
         ? { direction: prefs.direction === 'asc' ? 'desc' : 'asc' }
         : { sort: field, direction: defaultAuthorSortDirection(field) },
     );
-  const nameField: AuthorSortField = lastFirst ? 'last' : 'first';
+  const nameField: AuthorSortField = prefs.sort === 'first' ? 'first' : 'last';
+  const toggle = (name: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  // Opened rows remount when the filters change, so missing books are looked up again.
+  const filterKey = `${prefs.ownership}|${missingLookupType(prefs.format, actions)}`;
 
   return (
     <div className="space-y-5">
@@ -151,44 +194,43 @@ export const LibraryAuthorsView = ({
           aria-label="Sort authors by"
           className={inputClass}
         >
+          {prefs.sort === 'series' && <option value="series">Sort: Series count</option>}
           {SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               Sort: {option.label}
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          onClick={() => update({ direction: prefs.direction === 'asc' ? 'desc' : 'asc' })}
-          className={`${inputClass} hover:bg-(--hover-surface)`}
-          aria-label={
-            prefs.direction === 'asc'
-              ? 'Ascending, switch to descending'
-              : 'Descending, switch to ascending'
-          }
-          title={prefs.direction === 'asc' ? 'Ascending' : 'Descending'}
-        >
-          {prefs.direction === 'asc' ? '↑ Asc' : '↓ Desc'}
-        </button>
-        <div className="flex gap-1" role="group" aria-label="Layout">
+        <DirectionButton value={prefs.direction} onChange={(direction) => update({ direction })} />
+        <FormatSelect
+          value={prefs.format}
+          ownership={prefs.view === 'table' ? prefs.ownership : 'owned'}
+          onChange={(format) => update({ format })}
+        />
+        <LayoutToggle value={prefs.view} onChange={(view) => update({ view })} />
+        {prefs.view === 'table' && (
+          <OwnershipToggle
+            value={prefs.ownership}
+            onChange={(ownership) => update({ ownership })}
+          />
+        )}
+        {prefs.view === 'table' && open.size > 0 && (
           <button
             type="button"
-            className={segmentClass(prefs.view === 'grid')}
-            aria-pressed={prefs.view === 'grid'}
-            onClick={() => update({ view: 'grid' })}
+            onClick={() => setOpen(new Set())}
+            className="text-xs font-medium opacity-60 hover:opacity-100"
           >
-            Grid
+            Collapse all
           </button>
-          <button
-            type="button"
-            className={segmentClass(prefs.view === 'table')}
-            aria-pressed={prefs.view === 'table'}
-            onClick={() => update({ view: 'table' })}
-          >
-            Table
-          </button>
-        </div>
+        )}
       </div>
+
+      {prefs.view === 'table' && prefs.ownership !== 'owned' && (
+        <p className="text-xs opacity-60">
+          Open an author to see the books the metadata provider lists that your library lacks,
+          alongside your own.
+        </p>
+      )}
 
       {visible.length === 0 && <p className="text-sm opacity-60">No authors match.</p>}
 
@@ -199,7 +241,7 @@ export const LibraryAuthorsView = ({
               key={group.name}
               title={displayName(group)}
               detail={groupDetail(group)}
-              books={group.books}
+              books={seriesOrder ? inSeriesOrder(group.books) : group.books}
               formats={group.formats}
               onOpen={() => onOpen(group.name)}
             />
@@ -208,78 +250,109 @@ export const LibraryAuthorsView = ({
       )}
 
       {visible.length > 0 && prefs.view === 'table' && (
-        <div className="overflow-x-auto rounded-xl" style={{ background: 'var(--bg-soft)' }}>
+        <div className={tableShellClass} style={tableShellStyle}>
           <table className="w-full text-sm">
             <thead className="border-b border-(--border-muted)">
               <tr>
+                <th scope="col" className="w-8">
+                  <span className="sr-only">Open</span>
+                </th>
                 <SortHeader
                   label={lastFirst ? 'Author (Last, First)' : 'Author'}
                   field={nameField}
-                  prefs={prefs}
+                  sort={prefs.sort === 'series_order' ? 'last' : prefs.sort}
+                  direction={prefs.direction}
                   onSort={sortBy}
                 />
                 <SortHeader
                   label="Books"
                   field="books"
-                  prefs={prefs}
+                  sort={prefs.sort}
+                  direction={prefs.direction}
                   onSort={sortBy}
                   align="right"
                 />
-                <th scope="col" className="px-3 py-2 text-right font-medium opacity-70">
-                  Ebooks
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium opacity-70">
-                  Audiobooks
-                </th>
+                <PlainHeader label="Ebooks" align="right" className="max-sm:hidden" />
+                <PlainHeader label="Audiobooks" align="right" className="max-sm:hidden" />
                 <SortHeader
                   label="Series"
                   field="series"
-                  prefs={prefs}
+                  sort={prefs.sort}
+                  direction={prefs.direction}
                   onSort={sortBy}
                   align="right"
                 />
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-left font-medium opacity-70 max-sm:hidden"
-                >
-                  Formats
-                </th>
+                <PlainHeader label="Formats" className="max-sm:hidden" />
                 <SortHeader
                   label="Last added"
                   field="added"
-                  prefs={prefs}
+                  sort={prefs.sort}
+                  direction={prefs.direction}
                   onSort={sortBy}
                   align="right"
+                  className="max-md:hidden"
                 />
               </tr>
             </thead>
             <tbody>
-              {visible.map((group) => (
-                <tr
-                  key={group.name}
-                  className="border-b border-(--border-muted) last:border-0 hover:bg-(--hover-surface)"
-                >
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpen(group.name)}
-                      className="text-left font-medium hover:underline"
-                    >
-                      {displayName(group)}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{group.books.length}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{group.ebookCount}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{group.audiobookCount}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{group.seriesCount}</td>
-                  <td className="px-3 py-2 max-sm:hidden">
-                    <LibraryFormatBadges formats={group.formats} />
-                  </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
-                    {formatDate(group.latestAdded)}
-                  </td>
-                </tr>
-              ))}
+              {visible.map((group) => {
+                const isOpen = open.has(group.name);
+                return (
+                  <Fragment key={group.name}>
+                    <tr className={rowClass}>
+                      <td className="pl-2">
+                        <ExpandButton
+                          open={isOpen}
+                          label={group.name}
+                          onToggle={() => toggle(group.name)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(group.name)}
+                          className="text-left font-medium hover:underline"
+                        >
+                          {displayName(group)}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{group.books.length}</td>
+                      <td className="px-3 py-2 text-right tabular-nums max-sm:hidden">
+                        {group.ebookCount}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums max-sm:hidden">
+                        {group.audiobookCount}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{group.seriesCount}</td>
+                      <td className="px-3 py-2 max-sm:hidden">
+                        <LibraryFormatBadges formats={group.formats} />
+                      </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums max-md:hidden">
+                        {formatDate(group.latestAdded)}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="border-b border-(--border-muted)">
+                        <td colSpan={8} className="bg-(--bg) pl-8">
+                          <LibraryGroupBooks
+                            key={filterKey}
+                            kind="author"
+                            name={group.name}
+                            books={group.books}
+                            ownership={prefs.ownership}
+                            format={prefs.format}
+                            order={seriesOrder ? 'series' : 'year'}
+                            actions={actions}
+                            cardActions={cardActions}
+                            onAuthorClick={onOpen}
+                            onSeriesClick={onSeriesClick}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

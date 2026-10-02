@@ -5,6 +5,12 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Library views work alike**: All, Authors and Series each have a Grid and a Table
+  layout and a format filter. In the Authors and Series tables a row opens onto its
+  books, and **Owned / Missing / Owned + missing** shows the books the metadata provider
+  lists that you don't have, in line with your own (in series order, with **Get**), with
+  no need to open the author or series page. Authors' **Author › Series › Book** sort
+  (formerly "Series") orders each author's books by series, then number.
 - **What's in your library, on the book details**: for admins, the Library section now
   lists every library copy of the book, not just "Have ebook + audio". Each copy shows its
   library, format (audiobook, ebook, EPUB/AZW3…), narrator, year, length, size and
