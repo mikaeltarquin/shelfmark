@@ -55,7 +55,7 @@ import {
   FORMAT_SORT_KEY,
   sortReleasesByFormat,
 } from '../utils/releaseSort';
-import type { SavedPick } from '../utils/savedItems';
+import { combinedPicks } from '../utils/savedItems';
 import { BookDownloadButton } from './BookDownloadButton';
 import { BookTargetDropdown } from './BookTargetDropdown';
 import { Dropdown } from './Dropdown';
@@ -1456,13 +1456,7 @@ const ReleaseModalSession = ({
     selectedRelease !== null || hasCombinedActionOutsideCurrentPhase;
   // Everything picked so far in the combined flow, to save for later in one go.
   const combinedEbookPick = combinedPhase === 'ebook' ? selectedRelease : stagedEbookRelease;
-  const combinedSavePicks: SavedPick[] = [
-    ...(combinedEbookPick ? [{ content_type: 'ebook' as const, release: combinedEbookPick }] : []),
-    ...footerAudiobookReleases.map((release) => ({
-      content_type: 'audiobook' as const,
-      release,
-    })),
-  ];
+  const combinedSavePicks = combinedPicks(combinedEbookPick, footerAudiobookReleases);
   const currentCombinedPhaseLabel = combinedPhase === 'ebook' ? 'Book' : 'Audiobook';
   const nextCombinedPhaseLabel = combinedPhase === 'ebook' ? 'Audiobook' : 'Book';
   let emptyStateMessage = 'No releases found for this book.';

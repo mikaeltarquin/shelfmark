@@ -133,7 +133,7 @@ import {
   applyDirectPolicyModeToButtonState,
   applyUniversalPolicyModeToButtonState,
 } from './utils/requestPolicyUi';
-import type { SavedItem, SavedPick } from './utils/savedItems';
+import { combinedPicks, type SavedItem, type SavedPick } from './utils/savedItems';
 import { getSearchByPreference, setSearchByPreference } from './utils/searchByPreference';
 import { buildUrlSearchHash } from './utils/urlSearchHash';
 
@@ -1898,20 +1898,10 @@ function App() {
         : {
             book: releaseBook,
             contentType: 'combined',
-            picks: [
-              ...(nextCombinedState.stagedEbook
-                ? [
-                    {
-                      content_type: 'ebook' as const,
-                      release: nextCombinedState.stagedEbook.release,
-                    },
-                  ]
-                : []),
-              ...nextCombinedState.stagedAudiobooks.map((audiobook) => ({
-                content_type: 'audiobook' as const,
-                release: audiobook,
-              })),
-            ],
+            picks: combinedPicks(
+              nextCombinedState.stagedEbook?.release,
+              nextCombinedState.stagedAudiobooks,
+            ),
             onSaved: () => {
               setCombinedState(null);
               setReleaseBook(null);
