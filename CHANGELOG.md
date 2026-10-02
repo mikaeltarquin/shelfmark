@@ -5,6 +5,9 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Your copies on every book page**: the library section of the book details lists the
+  copies (format, narrator, size, folder, files, open link) wherever the details open,
+  from an Activity row, a library card or a search result alike, not only from search.
 - **Downloads wait for an unsatisfied slot instead of failing**: a MyAnonamouse torrent
   that reaches its turn with no slot free (counting **Unsatisfied Slots to Keep Free**),
   or whose grab MAM refuses at the limit, goes back to the queue as "Waiting for an

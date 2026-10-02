@@ -128,6 +128,49 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
             }
         )
 
+    @app.route("/api/library/holdings", methods=["POST"])
+    @login_required
+    @admin_only
+    def api_library_holdings() -> ResponseReturnValue:
+        """The library copies of a book, from what the client knows of it.
+
+        For the book details wherever they open (a library card, an Activity row, a
+        search result), so they can list the copies without asking the metadata
+        provider again. Matched the same way search results are marked.
+        """
+        from shelfmark.metadata_providers import BookMetadata
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "A book is required"}), 400
+        title = str(data.get("title") or "").strip()
+        if not title:
+            return jsonify({"error": "A title is required"}), 400
+
+        def text(key: str) -> str | None:
+            value = data.get(key)
+            return str(value).strip() or None if value is not None else None
+
+        authors = data.get("authors")
+        book = BookMetadata(
+            provider=text("provider") or "",
+            provider_id=text("provider_id") or "",
+            title=title,
+            authors=[str(a) for a in authors if str(a).strip()]
+            if isinstance(authors, list)
+            else [],
+            isbn_10=text("isbn_10"),
+            isbn_13=text("isbn_13"),
+            search_title=text("search_title"),
+            search_author=text("search_author"),
+        )
+        try:
+            rows = library_index.holdings_with_links(book)
+        except Exception as exc:  # noqa: BLE001 - the library check fails open
+            logger.warning("Could not list library holdings: %s", exc)
+            rows = []
+        return jsonify({"holdings": rows})
+
     @app.route("/api/library/missing", methods=["GET"])
     @login_required
     @admin_only

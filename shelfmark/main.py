@@ -55,7 +55,7 @@ from shelfmark.core.config import config as app_config
 from shelfmark.core.cwa_user_sync import upsert_cwa_user
 from shelfmark.core.download_history_service import DownloadHistoryService
 from shelfmark.core.external_user_linking import upsert_external_user
-from shelfmark.core.library_links import library_item_url, library_link_name
+from shelfmark.core.library_links import library_link_name
 from shelfmark.core.library_routes import register_library_routes
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.mam_routes import buffer_check_payload, register_mam_routes
@@ -2984,19 +2984,9 @@ def _attach_library_ownership(
     if not with_holdings or (get_auth_mode() != "none" and not session.get("is_admin", False)):
         return
     try:
-        rows = library_index.holdings(book)
+        book_dict["library_holdings"] = library_index.holdings_with_links(book)
     except Exception as exc:  # noqa: BLE001 - the library check fails open
         logger.warning("Could not list library holdings: %s", exc)
-        return
-    link_urls = (app_config.get("AUDIOBOOK_LIBRARY_URL", ""), app_config.get("CALIBRE_WEB_URL", ""))
-    for row in rows:
-        row["url"] = library_item_url(
-            row["source"],
-            row["item_id"],
-            audiobookshelf_url=app_config.get("ABS_URL", ""),
-            link_urls=link_urls,
-        )
-    book_dict["library_holdings"] = rows
 
 
 def _resolve_metadata_provider(provider_name: str) -> MetadataProvider:
