@@ -5,7 +5,7 @@ import { deleteSavedItem, getSavedItems, saveForLater } from '../services/api';
 import type { Book, ContentType, Release } from '../types';
 import { savedBookKey, type SavedItem, type SavedPick } from '../utils/savedItems';
 
-type SavedContentType = ContentType | 'combined';
+export type SavedContentType = ContentType | 'combined';
 
 export interface SavedItemsContextValue {
   items: SavedItem[];
@@ -17,7 +17,8 @@ export interface SavedItemsContextValue {
   /** Save a book with no release picked (pick one when getting it). */
   saveBook: (book: Book, contentType: SavedContentType) => Promise<void>;
   /** Save the exact releases picked for a book: one release, or an ebook and audiobooks. */
-  savePicks: (book: Book, contentType: SavedContentType, picks: SavedPick[]) => Promise<void>;
+  // Resolves true once saved; failures are shown as a toast.
+  savePicks: (book: Book, contentType: SavedContentType, picks: SavedPick[]) => Promise<boolean>;
   remove: (item: SavedItem, options?: { quiet?: boolean }) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -56,13 +57,15 @@ export const useSavedItemsStore = ({
   }, []);
 
   const store = useCallback(
-    async (book: Book, savedAs: SavedContentType, picks: SavedPick[]) => {
+    async (book: Book, savedAs: SavedContentType, picks: SavedPick[]): Promise<boolean> => {
       try {
         const saved = await saveForLater({ book, content_type: savedAs, releases: picks });
         setItems((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
         onShowToast?.(`Saved "${saved.title}" for later`, 'success');
+        return true;
       } catch (error) {
         onShowToast?.(error instanceof Error ? error.message : 'Could not save', 'error');
+        return false;
       }
     },
     [onShowToast],
@@ -88,7 +91,9 @@ export const useSavedItemsStore = ({
       contentType,
       loaded,
       savedFor: (book) => byKey.get(savedBookKey(book)),
-      saveBook: (book, savedAs) => store(book, savedAs, []),
+      saveBook: async (book, savedAs) => {
+        await store(book, savedAs, []);
+      },
       savePicks: store,
       remove,
       refresh,

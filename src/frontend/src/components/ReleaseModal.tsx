@@ -2586,7 +2586,9 @@ const ReleaseModalSession = ({
                       onClick={() => {
                         void savedItems
                           .savePicks(book, 'combined', combinedSavePicks)
-                          .then(() => handleClose());
+                          .then((saved) => {
+                            if (saved) handleClose();
+                          });
                       }}
                       className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors hover:bg-(--hover-surface)"
                       title="Save these picks and download them later"

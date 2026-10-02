@@ -7,7 +7,8 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ### Added
 - **Saved for later**: bookmark a book, one release, or a combined ebook + audiobook pick to
   download later, from search results, library cards, release lists and the combined
-  flow. Saved items live in a new **Saved** tab in Activity, per user, with **+ Get** to
+  flow, or straight from the MyAnonamouse hold-back prompt when a download doesn't fit.
+  Saved items live in a new **Saved** tab in Activity, per user, with **+ Get** to
   download them through the usual checks.
 - **When unsatisfied slots free up**: the MyAnonamouse panel and the header button's
   tooltip estimate when the next unsatisfied torrent reaches 72 hours seeded and how many

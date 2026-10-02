@@ -57,7 +57,8 @@ upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get 
 
 **Saved for later** ([docs](docs/saved-for-later.md))
 - Bookmark a book, one release, or a combined ebook + audiobook pick to download later (when
-  you're out of upload credit or unsatisfied slots, say). They wait in **Activity → Saved**,
+  you're out of upload credit or unsatisfied slots, say), including straight from the
+  hold-back prompt. They wait in **Activity → Saved**,
   per user, with **+ Get** to download them through the usual checks.
 
 **Library integration** ([docs](docs/library-check.md))

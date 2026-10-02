@@ -14,12 +14,15 @@ import {
   type UploadCreditAmount,
 } from '../utils/mamAccount';
 import type { MamBufferCheck } from '../utils/mamRatio';
+import { BookmarkIcon } from './SaveForLaterButton';
 
 interface MamBufferModalProps {
   check: MamBufferCheck;
   releases: DownloadReleasePayload[];
   // Called with true once the downloads fit (after a purchase), false to give up.
   onResolve: (proceed: boolean) => void;
+  // Saves exactly these picks for later; resolves true once saved. Hidden when absent.
+  onSaveForLater?: () => Promise<boolean>;
 }
 
 type Choice = number | 'max' | 'custom';
@@ -39,16 +42,18 @@ export const MamBufferModal = ({
   check: initialCheck,
   releases,
   onResolve,
+  onSaveForLater,
 }: MamBufferModalProps) => {
   const [check, setCheck] = useState(initialCheck);
   const [choice, setChoice] = useState<Choice>(initialCheck.recommended_gb);
   const [customValue, setCustomValue] = useState('');
   const [isBuying, setIsBuying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const cancel = useCallback(() => {
-    if (!isBuying) onResolve(false);
-  }, [isBuying, onResolve]);
+    if (!isBuying && !isSaving) onResolve(false);
+  }, [isBuying, isSaving, onResolve]);
 
   useBodyScrollLock(true);
   useEscapeKey(true, cancel);
@@ -107,6 +112,16 @@ export const MamBufferModal = ({
       setMessage({ ok: false, text: errorText(error) });
     } finally {
       setIsBuying(false);
+    }
+  };
+
+  const saveForLater = async () => {
+    if (!onSaveForLater || isBuying || isSaving) return;
+    setIsSaving(true);
+    try {
+      if (await onSaveForLater()) onResolve(false);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -248,11 +263,23 @@ export const MamBufferModal = ({
           )}
         </div>
 
-        <footer className="flex items-center justify-end gap-3 border-t border-(--border-muted) px-6 py-4">
+        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-(--border-muted) px-6 py-4">
+          {onSaveForLater && (
+            <button
+              type="button"
+              onClick={() => void saveForLater()}
+              disabled={isBuying || isSaving}
+              className="mr-auto flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
+              title="Keep these picks in Saved and get them when there's room"
+            >
+              <BookmarkIcon filled={false} className="h-4 w-4" />
+              {isSaving ? 'Saving…' : 'Save for later'}
+            </button>
+          )}
           <button
             type="button"
             onClick={cancel}
-            disabled={isBuying}
+            disabled={isBuying || isSaving}
             className="rounded-lg border border-(--border-muted) bg-(--bg-soft) px-4 py-2 text-sm font-medium transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
           >
             {offerPurchase ? 'Cancel' : 'Close'}
@@ -261,7 +288,7 @@ export const MamBufferModal = ({
             <button
               type="button"
               onClick={() => void buyAndContinue()}
-              disabled={amount === null || !affordable || isBuying}
+              disabled={amount === null || !affordable || isBuying || isSaving}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isBuying ? 'Buying…' : `Buy ${buyLabel} and download`}
