@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { withBasePath } from '../../utils/basePath';
+import { formatDateTime, isoTimeAgo } from '../../utils/relativeTime';
 import {
   SAVED_STAGE_LABELS,
   describeSavedPick,
@@ -10,6 +11,17 @@ import {
   type SavedItem,
   type SavedStage,
 } from '../../utils/savedItems';
+import {
+  HeaderCell,
+  RowCover,
+  TableFrame,
+  cellClassName,
+  headerRowClassName,
+  rowClassName,
+  sortRows,
+  tableClassName,
+  type SortState,
+} from '../shared/DataTable';
 
 interface SavedPanelProps {
   items: SavedItem[];
@@ -22,18 +34,6 @@ interface SavedPanelProps {
   onRefresh: () => Promise<void>;
   onAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
 }
-
-const savedAgo = (iso: string): string => {
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return '';
-  const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-};
 
 const AutoGetControls = ({
   item,
@@ -51,7 +51,7 @@ const AutoGetControls = ({
       setBusy(false);
     }
   };
-  const checkedAgo = item.auto_checked_at ? savedAgo(item.auto_checked_at) : null;
+  const checkedAgo = item.auto_checked_at ? isoTimeAgo(item.auto_checked_at) : null;
   let status = 'Waiting for the next check';
   if (item.auto_status) {
     status = checkedAgo ? `${item.auto_status} · checked ${checkedAgo}` : item.auto_status;
@@ -90,6 +90,15 @@ const coverUrl = (preview: string | undefined): string | null => {
   return preview.startsWith('/') ? withBasePath(preview) : preview;
 };
 
+type SavedSortKey = 'title' | 'picks' | 'saved';
+
+const savedSortValue = (item: SavedItem, key: SavedSortKey): string | number | undefined => {
+  if (key === 'title') return item.title;
+  if (key === 'picks') return describeSavedPick(item);
+  const saved = Date.parse(item.created_at);
+  return Number.isNaN(saved) ? undefined : saved;
+};
+
 const SavedRow = ({
   item,
   autoGetAvailable,
@@ -98,7 +107,6 @@ const SavedRow = ({
   onAutoGet,
 }: { item: SavedItem } & Omit<SavedPanelProps, 'items' | 'loaded' | 'onRefresh'>) => {
   const [busy, setBusy] = useState<'get' | 'remove' | null>(null);
-  const cover = coverUrl(item.book.preview);
   const run = async (action: 'get' | 'remove') => {
     setBusy(action);
     try {
@@ -107,32 +115,54 @@ const SavedRow = ({
       setBusy(null);
     }
   };
+  const picks = describeSavedPick(item);
+  const saved = Date.parse(item.created_at);
 
   return (
-    <li className="flex gap-3 py-3">
-      <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-(--border-muted)">
-        {cover && <img src={cover} alt="" className="h-full w-full object-cover" loading="lazy" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium" title={item.title}>
+    <tr className={rowClassName}>
+      <td className={`${cellClassName} w-12`}>
+        <RowCover src={coverUrl(item.book.preview)} title={item.title} />
+      </td>
+      <td className={`${cellClassName} max-w-[22rem] min-w-[12rem]`}>
+        <p className="truncate font-medium" title={item.title}>
           {item.title}
         </p>
-        {item.author && <p className="truncate text-xs opacity-70">{item.author}</p>}
-        <p className="mt-0.5 truncate text-xs opacity-60" title={describeSavedPick(item)}>
-          {describeSavedPick(item)}
+        {item.author && (
+          <p className="truncate text-xs opacity-60" title={item.author}>
+            {item.author}
+          </p>
+        )}
+      </td>
+      <td className={`${cellClassName} min-w-[12rem]`}>
+        <p className="text-xs" title={picks}>
+          {picks}
         </p>
         {item.last_error && (
           <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{item.last_error}</p>
         )}
-        {autoGetAvailable && item.releases.length > 0 && (
-          <AutoGetControls item={item} onAutoGet={onAutoGet} />
-        )}
-        <div className="mt-1.5 flex items-center gap-2">
+      </td>
+      {autoGetAvailable && (
+        <td className={`${cellClassName} min-w-[12rem]`}>
+          {item.releases.length > 0 ? (
+            <AutoGetControls item={item} onAutoGet={onAutoGet} />
+          ) : (
+            <span className="text-xs opacity-50">Pick a release first</span>
+          )}
+        </td>
+      )}
+      <td
+        className={`${cellClassName} hidden text-xs whitespace-nowrap opacity-70 sm:table-cell`}
+        title={Number.isNaN(saved) ? undefined : formatDateTime(saved)}
+      >
+        {isoTimeAgo(item.created_at)}
+      </td>
+      <td className={`${cellClassName} w-0`} aria-label="Actions">
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => void run('get')}
             disabled={busy !== null}
-            className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+            className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
           >
             {busy === 'get' ? 'Getting…' : '+ Get'}
           </button>
@@ -144,10 +174,9 @@ const SavedRow = ({
           >
             Remove
           </button>
-          <span className="ml-auto text-[11px] opacity-50">{savedAgo(item.created_at)}</span>
         </div>
-      </div>
-    </li>
+      </td>
+    </tr>
   );
 };
 
@@ -192,24 +221,70 @@ export const SavedPanel = ({
     );
   }
   return (
-    <section aria-label={SAVED_STAGE_LABELS[stage]}>
-      <p className="text-[11px] opacity-50">
+    <SavedTable
+      stage={stage}
+      items={staged}
+      autoGetAvailable={autoGetAvailable}
+      onGet={onGet}
+      onRemove={onRemove}
+      onAutoGet={onAutoGet}
+    />
+  );
+};
+
+const SavedTable = ({
+  stage,
+  items,
+  autoGetAvailable,
+  onGet,
+  onRemove,
+  onAutoGet,
+}: Omit<SavedPanelProps, 'loaded' | 'onRefresh'> & { stage: SavedStage }) => {
+  const [sort, setSort] = useState<SortState<SavedSortKey>>({ key: 'saved', direction: 'desc' });
+  return (
+    <section aria-label={SAVED_STAGE_LABELS[stage]} className="space-y-2">
+      <p className="text-xs opacity-60">
         {stage === 'queued'
           ? "Each downloads on its own once there's room."
           : 'Get one with + Get whenever you want it.'}
       </p>
-      <ul className="divide-y divide-[color-mix(in_srgb,var(--border-muted)_60%,transparent)]">
-        {staged.map((item) => (
-          <SavedRow
-            key={item.id}
-            item={item}
-            autoGetAvailable={autoGetAvailable}
-            onGet={onGet}
-            onRemove={onRemove}
-            onAutoGet={onAutoGet}
-          />
-        ))}
-      </ul>
+      <TableFrame>
+        <table className={tableClassName}>
+          <thead>
+            <tr className={headerRowClassName}>
+              <th scope="col" className={cellClassName}>
+                <span className="sr-only">Cover</span>
+              </th>
+              <HeaderCell label="Title" sortKey="title" sort={sort} onSort={setSort} />
+              <HeaderCell label="Releases" sortKey="picks" sort={sort} onSort={setSort} />
+              {autoGetAvailable && <HeaderCell label="Automatic download" />}
+              <HeaderCell
+                label="Saved"
+                sortKey="saved"
+                sort={sort}
+                onSort={setSort}
+                initialDirection="desc"
+                className="hidden sm:table-cell"
+              />
+              <th scope="col" className={cellClassName}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortRows(items, sort, savedSortValue).map((item) => (
+              <SavedRow
+                key={item.id}
+                item={item}
+                autoGetAvailable={autoGetAvailable}
+                onGet={onGet}
+                onRemove={onRemove}
+                onAutoGet={onAutoGet}
+              />
+            ))}
+          </tbody>
+        </table>
+      </TableFrame>
     </section>
   );
 };

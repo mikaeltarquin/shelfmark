@@ -6,7 +6,6 @@ import { downloadToActivityItem, requestToActivityItem } from '../components/act
 import { dedupeHistoryItems } from '../components/activity/activityHistory.js';
 import type { ActivityHistoryItem, ActivityDismissPayload } from '../services/api';
 import {
-  clearActivityHistory,
   dismissActivityItem,
   dismissManyActivityItems,
   getActivitySnapshot,
@@ -291,7 +290,6 @@ interface UseActivityResult {
   handleRequestDismiss: (requestId: number) => void;
   handleDownloadDismiss: (bookId: string, linkedRequestId?: number) => void;
   handleClearCompleted: (items: ActivityDismissTarget[]) => void;
-  handleClearHistory: () => void;
 }
 
 export const useActivity = ({
@@ -550,20 +548,6 @@ export const useActivity = ({
     [dismissItems],
   );
 
-  const handleClearHistory = useCallback(() => {
-    resetActivityHistory();
-    void clearActivityHistory()
-      .then(() => {
-        void refreshActivitySnapshot();
-        void refreshActivityHistory();
-      })
-      .catch((error) => {
-        console.error('Clear history failed:', error);
-        void refreshActivityHistory();
-        showToast(getActivityErrorMessage(error, 'Failed to clear history'), 'error');
-      });
-  }, [refreshActivityHistory, refreshActivitySnapshot, resetActivityHistory, showToast]);
-
   return {
     activityStatus,
     requestItems,
@@ -583,6 +567,5 @@ export const useActivity = ({
     handleRequestDismiss,
     handleDownloadDismiss,
     handleClearCompleted,
-    handleClearHistory,
   };
 };

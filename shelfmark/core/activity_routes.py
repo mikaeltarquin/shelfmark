@@ -1107,34 +1107,3 @@ def register_activity_routes(
             raise RuntimeError(msg)
 
         return jsonify(payload)
-
-    @app.route("/api/activity/history", methods=["DELETE"])
-    def api_activity_history_clear() -> Response | tuple[Response, int]:
-        auth_gate = _require_authenticated(resolve_auth_mode, action="history_clear")
-        if auth_gate is not None:
-            return auth_gate
-
-        actor, actor_error = _resolve_activity_actor(
-            user_db=user_db,
-            resolve_auth_mode=resolve_auth_mode,
-            action="history_clear",
-        )
-        if actor_error is not None:
-            return actor_error
-        actor = _require_activity_actor(actor, action="history_clear")
-
-        cleared_count = activity_view_state_service.clear_history(
-            viewer_scope=actor.viewer_scope,
-        )
-
-        room = _activity_ws_room(actor)
-        emit_ws_event(
-            ws_manager,
-            event_name="activity_update",
-            room=room,
-            payload={
-                "kind": "history_cleared",
-                "count": cleared_count,
-            },
-        )
-        return jsonify({"status": "cleared", "cleared_count": cleared_count})

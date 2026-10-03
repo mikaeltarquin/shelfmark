@@ -5,6 +5,7 @@ import { Dropdown } from '../Dropdown';
 import { ActivityCard } from './ActivityCard';
 import type { DownloadStatusKey } from './activityMappers';
 import { downloadToActivityItem } from './activityMappers';
+import { ActivityTable } from './ActivityTable';
 import type { ActivityItem } from './activityTypes';
 
 interface ActivityPageProps {
@@ -26,7 +27,6 @@ interface ActivityPageProps {
   historyHasMore?: boolean;
   historyLoading?: boolean;
   onHistoryLoadMore?: () => void;
-  onClearHistory?: () => void;
   showRequestsTab: boolean;
   isRequestsLoading?: boolean;
   onRequestCancel?: (requestId: number) => Promise<void> | void;
@@ -217,7 +217,6 @@ export const ActivityPage = ({
   historyHasMore = false,
   historyLoading = false,
   onHistoryLoadMore,
-  onClearHistory,
   showRequestsTab,
   isRequestsLoading = false,
   onRequestCancel,
@@ -508,7 +507,6 @@ export const ActivityPage = ({
     effectiveActiveTab === 'downloads' &&
     hasTerminalDownloadItems &&
     clearCompletedTargets.length > 0;
-  const showClearHistory = effectiveActiveTab === 'history' && historyItems.length > 0;
   const toolbarButtonClass =
     'hover-action rounded-full px-3 py-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200';
 
@@ -610,15 +608,10 @@ export const ActivityPage = ({
               Clear Completed
             </button>
           )}
-          {showClearHistory && (
-            <button type="button" onClick={onClearHistory} className={toolbarButtonClass}>
-              Clear History
-            </button>
-          )}
         </div>
       </div>
 
-      <div className="max-w-4xl">
+      <div className={effectiveActiveTab === 'requests' ? 'max-w-4xl' : undefined}>
         {(() => {
           if (effectiveActiveTab === 'queued') {
             return queuedPanel;
@@ -627,20 +620,30 @@ export const ActivityPage = ({
             return <p className="mt-8 text-center text-sm opacity-70">{emptyStateMessage}</p>;
           }
 
-          if (effectiveActiveTab === 'history') {
+          if (effectiveActiveTab === 'downloads' || effectiveActiveTab === 'history') {
+            const isHistory = effectiveActiveTab === 'history';
             return (
-              <div className="divide-y divide-[color-mix(in_srgb,var(--border-muted)_60%,transparent)]">
-                {visibleItems.map((item) => (
-                  <ActivityCard
-                    key={item.id}
-                    item={item}
-                    isAdmin={isAdmin}
-                    onDownloadRetry={onRetry}
-                    onOpenDetails={onOpenDetails}
-                    onOpenInLibrary={onOpenInLibrary}
-                  />
-                ))}
-                {historyHasMore && (
+              <>
+                <ActivityTable
+                  groups={
+                    isHistory
+                      ? [{ key: 'history', items: visibleItems }]
+                      : groupedVisibleItems.map((group) => ({
+                          key: group.key,
+                          label: group.label,
+                          items: group.items,
+                        }))
+                  }
+                  isAdmin={isAdmin}
+                  showUser={isAdmin && availableUsers.length > 0}
+                  timeLabel={isHistory ? 'Date' : 'Added'}
+                  onDownloadCancel={isHistory ? undefined : onCancel}
+                  onDownloadRetry={onRetry}
+                  onDownloadDismiss={isHistory ? undefined : onDownloadDismiss}
+                  onOpenDetails={onOpenDetails}
+                  onOpenInLibrary={onOpenInLibrary}
+                />
+                {isHistory && historyHasMore && (
                   <div className="pt-3 text-center">
                     <button
                       type="button"
@@ -652,7 +655,7 @@ export const ActivityPage = ({
                     </button>
                   </div>
                 )}
-              </div>
+              </>
             );
           }
 

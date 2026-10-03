@@ -177,7 +177,7 @@ export const PlainHeader = ({
 }) => (
   <th
     scope="col"
-    className={`px-3 py-2 font-medium opacity-70 ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}
+    className={`px-3 py-2 font-semibold tracking-wide whitespace-nowrap uppercase opacity-70 ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}
   >
     {label}
   </th>
@@ -212,6 +212,6 @@ export const ExpandButton = ({
   </button>
 );
 
-export const tableShellClass = 'overflow-x-auto rounded-xl';
+export const tableShellClass = 'overflow-x-auto rounded-xl border border-(--border-muted)';
 export const tableShellStyle = { background: 'var(--bg-soft)' };
 export const rowClass = 'border-b border-(--border-muted) last:border-0 hover:bg-(--hover-surface)';

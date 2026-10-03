@@ -18,7 +18,7 @@ export type ActivityCardAction =
       requestId: number;
     };
 
-interface ActivityCardBadge {
+export interface ActivityCardBadge {
   key: 'download' | 'request' | 'status';
   text: string;
   visualStatus: ActivityVisualStatus;
