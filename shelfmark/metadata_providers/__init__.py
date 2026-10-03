@@ -225,6 +225,9 @@ class BookMetadata:
     series_position: float | None = None  # This book's position (e.g., 3, 1.5 for novellas)
     series_count: int | None = None  # Total books in the series
 
+    # A compilation, anthology or omnibus (e.g. a box set of books 1-3), when the provider says
+    compilation: bool = False
+
     # Alternative titles by language (for localized searches)
     # Maps language code (e.g., "de", "German") to localized title
     titles_by_language: dict[str, str] = field(default_factory=dict)
