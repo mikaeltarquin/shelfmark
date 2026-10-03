@@ -232,6 +232,38 @@ class TestAutoGetRoute:
         assert off["auto_get"] is False
         assert calls == [1]
 
+    def test_queues_picks_as_they_are_saved(self, service):
+        calls = []
+        app = Flask(__name__)
+        app.secret_key = "test"
+        register_saved_routes(
+            app, service, lambda f: f, lambda: "none", on_auto_get=lambda: calls.append(1)
+        )
+        client = app.test_client()
+        queued = client.post(
+            "/api/saved",
+            json={
+                "book": BOOK,
+                "content_type": "ebook",
+                "releases": [{"content_type": "ebook", "release": RELEASE}],
+                "payloads": [{"source": "prowlarr", "source_id": "r1"}],
+                "auto_get": True,
+            },
+        ).get_json()
+        assert queued["auto_get"] is True
+        assert calls == [1]
+        # A book alone can't be queued: it stays saved for later.
+        later = client.post(
+            "/api/saved",
+            json={
+                "book": {**BOOK, "provider_id": "other"},
+                "content_type": "ebook",
+                "auto_get": True,
+            },
+        ).get_json()
+        assert later["auto_get"] is False
+        assert calls == [1]
+
     def test_needs_a_pick_and_its_payloads(self, service):
         client = _app(service, "none").test_client()
         book_only = client.post("/api/saved", json={"book": BOOK, "content_type": "ebook"})

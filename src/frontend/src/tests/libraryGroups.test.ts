@@ -149,8 +149,9 @@ describe('author sorting', () => {
     expect(names('added', 'desc')[0]).toBe('Andy Weir');
   });
 
-  it('orders Author › Series › Book by last name', () => {
-    expect(names('series_order', 'asc')).toEqual(names('last', 'asc'));
+  it('orders Author › Series › Book by first name, or by last name', () => {
+    expect(names('series_order', 'asc')).toEqual(names('first', 'asc'));
+    expect(names('series_order_last', 'asc')).toEqual(names('last', 'asc'));
     expect(names('series', 'desc')[0]).toBe('Brandon Sanderson');
   });
 });

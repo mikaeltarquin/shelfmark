@@ -5,6 +5,18 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Every copy in the library tables**: the book tables (All, under an author or a series)
+  have an **Ebook** and an **Audiobook** column instead of one status. Each copy gets its
+  own badge: an audiobook by its narrator ("Ray Porter"), an ebook by its files ("EPUB,
+  AZW3"); a format the metadata provider lists as lacking reads **Missing** in the same
+  row, so a book held as an ebook and missing as an audiobook is one row, not two.
+- **Saved for later, or queued for download**: Saved items are marked **Saved for later**
+  (no release picked, or one to get by hand) or **Queued** (releases picked, downloading on
+  their own once there's room). Picking releases to save queues them at once when
+  automatic downloads are on; the Saved tab lists the queued ones first and **Queue for
+  download** (formerly *Get automatically*) moves an item between the two.
+- **A bookmark on every library table row**: outlined to save the book for later, filled
+  once saved (blue when queued); click again to remove it.
 - **Open a finished download in your library**: completed rows in Activity have an
   "Open in your library" button that opens the book in Audiobookshelf or Calibre-Web
   (the copy in the format downloaded). Every link out to a library app (the header
@@ -64,7 +76,17 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   will in the next 6 hours ("Next slot in 2:05 · 3 slots in the next 6 hours"), from the
   seeding time Deluge, qBittorrent or Transmission reports.
 
+### Changed
+- The library no longer marks books **Downloaded**: what's in the library says it.
+  Downloading and failed downloads are still marked.
+- Library sort names: **Author (First Last)**, **Author (Last, First)**, **Book Count**.
+  Authors' **Author › Series › Book** sorts authors by first name, with an **Author (Last,
+  First) › Series › Book** choice.
+
 ### Fixed
+- Under **Author › Series › Book**, books in a series whose records name it with and
+  without "The" ("The Expanse", "Expanse") fell to the end of the series, by title, and
+  lost their number. They're in series order now.
 - Automatic downloads from Saved could queue past the MyAnonamouse unsatisfied limit:
   a torrent handed to the client (an ebook that finished in seconds, say) stopped
   counting before MAM's own count caught up, and MAM then refused the rest. Snatches

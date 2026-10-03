@@ -15,9 +15,9 @@ const FORMAT_LABELS: Record<LibraryFormat, string> = {
   audiobook: 'Audiobook',
 };
 
-const FormatIcon = ({ format }: { format: LibraryFormat }) => (
+export const FormatIcon = ({ format }: { format: LibraryFormat }) => (
   <svg
-    className="h-3.5 w-3.5"
+    className="h-3.5 w-3.5 shrink-0"
     fill="none"
     viewBox="0 0 24 24"
     strokeWidth="1.8"
@@ -289,6 +289,7 @@ export const LibraryBookCard = ({
             authors: book.authors,
           }}
           className="pt-1"
+          showDownloaded={false}
         />
       </div>
 

@@ -3,7 +3,13 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { useMountEffect } from '../hooks/useMountEffect';
 import { deleteSavedItem, getSavedItems, saveForLater, updateSavedItem } from '../services/api';
 import type { Book, ContentType, Release } from '../types';
-import { savedBookKey, savedPayloads, type SavedItem, type SavedPick } from '../utils/savedItems';
+import {
+  savedBookKey,
+  savedPayloads,
+  savedStage,
+  type SavedItem,
+  type SavedPick,
+} from '../utils/savedItems';
 
 export type SavedContentType = ContentType | 'combined';
 
@@ -40,9 +46,12 @@ export const singlePick = (release: Release, contentType: ContentType): SavedPic
 /** The saved list, kept by the app; `SavedItemsLoader` reads it once signed in. */
 export const useSavedItemsStore = ({
   contentType,
+  autoGetAvailable,
   onShowToast,
 }: {
   contentType: SavedContentType;
+  // Picked releases are queued to download on their own when this is on.
+  autoGetAvailable: boolean;
   onShowToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }): SavedItemsContextValue => {
   const [items, setItems] = useState<SavedItem[]>([]);
@@ -90,16 +99,22 @@ export const useSavedItemsStore = ({
           content_type: savedAs,
           releases: picks,
           payloads: picks.length > 0 ? savedPayloads(book, picks) : undefined,
+          auto_get: picks.length > 0 && autoGetAvailable,
         });
         replaceItem(saved);
-        onShowToast?.(`Saved "${saved.title}" for later`, 'success');
+        onShowToast?.(
+          savedStage(saved) === 'queued'
+            ? `Queued "${saved.title}" for download when there's room`
+            : `Saved "${saved.title}" for later`,
+          'success',
+        );
         return true;
       } catch (error) {
         onShowToast?.(error instanceof Error ? error.message : 'Could not save', 'error');
         return false;
       }
     },
-    [onShowToast, replaceItem],
+    [autoGetAvailable, onShowToast, replaceItem],
   );
 
   const remove = useCallback(
@@ -110,7 +125,10 @@ export const useSavedItemsStore = ({
           current.filter((existing) => existing.id !== item.id);
         lastSeen.current = lastSeen.current ? drop(lastSeen.current) : null;
         setItems(drop);
-        if (!options?.quiet) onShowToast?.(`Removed "${item.title}" from Saved`, 'info');
+        if (!options?.quiet) {
+          const from = savedStage(item) === 'queued' ? 'the download queue' : 'Saved for later';
+          onShowToast?.(`Removed "${item.title}" from ${from}`, 'info');
+        }
       } catch (error) {
         onShowToast?.(error instanceof Error ? error.message : 'Could not remove', 'error');
       }

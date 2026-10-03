@@ -961,6 +961,7 @@ function App() {
   const effectiveCombinedMode = combinedModeAllowed && (combinedMode || combinedModeLocked);
   const savedStore = useSavedItemsStore({
     contentType: effectiveCombinedMode ? 'combined' : effectiveContentType,
+    autoGetAvailable: Boolean(config?.saved_auto_get_enabled),
     onShowToast: showToast,
   });
   // Marks books already saved or downloaded, wherever they show.

@@ -721,6 +721,8 @@ export const saveForLater = async (payload: {
   releases?: SavedPick[];
   // One per release, in order: what an automatic download queues.
   payloads?: DownloadReleasePayload[];
+  // Queue the picks for an automatic download at once.
+  auto_get?: boolean;
 }): Promise<SavedItem> =>
   fetchJSON<SavedItem>(`${API_BASE}/saved`, { method: 'POST', body: JSON.stringify(payload) });
 

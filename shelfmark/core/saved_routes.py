@@ -78,6 +78,12 @@ def register_saved_routes(
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        # Picks saved with their payloads can go into the queue at once ("Queued for
+        # download"); a book alone stays saved for later until a release is picked.
+        if data.get("auto_get") is True and item["releases"] and item["has_payloads"]:
+            item = service.update(owner, item["id"], auto_get=True, clear_error=True) or item
+            if on_auto_get is not None:
+                on_auto_get()
         return jsonify(item), 201
 
     @app.route("/api/saved/<int:item_id>", methods=["PATCH"])

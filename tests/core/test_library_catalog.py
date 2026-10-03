@@ -89,6 +89,10 @@ class TestBuildCatalog:
         assert book["series"] == [{"name": "Mars", "number": "1"}]
         assert book["added_at"] == 200
         assert book["cover"] == "/api/library/cover/calibre/1"
+        assert [(copy["source"], copy["formats"]) for copy in book["copies"]] == [
+            ("calibre", ["ebook"]),
+            ("audiobookshelf", ["audiobook"]),
+        ]
 
     def test_different_authors_stay_apart(self):
         books = library_catalog.build_catalog(

@@ -57,7 +57,7 @@ const SORT_OPTIONS: Array<{ value: SeriesSortField; label: string }> = [
   { value: 'name', label: 'Series name' },
   { value: 'author_first', label: 'Author (First Last)' },
   { value: 'author_last', label: 'Author (Last, First)' },
-  { value: 'books', label: 'Books' },
+  { value: 'books', label: 'Book Count' },
   { value: 'added', label: 'Recently added' },
 ];
 
@@ -269,7 +269,9 @@ export const LibrarySeriesView = ({
                   onSort={sortBy}
                 />
                 <SortHeader
-                  label={authorField === 'author_last' ? 'Author (Last, First)' : 'Author'}
+                  label={
+                    authorField === 'author_last' ? 'Author (Last, First)' : 'Author (First Last)'
+                  }
                   field={authorField}
                   sort={prefs.sort}
                   direction={prefs.direction}
@@ -277,7 +279,7 @@ export const LibrarySeriesView = ({
                   className="max-sm:hidden"
                 />
                 <SortHeader
-                  label="Books"
+                  label="Book Count"
                   field="books"
                   sort={prefs.sort}
                   direction={prefs.direction}

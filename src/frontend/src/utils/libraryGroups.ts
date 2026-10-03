@@ -159,20 +159,38 @@ export const seriesRangeLabel = (group: LibrarySeriesGroup): string | null => {
 
 /**
  * How authors are ordered. "series" is the series count (a table column); "series_order"
- * is Author › Series › Book: authors by last name, each one's books by series, then number.
+ * and "series_order_last" are Author › Series › Book: authors by first or last name, each
+ * one's books by series, then number.
  */
-export type AuthorSortField = 'first' | 'last' | 'books' | 'series' | 'series_order' | 'added';
+export type AuthorSortField =
+  | 'first'
+  | 'last'
+  | 'books'
+  | 'series'
+  | 'series_order'
+  | 'series_order_last'
+  | 'added';
 export type SortDirection = 'asc' | 'desc';
 
 /** The direction a field starts in: names A–Z, counts and dates biggest first. */
-export const defaultAuthorSortDirection = (field: AuthorSortField): SortDirection =>
-  field === 'first' || field === 'last' || field === 'series_order' ? 'asc' : 'desc';
-
 const isNameSort = (field: AuthorSortField): boolean =>
-  field === 'first' || field === 'last' || field === 'series_order';
+  field === 'first' ||
+  field === 'last' ||
+  field === 'series_order' ||
+  field === 'series_order_last';
+
+/** Whether a sort names authors "Last, First". */
+export const isLastNameSort = (field: AuthorSortField): boolean =>
+  field === 'last' || field === 'series_order_last';
+
+export const isSeriesOrderSort = (field: AuthorSortField): boolean =>
+  field === 'series_order' || field === 'series_order_last';
+
+export const defaultAuthorSortDirection = (field: AuthorSortField): SortDirection =>
+  isNameSort(field) ? 'asc' : 'desc';
 
 const authorNameKey = (group: LibraryAuthorGroup, field: AuthorSortField): string =>
-  field === 'first' ? firstLastSortKey(group.name) : lastFirstSortKey(group.name);
+  isLastNameSort(field) ? lastFirstSortKey(group.name) : firstLastSortKey(group.name);
 
 /** Authors sorted by a field; ties fall back to the name (First Last). */
 export const sortAuthorGroups = (

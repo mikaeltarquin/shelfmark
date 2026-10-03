@@ -5,8 +5,7 @@ import type { LibraryMissingResult } from '../../services/api';
 import type { ContentType, LibraryBook } from '../../types';
 import type { LibraryFormatFilter } from '../../utils/libraryBrowser';
 import {
-  missingRow,
-  ownedRow,
+  combineRows,
   rowMatches,
   rowSeriesSections,
   sortRowsByYear,
@@ -68,10 +67,10 @@ export const LibraryGroupBooks = ({
       });
   });
 
-  const rows: LibraryRow[] = [
-    ...books.map(ownedRow),
-    ...(wantsMissing && result?.supported ? result.books.map(missingRow) : []),
-  ].filter((row) => rowMatches(row, ownership, format));
+  const rows: LibraryRow[] = combineRows(
+    books,
+    wantsMissing && result?.supported ? result.books : [],
+  ).filter((row) => rowMatches(row, ownership, format));
 
   let note: string | null = null;
   if (wantsMissing) {

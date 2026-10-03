@@ -590,6 +590,15 @@ export interface LibrarySeriesRef {
   number: string | null;
 }
 
+/** One library's copy of a book: what it holds and, for an audiobook, who reads it. */
+export interface LibraryCopy {
+  source: string;
+  item_id: string;
+  formats: LibraryFormat[];
+  narrators: string[];
+  file_formats: string[]; // Lowercase ("epub", "m4b"); none for Audiobookshelf audio
+}
+
 export interface LibraryBook {
   id: string;
   title: string;
@@ -601,6 +610,7 @@ export interface LibraryBook {
   year: number | null;
   cover: string; // API path serving the cover
   sources: string[];
+  copies?: LibraryCopy[]; // Missing from servers before copies were listed
 }
 
 export interface LibraryBooksResponse {

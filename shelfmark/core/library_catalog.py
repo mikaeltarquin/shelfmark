@@ -42,6 +42,18 @@ class CatalogCopy:
     item_id: str
     formats: list[str]
     has_cover: bool
+    narrators: list[str] = field(default_factory=list)
+    file_formats: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize for the API: which formats this copy holds, read by whom, as what."""
+        return {
+            "source": self.source,
+            "item_id": self.item_id,
+            "formats": self.formats,
+            "narrators": self.narrators,
+            "file_formats": self.file_formats,
+        }
 
 
 @dataclass
@@ -72,6 +84,7 @@ class CatalogBook:
             "year": self.year,
             "cover": self.cover,
             "sources": sorted({copy.source for copy in self.copies}),
+            "copies": [copy.to_dict() for copy in self.copies],
         }
 
 
@@ -105,7 +118,14 @@ def build_catalog(
             if item is None:
                 continue
             formats = _formats(entry, provider)
-            copy = CatalogCopy(item.source, item.item_id, sorted(formats), item.has_cover)
+            copy = CatalogCopy(
+                item.source,
+                item.item_id,
+                sorted(formats),
+                item.has_cover,
+                narrators=list(item.narrators),
+                file_formats=list(item.file_formats),
+            )
             series = [{"name": name, "number": number} for name, number in item.series]
             key = _merge_key(entry, item)
             book = books.get(key) if key[0] else None

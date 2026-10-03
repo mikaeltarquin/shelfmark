@@ -68,6 +68,20 @@ export const savedPayloads = (
   );
 };
 
+/**
+ * Where a saved item stands: queued for download once its releases are picked and set to
+ * go on their own, else saved for later (a book alone, or picks to get by hand).
+ */
+export type SavedStage = 'queued' | 'later';
+
+export const savedStage = (item: Pick<SavedItem, 'releases' | 'auto_get'>): SavedStage =>
+  item.releases.length > 0 && item.auto_get ? 'queued' : 'later';
+
+export const SAVED_STAGE_LABELS: Record<SavedStage, string> = {
+  queued: 'Queued for download',
+  later: 'Saved for later',
+};
+
 /** Whether any pick is a MyAnonamouse torrent: only those wait for room or the ratio. */
 export const hasMamPick = (item: Pick<SavedItem, 'releases'>): boolean =>
   item.releases.some((pick) => Boolean(pick.release.extra?.mam_torrent_id));

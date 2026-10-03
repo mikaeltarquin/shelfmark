@@ -6,7 +6,8 @@ or unsatisfied slots. Each user has their own list. With no login, everyone shar
 ## Saving
 
 - **A book**: the bookmark on a search result or library card (beside Details and Get on
-  a phone). Saved this way, you pick a release when you get it.
+  a phone), or at the left of a row in the library's tables. Saved this way, you pick a
+  release when you get it. A library book held in one format is saved for the other.
 - **One release**: the bookmark beside a release's download button. Getting it later
   downloads exactly that release.
 - **A combined pick**: in the combined (ebook + audiobook) flow, **Save for later** in the
@@ -20,9 +21,19 @@ A book is saved once. Saving it again with a release replaces the earlier pick, 
 saving it again on its own keeps the pick. A filled bookmark means the book (or, on a
 release row, that release) is saved; click it again to remove it.
 
+## Saved for later, or queued for download
+
+A saved item is one of two things, marked on books everywhere they show:
+
+- **Saved for later** (amber bookmark): a book with no release picked yet, or picks you'll
+  get by hand.
+- **Queued** (blue): releases are picked and it downloads on its own once there's room
+  (see below). Picking releases queues them straight away when **Get Saved Books
+  Automatically** is on.
+
 ## The Saved tab
 
-**Activity → Saved** lists your saved books with what each will download ("Ebook EPUB +
+**Activity → Saved** lists your saved books, queued ones first, with what each will download ("Ebook EPUB +
 audiobook, Narrator Name", or "Book only"). **+ Get** downloads it through the usual path:
 the MyAnonamouse buffer and unsatisfied checks still apply, and for users who need
 approval it becomes a request. A book saved on its own opens its releases instead.
@@ -32,8 +43,9 @@ picked releases) any other way.
 
 ## Getting automatically
 
-A saved item with picked releases can download on its own once it makes sense to. In
-**Activity → Saved**, tick **Get automatically**. A background check (every 10 minutes by
+A saved item with picked releases can download on its own once it makes sense to. It's
+queued as it's saved; in **Activity → Saved**, untick **Queue for download** to keep it for
+later instead, or tick it on an older pick. A background check (every 10 minutes by
 default, and a few seconds after you tick it) gets it once:
 
 - its MyAnonamouse torrents fit the buffer and the unsatisfied limit, the same check as a
