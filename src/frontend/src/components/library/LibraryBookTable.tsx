@@ -1,18 +1,28 @@
 import { useState } from 'react';
 
+import { useBookActivity } from '../../contexts/BookActivityContext';
+import { useSavedItems } from '../../contexts/SavedItemsContext';
 import { SearchModeProvider } from '../../contexts/SearchModeContext';
 import type { Book, ButtonStateInfo, LibraryBook, LibraryFormat } from '../../types';
+import type { ActivityBookRef } from '../../utils/bookActivity';
+import { copyBadges } from '../../utils/libraryCopies';
 import { rowAuthors, rowSeries, rowTitle, rowYear, type LibraryRow } from '../../utils/libraryRows';
+import { SAVED_STAGE_LABELS, savedStage } from '../../utils/savedItems';
 import { BookActionButton } from '../BookActionButton';
+import { BookmarkIcon } from '../SaveForLaterButton';
 import { ActivityChips, activityRef } from '../shared';
-import { LibraryFormatBadges, type LibraryCardActions } from './LibraryBookCard';
+import { FormatIcon, type LibraryCardActions } from './LibraryBookCard';
 import { PlainHeader, rowClass } from './LibraryControls';
 import type { LibraryBookActions } from './LibraryMissingSection';
 
-/** A library book has no provider key, so it is matched by title and author. */
-const rowActivityRef = (row: LibraryRow) =>
+/** A library book has no provider key (unless the provider's list named it): by title. */
+const rowActivityRef = (row: LibraryRow): ActivityBookRef =>
   row.kind === 'owned'
-    ? { key: null, title: row.book.title, authors: row.book.authors }
+    ? {
+        key: row.match ? activityRef(row.match).key : null,
+        title: row.book.title,
+        authors: row.book.authors,
+      }
     : activityRef(row.book);
 
 const DEFAULT_BUTTON_STATE: ButtonStateInfo = { text: 'Get', state: 'download' };
@@ -25,12 +35,124 @@ const errorText = (err: unknown, fallback: string): string =>
 
 const FORMAT_WORDS: Record<LibraryFormat, string> = { ebook: 'ebook', audiobook: 'audiobook' };
 
-/** "Missing", or "Missing audiobook" when the library holds the other format. */
-const MissingBadge = ({ formats }: { formats: LibraryFormat[] }) => (
-  <span className="inline-flex items-center rounded-full border border-dashed border-amber-600/70 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-700 dark:text-amber-400">
-    {formats.length === 1 ? `Missing ${FORMAT_WORDS[formats[0]]}` : 'Missing'}
+const badgeClass =
+  'flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium';
+
+// Under its column "Missing" is enough; on a phone, without columns, it names the format.
+const MissingBadge = ({ format, compact }: { format: LibraryFormat; compact: boolean }) => (
+  <span
+    className={`${badgeClass} w-fit border border-dashed border-amber-600/70 whitespace-nowrap text-amber-700 dark:text-amber-400`}
+    title={`No ${FORMAT_WORDS[format]} in your library`}
+  >
+    {compact ? `Missing ${FORMAT_WORDS[format]}` : 'Missing'}
   </span>
 );
+
+/**
+ * What the library holds of a book in one format: a badge per copy (an audiobook by its
+ * narrator), "Missing" when the provider lists it as lacking, else a dash.
+ */
+const FormatCell = ({
+  row,
+  format,
+  compact = false,
+}: {
+  row: LibraryRow;
+  format: LibraryFormat;
+  compact?: boolean; // Badges under the title on a phone: nothing for an unknown format
+}) => {
+  if (row.kind === 'owned' && row.book.formats.includes(format)) {
+    return (
+      <span className={`flex items-start gap-1 ${compact ? 'flex-wrap' : 'flex-col'}`}>
+        {copyBadges(row.book, format).map((badge) => (
+          <span
+            key={badge.key}
+            className={`${badgeClass} bg-emerald-600/90 text-white shadow`}
+            title={badge.title}
+          >
+            <FormatIcon format={format} />
+            <span className="truncate">{badge.text}</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+  if (row.missingFormats.includes(format)) {
+    return <MissingBadge format={format} compact={compact} />;
+  }
+  if (row.kind === 'missing') {
+    // The provider's book, held in this format under another author or title.
+    return (
+      <span
+        className={`${badgeClass} w-fit bg-emerald-600/90 text-white shadow`}
+        title={`The ${FORMAT_WORDS[format]} is in your library`}
+      >
+        <FormatIcon format={format} />
+        <span className="truncate">In library</span>
+      </span>
+    );
+  }
+  return compact ? null : <span className="opacity-30">—</span>;
+};
+
+/**
+ * Save the book for later, or take it off the list: outlined when not saved, filled when
+ * saved for later, and blue once queued for download (its releases picked).
+ */
+const RowBookmark = ({
+  row,
+  cardActions,
+}: {
+  row: LibraryRow;
+  cardActions: LibraryCardActions;
+}) => {
+  const saved = useSavedItems();
+  const activity = useBookActivity();
+  const [busy, setBusy] = useState(false);
+  if (!saved) return null;
+  const item = activity?.savedFor(rowActivityRef(row));
+  const stage = item ? savedStage(item) : null;
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      if (item) {
+        await saved.remove(item);
+        return;
+      }
+      let book = row.kind === 'missing' ? row.book : row.match;
+      if (!book && row.kind === 'owned') book = await cardActions.lookup(row.book);
+      if (!book) return;
+      // A book held in one format is wanted in the other.
+      const wanted = row.missingFormats.length === 1 ? row.missingFormats[0] : saved.contentType;
+      await saved.saveBook(book, wanted);
+    } catch (err: unknown) {
+      cardActions.onShowToast?.(errorText(err, `Could not look up ${row.book.title}`), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  let label = 'Save for later';
+  let tone = 'opacity-40 hover:opacity-100';
+  if (stage) {
+    label = `${SAVED_STAGE_LABELS[stage]}: click to remove`;
+    tone = stage === 'queued' ? 'text-sky-600 dark:text-sky-400' : 'text-amber-500';
+  }
+  return (
+    <button
+      type="button"
+      className={`${iconButtonClass} ${tone}`}
+      onClick={() => void toggle()}
+      disabled={busy}
+      aria-label={`${label}: ${row.book.title}`}
+      aria-pressed={Boolean(item)}
+      title={label}
+    >
+      <BookmarkIcon filled={Boolean(item)} className="h-4 w-4" />
+    </button>
+  );
+};
 
 const InfoIcon = () => (
   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -47,9 +169,18 @@ const iconButtonClass =
   'flex h-7 w-7 items-center justify-center rounded-full hover:bg-(--hover-surface) disabled:opacity-50';
 
 /** Details and Get for a library book, once the metadata provider's record is found. */
-const OwnedActions = ({ book, actions }: { book: LibraryBook; actions: LibraryCardActions }) => {
-  const [found, setFound] = useState<Book | null>(null);
+const OwnedActions = ({
+  book,
+  match,
+  actions,
+}: {
+  book: LibraryBook;
+  match: Book | null; // Known already when the provider's list named the book
+  actions: LibraryCardActions;
+}) => {
+  const [lookedUp, setFound] = useState<Book | null>(null);
   const [busy, setBusy] = useState<'details' | 'releases' | null>(null);
+  const found = lookedUp ?? match;
 
   const run = async (kind: 'details' | 'releases') => {
     setBusy(kind);
@@ -149,6 +280,9 @@ export const LibraryBookTable = ({
     <table className="w-full table-fixed text-sm">
       <thead className="border-b border-(--border-muted) text-xs">
         <tr>
+          <th scope="col" className="w-9 pl-1">
+            <span className="sr-only">Saved</span>
+          </th>
           {series !== undefined && <PlainHeader label="#" align="right" className="w-14" />}
           <PlainHeader label="Title" />
           {showAuthor && <PlainHeader label="Author" className="w-1/5 max-md:hidden" />}
@@ -156,7 +290,8 @@ export const LibraryBookTable = ({
             <PlainHeader label="Series" className="w-1/5 max-sm:hidden" />
           )}
           <PlainHeader label="Year" align="right" className="w-16 max-sm:hidden" />
-          <PlainHeader label="Status" className="w-32 sm:w-64" />
+          <PlainHeader label="Ebook" className="w-32 max-sm:hidden" />
+          <PlainHeader label="Audiobook" className="w-48 max-sm:hidden" />
           {showAdded && <PlainHeader label="Added" align="right" className="w-28 max-md:hidden" />}
           <th scope="col" className="w-28 px-3 py-2">
             <span className="sr-only">Actions</span>
@@ -170,13 +305,26 @@ export const LibraryBookTable = ({
           const missing = row.kind === 'missing';
           return (
             <tr key={row.key} className={rowClass}>
+              <td className="py-1.5 pl-1">
+                <RowBookmark row={row} cardActions={cardActions} />
+              </td>
               {series !== undefined && (
                 <td className="px-3 py-1.5 text-right tabular-nums opacity-70">
                   {entry?.number ?? ''}
                 </td>
               )}
-              <td className={`px-3 py-1.5 ${missing ? 'opacity-75' : 'font-medium'}`}>
-                {rowTitle(row)}
+              <td className="px-3 py-1.5">
+                <span className={missing ? 'opacity-75' : 'font-medium'}>{rowTitle(row)}</span>
+                <ActivityChips
+                  book={rowActivityRef(row)}
+                  className="pt-0.5"
+                  showDownloaded={false}
+                />
+                {/* Phones have no room for the format columns: the badges go here. */}
+                <span className="flex flex-wrap items-start gap-1 pt-1 sm:hidden">
+                  <FormatCell row={row} format="ebook" compact />
+                  <FormatCell row={row} format="audiobook" compact />
+                </span>
               </td>
               {showAuthor && (
                 <td className="px-3 py-1.5 max-md:hidden">
@@ -225,15 +373,11 @@ export const LibraryBookTable = ({
               <td className="px-3 py-1.5 text-right tabular-nums max-sm:hidden">
                 {rowYear(row) ?? ''}
               </td>
-              <td className="px-3 py-1.5">
-                <span className="flex flex-wrap items-center gap-1">
-                  {row.kind === 'owned' ? (
-                    <LibraryFormatBadges formats={row.book.formats} />
-                  ) : (
-                    <MissingBadge formats={row.missingFormats} />
-                  )}
-                  <ActivityChips book={rowActivityRef(row)} />
-                </span>
+              <td className="px-3 py-1.5 max-sm:hidden">
+                <FormatCell row={row} format="ebook" />
+              </td>
+              <td className="px-3 py-1.5 max-sm:hidden">
+                <FormatCell row={row} format="audiobook" />
               </td>
               {showAdded && (
                 <td className="px-3 py-1.5 text-right whitespace-nowrap tabular-nums max-md:hidden">
@@ -242,7 +386,7 @@ export const LibraryBookTable = ({
               )}
               <td className="px-3 py-1.5">
                 {row.kind === 'owned' ? (
-                  <OwnedActions book={row.book} actions={cardActions} />
+                  <OwnedActions book={row.book} match={row.match} actions={cardActions} />
                 ) : (
                   <MissingActions book={row.book} actions={actions} />
                 )}

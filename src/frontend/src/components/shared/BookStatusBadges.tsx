@@ -5,6 +5,7 @@ import {
   type ActivityBookRef,
   type BookDownloadSummary,
 } from '../../utils/bookActivity';
+import { savedStage, type SavedItem } from '../../utils/savedItems';
 import { LibraryBadge } from './LibraryBadge';
 
 const bookAuthors = (book: Book): string[] => {
@@ -22,10 +23,11 @@ export const activityRef = (book: Book): ActivityBookRef => ({
   authors: bookAuthors(book),
 });
 
-type Tone = 'saved' | 'active' | 'complete' | 'error';
+type Tone = 'saved' | 'queued' | 'active' | 'complete' | 'error';
 
 const OVERLAY: Record<Tone, string> = {
   saved: 'border-amber-600 bg-amber-500 text-white',
+  queued: 'border-sky-700 bg-sky-600 text-white',
   active: 'border-indigo-700 bg-indigo-600 text-white',
   complete: 'border-violet-700 bg-violet-600 text-white',
   error: 'border-red-700 bg-red-600 text-white',
@@ -33,6 +35,7 @@ const OVERLAY: Record<Tone, string> = {
 
 const INLINE: Record<Tone, string> = {
   saved: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  queued: 'bg-sky-600/15 text-sky-700 dark:text-sky-300',
   active: 'bg-indigo-600/15 text-indigo-700 dark:text-indigo-300',
   complete: 'bg-violet-600/15 text-violet-700 dark:text-violet-300',
   error: 'bg-red-600/15 text-red-700 dark:text-red-300',
@@ -42,6 +45,8 @@ const ICONS: Record<Tone, string> = {
   // Bookmark
   saved:
     'M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z',
+  // Clock
+  queued: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   // Arrow down into a tray
   active: 'M12 4v11m0 0l-4-4m4 4l4-4M5 20h14',
   complete: 'M12 4v11m0 0l-4-4m4 4l4-4M5 20h14',
@@ -95,18 +100,46 @@ interface ActivityChipsProps {
   book: ActivityBookRef;
   overlay?: boolean;
   className?: string;
+  // Off where the library itself shows what's held: a finished download says nothing more.
+  showDownloaded?: boolean;
 }
 
-/** "Saved" and "Downloaded" (or downloading, or failed) chips for a book; nothing if neither. */
-export const ActivityChips = ({ book, overlay = false, className = '' }: ActivityChipsProps) => {
+const SavedChip = ({ item, overlay }: { item: SavedItem; overlay: boolean }) =>
+  savedStage(item) === 'queued' ? (
+    <Chip
+      tone="queued"
+      text="Queued"
+      label="Queued for download: it downloads on its own once there's room"
+      overlay={overlay}
+    />
+  ) : (
+    <Chip
+      tone="saved"
+      text="Saved for later"
+      label="Saved for later (in Activity › Saved)"
+      overlay={overlay}
+    />
+  );
+
+/**
+ * "Saved for later" or "Queued", and "Downloaded" (or downloading, or failed) chips for a
+ * book; nothing if neither.
+ */
+export const ActivityChips = ({
+  book,
+  overlay = false,
+  className = '',
+  showDownloaded = true,
+}: ActivityChipsProps) => {
   const activity = useBookActivity();
   if (!activity) return null;
   const saved = activity.savedFor(book);
-  const download = activity.downloadFor(book);
+  const found = activity.downloadFor(book);
+  const download = found && (showDownloaded || found.state !== 'complete') ? found : null;
   if (!saved && !download) return null;
   return (
     <span className={`flex flex-wrap items-center gap-1 ${className}`}>
-      {saved && <Chip tone="saved" text="Saved" label="In your Saved list" overlay={overlay} />}
+      {saved && <SavedChip item={saved} overlay={overlay} />}
       {download && (
         <Chip
           tone={download.state}

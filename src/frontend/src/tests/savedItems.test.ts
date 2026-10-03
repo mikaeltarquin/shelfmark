@@ -7,6 +7,7 @@ import {
   hasMamPick,
   savedBookKey,
   savedPayloads,
+  savedStage,
 } from '../utils/savedItems';
 
 const release = (extra: Partial<Release>): Release => ({
@@ -112,5 +113,14 @@ describe('hasMamPick', () => {
       }),
     ).toBe(true);
     expect(hasMamPick({ releases: [{ content_type: 'ebook', release: release({}) }] })).toBe(false);
+  });
+});
+
+describe('savedStage', () => {
+  const pick = [{ content_type: 'ebook' as const, release: release({}) }];
+  it('is queued once releases are picked and set to go on their own', () => {
+    expect(savedStage({ releases: pick, auto_get: true })).toBe('queued');
+    expect(savedStage({ releases: pick, auto_get: false })).toBe('later');
+    expect(savedStage({ releases: [], auto_get: false })).toBe('later');
   });
 });

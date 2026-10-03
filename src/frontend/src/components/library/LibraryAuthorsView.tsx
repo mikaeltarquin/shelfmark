@@ -6,6 +6,8 @@ import { matchesFormat, type LibraryFormatFilter } from '../../utils/libraryBrow
 import {
   defaultAuthorSortDirection,
   groupByAuthor,
+  isLastNameSort,
+  isSeriesOrderSort,
   sortAuthorGroups,
   type AuthorSortField,
   type LibraryAuthorGroup,
@@ -53,10 +55,11 @@ const DEFAULT_PREFS: AuthorPrefs = {
 };
 
 const SORT_OPTIONS: Array<{ value: AuthorSortField; label: string }> = [
-  { value: 'first', label: 'First Last' },
-  { value: 'last', label: 'Last, First' },
-  { value: 'series_order', label: 'Author › Series › Book' },
-  { value: 'books', label: 'Books' },
+  { value: 'first', label: 'Author (First Last)' },
+  { value: 'last', label: 'Author (Last, First)' },
+  { value: 'series_order', label: 'Author (First Last) › Series › Book' },
+  { value: 'series_order_last', label: 'Author (Last, First) › Series › Book' },
+  { value: 'books', label: 'Book Count' },
   { value: 'added', label: 'Recently added' },
 ];
 
@@ -115,7 +118,7 @@ export const LibraryAuthorsView = ({
   const [query, setQuery] = useState('');
   const [prefs, setPrefs] = useState<AuthorPrefs>(loadPrefs);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
-  const seriesOrder = prefs.sort === 'series_order';
+  const seriesOrder = isSeriesOrderSort(prefs.sort);
 
   // Grouped from the books in the chosen format, so counts and covers agree with the filter.
   const groups = useMemo(() => {
@@ -124,7 +127,7 @@ export const LibraryAuthorsView = ({
     return groupByAuthor(shelf);
   }, [books, prefs.format, prefs.ownership, prefs.view]);
 
-  const lastFirst = prefs.sort === 'last' || seriesOrder;
+  const lastFirst = isLastNameSort(prefs.sort);
   const displayName = (group: LibraryAuthorGroup) =>
     lastFirst ? lastFirstName(group.name) : group.name;
 
@@ -161,7 +164,10 @@ export const LibraryAuthorsView = ({
         ? { direction: prefs.direction === 'asc' ? 'desc' : 'asc' }
         : { sort: field, direction: defaultAuthorSortDirection(field) },
     );
-  const nameField: AuthorSortField = prefs.sort === 'first' ? 'first' : 'last';
+  const nameField: AuthorSortField = lastFirst ? 'last' : 'first';
+  // The name column stays lit while books are in series order.
+  let headerSort = prefs.sort;
+  if (seriesOrder) headerSort = nameField;
   const toggle = (name: string) =>
     setOpen((current) => {
       const next = new Set(current);
@@ -258,14 +264,14 @@ export const LibraryAuthorsView = ({
                   <span className="sr-only">Open</span>
                 </th>
                 <SortHeader
-                  label={lastFirst ? 'Author (Last, First)' : 'Author'}
+                  label={lastFirst ? 'Author (Last, First)' : 'Author (First Last)'}
                   field={nameField}
-                  sort={prefs.sort === 'series_order' ? 'last' : prefs.sort}
+                  sort={headerSort}
                   direction={prefs.direction}
                   onSort={sortBy}
                 />
                 <SortHeader
-                  label="Books"
+                  label="Book Count"
                   field="books"
                   sort={prefs.sort}
                   direction={prefs.direction}

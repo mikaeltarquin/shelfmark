@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Book, LibraryBook } from '../types';
 import {
+  combineRows,
   missingRow,
   ownedRow,
   rowMatches,
@@ -105,5 +106,31 @@ describe('series order', () => {
       'Book Three',
     ]);
     expect(sections[2].rows.map(rowTitle)).toEqual(['Standalone']);
+  });
+});
+
+describe('combineRows', () => {
+  it('joins a book held in one format to its library row', () => {
+    const combined = combineRows([one, three], [two, threeEbook]);
+    expect(combined.map((row) => `${row.kind}:${rowTitle(row)}`)).toEqual([
+      'owned:Book One',
+      'owned:Book Three',
+      'missing:Book Two',
+    ]);
+    const joined = combined[1];
+    expect(joined.kind === 'owned' && joined.match?.id).toBe('hardcover:Book Three');
+    expect(joined.missingFormats).toEqual(['ebook']);
+    // Held as the audiobook and lacking the ebook: owned and missing alike.
+    expect(rowMatches(joined, 'owned', 'audiobook')).toBe(true);
+    expect(rowMatches(joined, 'missing', 'ebook')).toBe(true);
+    expect(rowMatches(joined, 'missing', 'audiobook')).toBe(false);
+  });
+
+  it('numbers books whose records name the series with or without "The"', () => {
+    const first = owned('First', { series: [{ name: 'The Expanse', number: '1' }] });
+    const second = owned('Second', { series: [{ name: 'Expanse', number: '2' }] });
+    const third = owned('A Third', { series: [{ name: 'Expanse', number: '3' }] });
+    const [section] = rowSeriesSections([third, second, first].map(ownedRow));
+    expect(section.rows.map(rowTitle)).toEqual(['First', 'Second', 'A Third']);
   });
 });

@@ -1,6 +1,7 @@
 import type { Book, LibraryBook, LibraryFormat } from '../types';
+import { isSameBook } from './bookActivity';
 import { matchesFormat, type LibraryFormatFilter } from './libraryBrowser';
-import { sameName, seriesNumberIn, seriesNumberValue } from './libraryGroups';
+import { seriesNumberValue } from './libraryGroups';
 import { isMissing } from './libraryMissing';
 
 /** Which books a list shows: the library's own, the provider's missing ones, or both. */
@@ -8,10 +9,17 @@ export type OwnershipFilter = 'owned' | 'missing' | 'all';
 
 /**
  * One row of a library book table: a book in the library, or one the metadata provider
- * lists for an author or series that the library lacks (in some format).
+ * lists for an author or series that the library lacks (in some format). A library book
+ * the provider lists as lacking a format carries that record and the formats it lacks.
  */
 export type LibraryRow =
-  | { kind: 'owned'; key: string; book: LibraryBook }
+  | {
+      kind: 'owned';
+      key: string;
+      book: LibraryBook;
+      match: Book | null; // The provider's record, when its list named this book
+      missingFormats: LibraryFormat[];
+    }
   | { kind: 'missing'; key: string; book: Book; missingFormats: LibraryFormat[] };
 
 const FORMATS: readonly LibraryFormat[] = ['ebook', 'audiobook'];
@@ -20,6 +28,8 @@ export const ownedRow = (book: LibraryBook): LibraryRow => ({
   kind: 'owned',
   key: `owned:${book.id}`,
   book,
+  match: null,
+  missingFormats: [],
 });
 
 export const missingRow = (book: Book): LibraryRow => ({
@@ -28,6 +38,49 @@ export const missingRow = (book: Book): LibraryRow => ({
   book,
   missingFormats: FORMATS.filter((format) => isMissing(book, format)),
 });
+
+const providerAuthors = (book: Book): string[] => {
+  if (book.authors && book.authors.length > 0) return book.authors;
+  return book.author ? [book.author] : [];
+};
+
+/**
+ * The library's books with the provider's missing ones: a book held in one format that the
+ * provider lists as lacking the other joins the library's row for it, so each book is one
+ * row whatever it lacks. The rest are rows of their own.
+ */
+export const combineRows = (
+  owned: readonly LibraryBook[],
+  missing: readonly Book[],
+): LibraryRow[] => {
+  const rows = owned.map(ownedRow);
+  const extra: LibraryRow[] = [];
+  for (const book of missing) {
+    const row = missingRow(book);
+    const partly = row.missingFormats.length < FORMATS.length;
+    const target = partly
+      ? rows.find(
+          (candidate) =>
+            candidate.kind === 'owned' &&
+            candidate.match === null &&
+            isSameBook(
+              { title: candidate.book.title, authors: candidate.book.authors },
+              book.title,
+              providerAuthors(book).join('; ') || null,
+            ),
+        )
+      : undefined;
+    if (target?.kind === 'owned') {
+      target.match = book;
+      target.missingFormats = row.missingFormats.filter(
+        (format) => !target.book.formats.includes(format),
+      );
+    } else {
+      extra.push(row);
+    }
+  }
+  return [...rows, ...extra];
+};
 
 export const rowTitle = (row: LibraryRow): string => row.book.title;
 
@@ -50,33 +103,49 @@ export const rowSeries = (
 ): { name: string; number: string | null } | null => {
   if (row.kind === 'owned') {
     const entry = series
-      ? row.book.series.find((candidate) => sameName(candidate.name, series))
+      ? row.book.series.find((candidate) => sameSeries(candidate.name, series))
       : row.book.series[0];
-    return entry ? { name: entry.name, number: entry.number } : null;
+    if (entry) return { name: entry.name, number: entry.number };
+    // A series the library doesn't record, but the provider's record of the book does.
+    return row.match ? missingSeries(row.match, series) : null;
   }
-  const name = row.book.series_name;
-  if (!name) return series ? { name: series, number: missingNumber(row.book) } : null;
-  if (series && !sameName(name, series)) return { name: series, number: null };
-  return { name, number: missingNumber(row.book) };
+  return missingSeries(row.book, series);
+};
+
+const missingSeries = (
+  book: Book,
+  series?: string,
+): { name: string; number: string | null } | null => {
+  const name = book.series_name;
+  if (!name) return series ? { name: series, number: missingNumber(book) } : null;
+  if (series && !sameSeries(name, series)) return { name: series, number: null };
+  return { name, number: missingNumber(book) };
 };
 
 const missingNumber = (book: Book): string | null =>
   book.series_position != null ? String(book.series_position) : null;
 
+const lacks = (missingFormats: LibraryFormat[], format: LibraryFormatFilter): boolean => {
+  if (format === 'any') return missingFormats.length === FORMATS.length;
+  if (format === 'both') return missingFormats.length > 0;
+  return missingFormats.includes(format);
+};
+
 /**
- * Whether a row passes the ownership and format filters. An owned row needs the format;
- * a missing row must lack it ("any": held in no format; "both": lacking either).
+ * Whether a row passes the ownership and format filters. A book counts as owned when the
+ * library has the format, and as missing when it lacks it ("any": held in no format;
+ * "both": lacking either). A library book lacking a format can be both.
  */
 export const rowMatches = (
   row: LibraryRow,
   ownership: OwnershipFilter,
   format: LibraryFormatFilter,
 ): boolean => {
-  if (row.kind === 'owned') return ownership !== 'missing' && matchesFormat(row.book, format);
-  if (ownership === 'owned') return false;
-  if (format === 'any') return row.missingFormats.length === FORMATS.length;
-  if (format === 'both') return row.missingFormats.length > 0;
-  return row.missingFormats.includes(format);
+  const owned = row.kind === 'owned' && matchesFormat(row.book, format);
+  const missing = row.missingFormats.length > 0 && lacks(row.missingFormats, format);
+  if (ownership === 'owned') return owned;
+  if (ownership === 'missing') return missing;
+  return owned || missing;
 };
 
 const fold = (value: string): string =>
@@ -86,6 +155,9 @@ const fold = (value: string): string =>
     .toLowerCase()
     .replace(/^(the|a|an)\s+/, '');
 
+// "The Expanse" and "Expanse" are one series, however each book's record writes it.
+const sameSeries = (a: string, b: string): boolean => fold(a) === fold(b);
+
 const byTitle = (a: LibraryRow, b: LibraryRow): number =>
   fold(rowTitle(a)).localeCompare(fold(rowTitle(b)));
 
@@ -94,9 +166,7 @@ const byYear = (a: LibraryRow, b: LibraryRow): number =>
   byTitle(a, b);
 
 const numberIn = (row: LibraryRow, series: string): number =>
-  row.kind === 'owned'
-    ? seriesNumberValue(seriesNumberIn(row.book, series))
-    : seriesNumberValue(rowSeries(row, series)?.number);
+  seriesNumberValue(rowSeries(row, series)?.number);
 
 /** Reading order within one series; unnumbered books last, by title. */
 export const sortRowsInSeries = (rows: LibraryRow[], series: string): LibraryRow[] =>
