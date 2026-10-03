@@ -22,8 +22,8 @@ and on **MyAnonamouse** as a source. Everything upstream still works the same; t
 
 **Image:** `ghcr.io/mikaeltarquin/shelfmark:latest` (and `ghcr.io/mikaeltarquin/shelfmark-lite:latest`)
 for the latest release, or a version tag such as `:1.1.0`. `:dev` is rebuilt from `main` after each
-change. See the [changelog](CHANGELOG.md) for what each release adds. The compose files and install commands below still point at
-upstream's `ghcr.io/calibrain/shelfmark` image. Swap in the fork's image to get the features listed here.
+change. See the [changelog](CHANGELOG.md) for what each release adds. The compose files and install commands below use the
+fork's image.
 
 ### What's different from upstream
 
@@ -125,7 +125,7 @@ what you're missing. It still doesn't monitor authors or queue future downloads.
 
 1. Download the [docker-compose file](compose/docker-compose.yml):
    ```bash
-   curl -O https://raw.githubusercontent.com/calibrain/shelfmark/main/compose/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/mikaeltarquin/shelfmark/main/compose/docker-compose.yml
    ```
 
 2. Start the service:
@@ -253,7 +253,7 @@ If you can't spare the memory, use the [Lite](#lite) image with an external reso
 #### Tor Routing
 Optional Tor support for network privacy:
 ```bash
-curl -O https://raw.githubusercontent.com/calibrain/shelfmark/main/compose/docker-compose.tor.yml
+curl -O https://raw.githubusercontent.com/mikaeltarquin/shelfmark/main/compose/docker-compose.tor.yml
 docker compose -f docker-compose.tor.yml up -d
 ```
 
@@ -266,7 +266,7 @@ docker compose -f docker-compose.tor.yml up -d
 #### WireGuard VPN Routing
 Optional WireGuard support to route all external egress through a VPN tunnel with a fail-closed kill-switch:
 ```bash
-curl -O https://raw.githubusercontent.com/calibrain/shelfmark/main/compose/docker-compose.wireguard.yml
+curl -O https://raw.githubusercontent.com/mikaeltarquin/shelfmark/main/compose/docker-compose.wireguard.yml
 # place your wg-quick config where the compose mounts /config, as wg0.conf
 docker compose -f docker-compose.wireguard.yml up -d
 ```
@@ -290,7 +290,7 @@ A lighter image without the built-in browser automation. Ideal for:
 - **Constrained hosts** - No bundled browser, so it runs comfortably below the standard image's [memory requirements](#memory-requirements)
 
 ```bash
-curl -O https://raw.githubusercontent.com/calibrain/shelfmark/main/compose/docker-compose.lite.yml
+curl -O https://raw.githubusercontent.com/mikaeltarquin/shelfmark/main/compose/docker-compose.lite.yml
 docker compose -f docker-compose.lite.yml up -d
 ```
 

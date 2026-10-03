@@ -11,6 +11,7 @@ import type {
 } from '../types';
 import { formatActingAsUserName } from '../utils/actingAsUser';
 import { DropdownList } from './DropdownList';
+import { ThemeToggle } from './layout/ThemeToggle';
 import { MamHeaderButton } from './MamHeaderButton';
 import type { SearchBarHandle, SuggestionPickResult } from './SearchBar';
 import { SearchBar } from './SearchBar';
@@ -362,6 +363,8 @@ export const Header = forwardRef<HeaderHandle, HeaderProps>(
 
             {/* MyAnonamouse account, with its ratio and unsatisfied count */}
             {onMamAccountClick && <MamHeaderButton key={mamStatsKey} onClick={onMamAccountClick} />}
+
+            <ThemeToggle />
 
             {/* Account menu: who is signed in, and who admins download for */}
             {(showAccount || showActingAs) && (

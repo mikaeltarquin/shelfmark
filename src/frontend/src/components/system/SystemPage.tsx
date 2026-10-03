@@ -7,7 +7,7 @@ import { withBasePath } from '../../utils/basePath';
 import { shortBuildId } from '../../utils/buildVersion';
 import { isRecord } from '../../utils/objectHelpers';
 
-const REPO_URL = 'https://github.com/calibrain/shelfmark';
+const REPO_URL = 'https://github.com/mikaeltarquin/shelfmark';
 
 interface SystemPageProps {
   buildVersion?: string;
