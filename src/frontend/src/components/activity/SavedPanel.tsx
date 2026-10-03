@@ -151,8 +151,23 @@ const SavedRow = ({
   );
 };
 
-/** The Saved tab: books and picked releases kept to download later. */
+const EMPTY: Record<SavedStage, { title: string; hint: string }> = {
+  queued: {
+    title: 'Nothing queued.',
+    hint: "Pick a release and save it (or tick Queue for download on a saved pick) and it downloads on its own once there's room.",
+  },
+  later: {
+    title: 'Nothing saved for later.',
+    hint: "Use the bookmark on a book or release, or Save for later when you're out of room, to keep it here.",
+  },
+};
+
+/**
+ * One of the two saved tabs: Queued (releases picked, downloading on their own once
+ * there's room) or Saved for later (to get by hand).
+ */
 export const SavedPanel = ({
+  stage,
   items,
   loaded,
   autoGetAvailable,
@@ -160,56 +175,41 @@ export const SavedPanel = ({
   onRemove,
   onRefresh,
   onAutoGet,
-}: SavedPanelProps) => {
+}: SavedPanelProps & { stage: SavedStage }) => {
   useMountEffect(() => {
     void onRefresh();
   });
   if (!loaded) {
-    return <p className="mt-8 text-center text-sm opacity-70">Loading saved…</p>;
+    return <p className="mt-8 text-center text-sm opacity-70">Loading…</p>;
   }
-  if (items.length === 0) {
+  const staged = items.filter((item) => savedStage(item) === stage);
+  if (staged.length === 0) {
     return (
       <div className="mt-8 space-y-1 text-center text-sm opacity-70">
-        <p>Nothing saved yet.</p>
-        <p className="text-xs">
-          Use the bookmark on a book or release, or Save for later when you&apos;re out of room, to
-          keep it here. Books with a release picked are queued to download once there&apos;s room.
-        </p>
+        <p>{EMPTY[stage].title}</p>
+        <p className="text-xs">{EMPTY[stage].hint}</p>
       </div>
     );
   }
-  const stages: SavedStage[] = ['queued', 'later'];
   return (
-    <div className="space-y-4">
-      {stages.map((stage) => {
-        const staged = items.filter((item) => savedStage(item) === stage);
-        if (staged.length === 0) return null;
-        return (
-          <section key={stage} aria-label={SAVED_STAGE_LABELS[stage]}>
-            <h3 className="flex items-baseline gap-2 pt-2 text-xs font-semibold tracking-wide uppercase opacity-70">
-              {SAVED_STAGE_LABELS[stage]}
-              <span className="font-normal">{staged.length}</span>
-            </h3>
-            <p className="text-[11px] opacity-50">
-              {stage === 'queued'
-                ? "Releases picked; each downloads on its own once there's room."
-                : 'Get one with + Get whenever you want it.'}
-            </p>
-            <ul className="divide-y divide-[color-mix(in_srgb,var(--border-muted)_60%,transparent)]">
-              {staged.map((item) => (
-                <SavedRow
-                  key={item.id}
-                  item={item}
-                  autoGetAvailable={autoGetAvailable}
-                  onGet={onGet}
-                  onRemove={onRemove}
-                  onAutoGet={onAutoGet}
-                />
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
+    <section aria-label={SAVED_STAGE_LABELS[stage]}>
+      <p className="text-[11px] opacity-50">
+        {stage === 'queued'
+          ? "Each downloads on its own once there's room."
+          : 'Get one with + Get whenever you want it.'}
+      </p>
+      <ul className="divide-y divide-[color-mix(in_srgb,var(--border-muted)_60%,transparent)]">
+        {staged.map((item) => (
+          <SavedRow
+            key={item.id}
+            item={item}
+            autoGetAvailable={autoGetAvailable}
+            onGet={onGet}
+            onRemove={onRemove}
+            onAutoGet={onAutoGet}
+          />
+        ))}
+      </ul>
+    </section>
   );
 };

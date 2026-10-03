@@ -8,6 +8,7 @@ import {
   isSameBook,
   mergeDownloads,
   parseBookKey,
+  releaseDownloadState,
   savedItemFor,
   titleKey,
   type BookDownloadEntry,
@@ -143,5 +144,30 @@ describe('isSameBook', () => {
     expect(
       isSameBook({ title: 'Example Book', authors: ['Jane Author'] }, 'Example Book', 'Sam Writer'),
     ).toBe(false);
+  });
+});
+
+const releaseEntry = (id: string, status: string) => ({
+  id,
+  book_key: null,
+  title: 'Book',
+  author: null,
+  content_type: 'ebook',
+  status,
+});
+
+describe('releaseDownloadState', () => {
+  it('finds a release by its source id, the id of its download', () => {
+    const index = indexDownloads([
+      releaseEntry('r1', 'complete'),
+      releaseEntry('r2', 'downloading'),
+      releaseEntry('r3', 'error'),
+      releaseEntry('r4', 'cancelled'),
+    ]);
+    expect(releaseDownloadState(index, 'r1')).toBe('complete');
+    expect(releaseDownloadState(index, 'r2')).toBe('active');
+    expect(releaseDownloadState(index, 'r3')).toBe('error');
+    expect(releaseDownloadState(index, 'r4')).toBeNull();
+    expect(releaseDownloadState(index, 'other')).toBeNull();
   });
 });

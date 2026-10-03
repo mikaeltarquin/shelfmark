@@ -1,8 +1,9 @@
 import { useBookActivity } from '../../contexts/BookActivityContext';
-import type { Book, LibraryOwnership, LibrarySources } from '../../types';
+import type { Book, LibraryOwnership, LibrarySources, Release } from '../../types';
 import {
   downloadLabel,
   type ActivityBookRef,
+  type BookDownloadState,
   type BookDownloadSummary,
 } from '../../utils/bookActivity';
 import { savedStage, type SavedItem } from '../../utils/savedItems';
@@ -146,6 +147,49 @@ export const ActivityChips = ({
           text={downloadText(download)}
           label={`${downloadLabel(download)} (in your Downloads)`}
           overlay={overlay}
+        />
+      )}
+    </span>
+  );
+};
+
+const RELEASE_DOWNLOAD: Record<BookDownloadState, { text: string; label: string }> = {
+  active: { text: 'Downloading', label: 'This release is downloading' },
+  complete: { text: 'Downloaded', label: 'You downloaded this release' },
+  error: { text: 'Failed', label: 'This release failed to download (see Activity › History)' },
+};
+
+/**
+ * Marks for one release in a release list: queued or saved for later when it's a saved
+ * pick for its book, and downloaded (or downloading, or failed) when it was downloaded.
+ */
+export const ReleaseChips = ({
+  book,
+  release,
+  className = '',
+}: {
+  book: Book | undefined;
+  release: Pick<Release, 'source' | 'source_id'>;
+  className?: string;
+}) => {
+  const activity = useBookActivity();
+  if (!activity) return null;
+  const saved = book ? activity.savedFor(activityRef(book)) : undefined;
+  const picked = saved?.releases.some(
+    (pick) =>
+      pick.release.source === release.source && pick.release.source_id === release.source_id,
+  );
+  const download = activity.releaseDownloadFor(release.source_id);
+  if (!picked && !download) return null;
+  return (
+    <span className={`flex flex-wrap items-center gap-1 ${className}`}>
+      {picked && saved && <SavedChip item={saved} overlay={false} />}
+      {download && (
+        <Chip
+          tone={download}
+          text={RELEASE_DOWNLOAD[download].text}
+          label={RELEASE_DOWNLOAD[download].label}
+          overlay={false}
         />
       )}
     </span>

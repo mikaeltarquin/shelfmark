@@ -4,6 +4,7 @@ import { useTabIndicator } from '../../hooks/ui/useTabIndicator';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import type { RequestRecord, StatusData } from '../../types';
+import { SAVED_STAGE_LABELS, type SavedStage } from '../../utils/savedItems';
 import { Dropdown } from '../Dropdown';
 import { ActivityCard } from './ActivityCard';
 import type { DownloadStatusKey } from './activityMappers';
@@ -48,9 +49,8 @@ interface ActivitySidebarProps {
   onRequestDismiss?: (requestId: number) => void;
   onPinnedOpenChange?: (pinnedOpen: boolean) => void;
   pinnedTopOffset?: number;
-  // Saved for later: shown as its own tab when given.
-  savedCount?: number;
-  savedPanel?: ReactNode;
+  // The saved list's two tabs, Queued and Saved for later, shown when given.
+  savedTabs?: Record<SavedStage, { count: number; panel: ReactNode }>;
 }
 
 export interface ActivityDismissTarget {
@@ -72,7 +72,12 @@ const DOWNLOAD_STATUS_KEYS: DownloadStatusKey[] = [
 
 type ActivityCategoryKey = 'needs_review' | 'in_progress' | 'complete' | 'failed';
 
-type ActivityTabKey = 'all' | 'downloads' | 'requests' | 'saved' | 'history';
+const SAVED_TABS: Array<{ stage: SavedStage; label: string }> = [
+  { stage: 'queued', label: 'Queued' },
+  { stage: 'later', label: 'Later' }, // "Saved for later" in its tooltip
+];
+
+export type ActivityTabKey = 'all' | 'downloads' | 'requests' | SavedStage | 'history';
 const ALL_USERS_FILTER = '__all_users__';
 
 const getCategoryLabel = (key: ActivityCategoryKey, isAdmin: boolean): string => {
@@ -95,7 +100,7 @@ const getVisibleCategoryOrder = (tab: ActivityTabKey): ActivityCategoryKey[] => 
   if (tab === 'requests') {
     return ['needs_review', 'in_progress', 'complete', 'failed'];
   }
-  if (tab === 'history' || tab === 'saved') {
+  if (tab === 'history' || tab === 'queued' || tab === 'later') {
     return [];
   }
   return ['needs_review', 'in_progress', 'complete', 'failed'];
@@ -264,8 +269,7 @@ export const ActivitySidebar = ({
   onRequestDismiss,
   onPinnedOpenChange,
   pinnedTopOffset = 0,
-  savedCount = 0,
-  savedPanel,
+  savedTabs,
 }: ActivitySidebarProps) => {
   const [isPinned, setIsPinned] = useState<boolean>(() => getInitialPinnedPreference());
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -276,6 +280,7 @@ export const ActivitySidebar = ({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const dismissedKeySet = useMemo(() => new Set(dismissedItemKeys), [dismissedItemKeys]);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const handleTabChange = useCallback(
     (nextTab: ActivityTabKey) => {
       if (nextTab === 'downloads') {
@@ -284,13 +289,16 @@ export const ActivitySidebar = ({
       }
       setActiveTab(nextTab);
       onActiveTabChange?.(nextTab);
+      // The tab row scrolls when it doesn't fit: bring the picked tab fully into view.
+      tabRefs.current[nextTab]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     },
     [onActiveTabChange],
   );
 
   const isPinnedOpen = isOpen && isDesktop && isPinned;
   const effectiveActiveTab =
-    (!showRequestsTab && activeTab === 'requests') || (!savedPanel && activeTab === 'saved')
+    (!showRequestsTab && activeTab === 'requests') ||
+    (!savedTabs && (activeTab === 'queued' || activeTab === 'later'))
       ? 'all'
       : activeTab;
   if (effectiveActiveTab !== activeTab) {
@@ -585,11 +593,10 @@ export const ActivitySidebar = ({
   };
 
   // Tab indicator (sliding underline, same pattern as ReleaseModal)
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const tabIndicatorStyle = useTabIndicator(
     tabRefs,
     effectiveActiveTab,
-    `${showRequestsTab}-${Boolean(savedPanel)}`,
+    `${showRequestsTab}-${Boolean(savedTabs)}`,
   );
 
   const panel = (
@@ -768,8 +775,8 @@ export const ActivitySidebar = ({
         </div>
 
         {effectiveActiveTab !== 'history' && (
-          <div className="-mx-4 mt-2 border-b border-(--border-muted) px-4">
-            <div className="relative flex gap-1">
+          <div className="-mx-4 mt-2 [scrollbar-width:none] overflow-x-auto border-b border-(--border-muted) px-4">
+            <div className="relative flex w-max min-w-full gap-1">
               {/* Sliding indicator */}
               <div
                 className="absolute bottom-0 h-0.5 bg-sky-500 transition-all duration-300 ease-out"
@@ -784,7 +791,7 @@ export const ActivitySidebar = ({
                   tabRefs.current.all = el;
                 }}
                 onClick={() => handleTabChange('all')}
-                className={`border-b-2 border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`border-b-2 border-transparent px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
                   effectiveActiveTab === 'all'
                     ? 'text-sky-600 dark:text-sky-400'
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -799,7 +806,7 @@ export const ActivitySidebar = ({
                   tabRefs.current.downloads = el;
                 }}
                 onClick={() => handleTabChange('downloads')}
-                className={`border-b-2 border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`border-b-2 border-transparent px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
                   effectiveActiveTab === 'downloads'
                     ? 'text-sky-600 dark:text-sky-400'
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -820,7 +827,7 @@ export const ActivitySidebar = ({
                     tabRefs.current.requests = el;
                   }}
                   onClick={() => handleTabChange('requests')}
-                  className={`border-b-2 border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                  className={`border-b-2 border-transparent px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
                     effectiveActiveTab === 'requests'
                       ? 'text-sky-600 dark:text-sky-400'
                       : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -835,28 +842,37 @@ export const ActivitySidebar = ({
                   )}
                 </button>
               )}
-              {savedPanel && (
-                <button
-                  type="button"
-                  ref={(el) => {
-                    tabRefs.current.saved = el;
-                  }}
-                  onClick={() => handleTabChange('saved')}
-                  className={`border-b-2 border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-                    effectiveActiveTab === 'saved'
-                      ? 'text-sky-600 dark:text-sky-400'
-                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-                  }`}
-                  aria-current={effectiveActiveTab === 'saved' ? 'page' : undefined}
-                >
-                  Saved
-                  {savedCount > 0 && (
-                    <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500/15 px-1 text-[11px] leading-none text-amber-700 dark:text-amber-300">
-                      {savedCount}
-                    </span>
-                  )}
-                </button>
-              )}
+              {savedTabs &&
+                SAVED_TABS.map(({ stage, label }) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    ref={(el) => {
+                      tabRefs.current[stage] = el;
+                    }}
+                    onClick={() => handleTabChange(stage)}
+                    className={`border-b-2 border-transparent px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                      effectiveActiveTab === stage
+                        ? 'text-sky-600 dark:text-sky-400'
+                        : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
+                    aria-current={effectiveActiveTab === stage ? 'page' : undefined}
+                    title={SAVED_STAGE_LABELS[stage]}
+                  >
+                    {label}
+                    {savedTabs[stage].count > 0 && (
+                      <span
+                        className={`ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none ${
+                          stage === 'queued'
+                            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                        }`}
+                      >
+                        {savedTabs[stage].count}
+                      </span>
+                    )}
+                  </button>
+                ))}
             </div>
           </div>
         )}
@@ -868,8 +884,8 @@ export const ActivitySidebar = ({
         style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       >
         {(() => {
-          if (effectiveActiveTab === 'saved') {
-            return savedPanel;
+          if (savedTabs && (effectiveActiveTab === 'queued' || effectiveActiveTab === 'later')) {
+            return savedTabs[effectiveActiveTab].panel;
           }
           if (visibleItems.length === 0) {
             return <p className="mt-8 text-center text-sm opacity-70">{emptyStateMessage}</p>;

@@ -98,6 +98,12 @@ const narratorOf = (release: Release): string | null => {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
 };
 
+/** One pick as a badge names it: an audiobook by its narrators, an ebook by its format. */
+export const pickLabel = (pick: SavedPick): string => {
+  if (pick.content_type === 'audiobook') return narratorOf(pick.release) ?? 'Audiobook';
+  return formatLabel(pick.release) || 'Ebook';
+};
+
 /** What a saved item will download: "Ebook EPUB + audiobook, Narrator Name", or "Book only". */
 export const describeSavedPick = (item: Pick<SavedItem, 'kind' | 'releases'>): string => {
   if (item.kind === 'book' || item.releases.length === 0) return 'Book only, pick a release later';

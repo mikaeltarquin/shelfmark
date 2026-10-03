@@ -139,7 +139,13 @@ import {
   applyDirectPolicyModeToButtonState,
   applyUniversalPolicyModeToButtonState,
 } from './utils/requestPolicyUi';
-import { combinedPicks, type SavedItem, type SavedPick } from './utils/savedItems';
+import {
+  combinedPicks,
+  savedStage,
+  type SavedItem,
+  type SavedPick,
+  type SavedStage,
+} from './utils/savedItems';
 import { getSearchByPreference, setSearchByPreference } from './utils/searchByPreference';
 import { buildUrlSearchHash } from './utils/urlSearchHash';
 
@@ -2067,6 +2073,30 @@ function App() {
     }
   };
 
+  // Saved items in two Activity tabs: queued to download on their own, and kept for later.
+  const savedPanelFor = (stage: SavedStage) => (
+    <SavedPanel
+      stage={stage}
+      items={savedStore.items}
+      loaded={savedStore.loaded}
+      autoGetAvailable={Boolean(config?.saved_auto_get_enabled)}
+      onGet={handleSavedGet}
+      onRemove={(item) => savedStore.remove(item)}
+      onRefresh={savedStore.refresh}
+      onAutoGet={savedStore.setAutoGet}
+    />
+  );
+  const savedTabs = {
+    queued: {
+      count: savedStore.items.filter((item) => savedStage(item) === 'queued').length,
+      panel: savedPanelFor('queued'),
+    },
+    later: {
+      count: savedStore.items.filter((item) => savedStage(item) === 'later').length,
+      panel: savedPanelFor('later'),
+    },
+  };
+
   const handleRequestCancel = useCallback(
     async (requestId: number) => {
       try {
@@ -3126,18 +3156,7 @@ function App() {
           </div>
 
           <ActivitySidebar
-            savedCount={savedStore.items.length}
-            savedPanel={
-              <SavedPanel
-                items={savedStore.items}
-                loaded={savedStore.loaded}
-                autoGetAvailable={Boolean(config?.saved_auto_get_enabled)}
-                onGet={handleSavedGet}
-                onRemove={(item) => savedStore.remove(item)}
-                onRefresh={savedStore.refresh}
-                onAutoGet={savedStore.setAutoGet}
-              />
-            }
+            savedTabs={savedTabs}
             isOpen={downloadsSidebarOpen}
             onClose={() => setDownloadsSidebarOpen(false)}
             status={activitySidebarStatus}
