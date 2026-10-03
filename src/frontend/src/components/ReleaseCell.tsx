@@ -1,5 +1,6 @@
 import type { ColumnSchema, Release } from '../types';
 import { getColorStyleFromHint, getProtocolDotColor, getFormatColor } from '../utils/colorMaps';
+import { narratorNames, shortNarrators } from '../utils/narrators';
 import {
   getNestedValue,
   isRecord,
@@ -82,6 +83,11 @@ export const ReleaseCell = ({
     rawValue !== undefined && rawValue !== null ? toComparableText(rawValue) : column.fallback;
 
   const displayValue = column.uppercase ? cellValue.toUpperCase() : cellValue;
+  // Several narrators show as the first and a count ("Andrew Scott +9"), all on hover.
+  const narratorList =
+    column.key === 'extra.narrator' ? narratorNames(release.extra?.narrators ?? rawValue) : [];
+  const textValue = narratorList.length > 1 ? shortNarrators(narratorList) : displayValue;
+  const textTitle = narratorList.length > 1 ? narratorList.join(', ') : displayValue;
 
   // Alignment classes
   const alignClass = {
@@ -615,7 +621,7 @@ export const ReleaseCell = ({
             </span>
           );
         }
-        return <span>{displayValue}</span>;
+        return <span title={textTitle || undefined}>{textValue}</span>;
       }
 
       return (
@@ -628,8 +634,8 @@ export const ReleaseCell = ({
               title={isOnline ? 'Online' : 'Offline'}
             />
           )}
-          <span className="truncate" title={displayValue || undefined}>
-            {displayValue}
+          <span className="truncate" title={textTitle || undefined}>
+            {textValue}
           </span>
         </div>
       );

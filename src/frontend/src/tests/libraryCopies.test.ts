@@ -54,6 +54,15 @@ describe('copyBadges', () => {
     );
   });
 
+  it('shortens a cast of narrators to the first and a count, all of them on hover', () => {
+    const [badge] = copyBadges(
+      book({ narrators: ['Andrew Scott', 'Kate Reading', 'Ray Porter'] }),
+      'audiobook',
+    );
+    expect(badge.text).toBe('Andrew Scott +2');
+    expect(badge.title).toContain('Andrew Scott, Kate Reading, Ray Porter');
+  });
+
   it('treats a book from an older server as one copy', () => {
     expect(copyBadges(book(), 'audiobook').map((badge) => badge.text)).toEqual(['Ray Porter']);
     expect(copyBadges(book({ formats: ['ebook'] }), 'audiobook')).toEqual([]);

@@ -45,7 +45,21 @@ describe('describeSavedPick', () => {
           },
         ],
       }),
-    ).toBe('Ebook EPUB + audiobook, Narrator One, Narrator Two');
+    ).toBe('Ebook EPUB + audiobook, Narrator One +1');
+    expect(
+      describeSavedPick(
+        {
+          kind: 'release',
+          releases: [
+            {
+              content_type: 'audiobook',
+              release: release({ extra: { narrators: ['Narrator One', 'Narrator Two'] } }),
+            },
+          ],
+        },
+        { full: true },
+      ),
+    ).toBe('Audiobook, Narrator One, Narrator Two');
     expect(
       describeSavedPick({
         kind: 'release',
