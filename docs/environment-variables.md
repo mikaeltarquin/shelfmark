@@ -536,7 +536,7 @@ Audiobooks only. AudiobookBay lists it for most releases. In Prowlarr results it
 | `EBOOKS_WITH_AUDIOBOOKS` | Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart. | boolean | `false` |
 | `WRITE_AUDIOBOOKSHELF_OPF` | Save a metadata.opf with Shelfmark's title, authors, narrators, year and series into each audiobook folder (and the ebooks kept with them) before the files arrive. Audiobookshelf prefers it over the release's own tags, so every book of a series imports with the same series name and number. Edits made in Audiobookshelf still take precedence. Folders that already have an .opf are left alone. | boolean | `false` |
 | `HARDLINK_TORRENTS_AUDIOBOOK` | Create hardlinks instead of copying. Preserves seeding but archives won't be extracted. Don't use if destination is a library ingest folder. | boolean | `true` |
-| `AUTO_OPEN_DOWNLOADS_SIDEBAR` | Automatically open the downloads sidebar when a new download is queued. | boolean | `false` |
+| `AUTO_OPEN_DOWNLOADS_SIDEBAR` | Go to Activity > Downloads when a new download is queued. | boolean | `false` |
 | `DOWNLOAD_TO_BROWSER_CONTENT_TYPES` | Automatically download completed files to your browser for the selected content types. | string (comma-separated) | _empty list_ |
 | `MAX_CONCURRENT_DOWNLOADS` | Maximum number of simultaneous downloads. | number | `3` |
 | `STATUS_TIMEOUT` | How long to keep completed/failed downloads in the queue display. | number | `3600` |
@@ -850,9 +850,9 @@ Create hardlinks instead of copying. Preserves seeding but archives won't be ext
 
 #### `AUTO_OPEN_DOWNLOADS_SIDEBAR`
 
-**Auto-Open Downloads Sidebar**
+**Show Downloads When Queued**
 
-Automatically open the downloads sidebar when a new download is queued.
+Go to Activity > Downloads when a new download is queued.
 
 - **Type:** boolean
 - **Default:** `false`

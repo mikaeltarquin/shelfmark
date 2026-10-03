@@ -7,7 +7,7 @@ interface UseStatusChangeNotificationsOptions {
   currentStatus: StatusData;
   config: AppConfig | null;
   showToast: (message: string, type: 'info' | 'success' | 'error') => void;
-  openDownloadsSidebar: () => void;
+  showDownloadsPage: () => void;
   bookToReleaseMap: Record<string, string[]>;
   markBookCompleted: (bookId: string) => void;
 }
@@ -16,7 +16,7 @@ export const useStatusChangeNotifications = ({
   currentStatus,
   config,
   showToast,
-  openDownloadsSidebar,
+  showDownloadsPage,
   bookToReleaseMap,
   markBookCompleted,
 }: UseStatusChangeNotificationsOptions): void => {
@@ -34,18 +34,18 @@ export const useStatusChangeNotifications = ({
 
       const prevQueued = prevStatus.queued || {};
       const currQueued = nextStatus.queued || {};
-      let shouldOpenDownloadsSidebar = false;
+      let shouldShowDownloads = false;
       Object.keys(currQueued).forEach((bookId) => {
         if (!prevQueued[bookId]) {
           const book = currQueued[bookId];
           showToast(`${book.title || 'Book'} added to queue`, 'info');
           if (config?.auto_open_downloads_sidebar !== false) {
-            shouldOpenDownloadsSidebar = true;
+            shouldShowDownloads = true;
           }
         }
       });
-      if (shouldOpenDownloadsSidebar) {
-        openDownloadsSidebar();
+      if (shouldShowDownloads) {
+        showDownloadsPage();
       }
 
       const prevDownloading = prevStatus.downloading || {};

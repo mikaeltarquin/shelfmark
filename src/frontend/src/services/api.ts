@@ -64,6 +64,7 @@ const API = {
   retryDownload: `${API_BASE}/download`,
   setPriority: `${API_BASE}/queue`,
   config: `${API_BASE}/config`,
+  health: `${API_BASE}/health`,
   login: `${API_BASE}/auth/login`,
   logout: `${API_BASE}/auth/logout`,
   authCheck: `${API_BASE}/auth/check`,
@@ -811,6 +812,14 @@ export const cancelDownload = async (id: string): Promise<void> => {
 export const retryDownload = async (id: string): Promise<void> => {
   await fetchJSON(`${API.retryDownload}/${encodeURIComponent(id)}/retry`, { method: 'POST' });
 };
+
+export interface HealthStatus {
+  status: string;
+  // Features running in a reduced mode, by name, with what that means.
+  degraded?: Record<string, string>;
+}
+
+export const getHealth = async (): Promise<HealthStatus> => fetchJSON<HealthStatus>(API.health);
 
 export const getConfig = async (): Promise<AppConfig> => {
   const config = await fetchJSON<AppConfig>(API.config);

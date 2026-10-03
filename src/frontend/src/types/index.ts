@@ -348,7 +348,7 @@ export interface AppConfig {
   saved_auto_get_enabled?: boolean; // Saved items can be marked to download on their own
   library_browser_available?: boolean; // A library check is on, so the library browser has books
   books_output_mode: BooksOutputMode;
-  auto_open_downloads_sidebar: boolean; // Auto-open sidebar when download is queued
+  auto_open_downloads_sidebar: boolean; // Go to Activity > Downloads when a download is queued
   hardcover_auto_remove_on_download: boolean; // Auto-remove from active Hardcover list on download
   download_to_browser_content_types: string[]; // Auto-download completed files to browser for selected content types
   release_search_timeout: number; // Server-side budget for one release search, in seconds

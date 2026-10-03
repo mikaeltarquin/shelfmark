@@ -1,14 +1,19 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { ActivitySidebar, type ActivityItem } from './components/activity';
+import {
+  ACTIVITY_TAB_LABELS,
+  ActivityPage,
+  type ActivityItem,
+  type ActivityTabKey,
+} from './components/activity';
 import { SavedPanel } from './components/activity/SavedPanel';
 import { AdvancedFilters } from './components/AdvancedFilters';
 import { ConfigSetupBanner } from './components/ConfigSetupBanner';
 import { DetailsModal, type DetailsNotice } from './components/DetailsModal';
-import { Footer } from './components/Footer';
 import { Header } from './components/Header';
+import { AppSidebar, type NavItem } from './components/layout/AppSidebar';
 import { LibraryPage } from './components/library/LibraryPage';
 import { MamAccountModal } from './components/MamAccountModal';
 import { MamBufferModal } from './components/MamBufferModal';
@@ -19,8 +24,14 @@ import { ReleaseModal } from './components/ReleaseModal';
 import { RequestConfirmationModal } from './components/RequestConfirmationModal';
 import { ResultsSection } from './components/ResultsSection';
 import type { SuggestionPickResult } from './components/SearchBar';
-import { SearchSection } from './components/SearchSection';
-import { SelfSettingsModal, SettingsModal } from './components/settings';
+import {
+  SETTINGS_CATEGORIES,
+  SelfSettingsModal,
+  SettingsPage,
+  parseSettingsRoute,
+  settingsPath,
+} from './components/settings';
+import { SystemPage } from './components/system/SystemPage';
 import { ToastContainer } from './components/ToastContainer';
 import { UrlSearchBootstrapMount } from './components/UrlSearchBootstrapMount';
 import {
@@ -49,7 +60,6 @@ import { useActivity } from './hooks/useActivity';
 import { useAuth } from './hooks/useAuth';
 import { useDownloadTracking } from './hooks/useDownloadTracking';
 import { useLatestCallback } from './hooks/useLatestCallback';
-import { useMediaQuery } from './hooks/useMediaQuery';
 import { useMountEffect } from './hooks/useMountEffect';
 import { useRealtimeStatus } from './hooks/useRealtimeStatus';
 import { useRequestPolicy } from './hooks/useRequestPolicy';
@@ -101,6 +111,7 @@ import type {
 } from './types';
 import { isMetadataBook } from './types';
 import { formatActingAsUserName } from './utils/actingAsUser';
+import { getActivityBadgeState } from './utils/activityBadge';
 import { findActivityBook, findLibraryLink } from './utils/activityBook';
 import { buildLoginRedirectPath, getReturnToFromSearch } from './utils/authRedirect';
 import { withBasePath } from './utils/basePath';
@@ -152,18 +163,30 @@ import { buildUrlSearchHash } from './utils/urlSearchHash';
 // eslint-disable-next-line import/no-unassigned-import -- global app stylesheet is loaded for side effects
 import './styles.css';
 
-const ACTIVITY_SIDEBAR_PINNED_STORAGE_KEY = 'activity-sidebar-pinned';
-const getInitialPinnedPreference = (): boolean => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
+const ACTIVITY_TABS: ActivityTabKey[] = ['queued', 'downloads', 'requests', 'history'];
 
-  try {
-    const value = window.localStorage.getItem(ACTIVITY_SIDEBAR_PINNED_STORAGE_KEY);
-    return value === '1' || value?.toLowerCase() === 'true';
-  } catch {
-    return false;
+// The section of the app a path belongs to, for the navigation and the main content.
+type AppSection = 'search' | 'library' | 'activity' | 'wanted' | 'settings' | 'system';
+const sectionOfPath = (pathname: string): AppSection => {
+  const [, first] = pathname.split('/');
+  if (
+    first === 'library' ||
+    first === 'activity' ||
+    first === 'wanted' ||
+    first === 'settings' ||
+    first === 'system'
+  ) {
+    return first;
   }
+  return 'search';
+};
+
+// Loads the activity history when the History page opens.
+const ActivityHistoryLoader = ({ onLoad }: { onLoad: () => void }) => {
+  useMountEffect(() => {
+    onLoad();
+  });
+  return null;
 };
 
 const POLICY_GUARD_ERROR_CODES = new Set(['policy_requires_request', 'policy_blocked']);
@@ -312,8 +335,7 @@ const AdminSettingsWarmupMount = () => {
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isLibraryRoute =
-    location.pathname === '/library' || location.pathname.startsWith('/library/');
+  const section = sectionOfPath(location.pathname);
   const { toasts, showToast, removeToast } = useToast();
   const { socket } = useSocket();
 
@@ -418,7 +440,6 @@ function App() {
     isActivitySnapshotLoading,
     activityHistoryLoading,
     activityHistoryHasMore,
-    prefetchActivityHistory,
     refreshActivitySnapshot,
     refreshActivityHistory,
     resetActivity,
@@ -684,25 +705,13 @@ function App() {
   const [activeQueryTarget, setActiveQueryTarget] = useState(
     () => getSearchByPreference() || 'general',
   );
-  const [downloadsSidebarOpen, setDownloadsSidebarOpen] = useState(false);
-  const [sidebarPinnedOpen, setSidebarPinnedOpen] = useState<boolean>(() =>
-    getInitialPinnedPreference(),
-  );
+  // The navigation drawer on small screens.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerObserverRef = useRef<ResizeObserver | null>(null);
-  const isDesktopViewport = useMediaQuery('(min-width: 1024px)');
-  const openDownloadsSidebar = useCallback(() => {
-    setDownloadsSidebarOpen(true);
-    prefetchActivityHistory();
-  }, [prefetchActivityHistory]);
-  const toggleDownloadsSidebar = useCallback(() => {
-    if (downloadsSidebarOpen) {
-      setDownloadsSidebarOpen(false);
-      return;
-    }
-    setDownloadsSidebarOpen(true);
-    prefetchActivityHistory();
-  }, [downloadsSidebarOpen, prefetchActivityHistory]);
+  const showDownloadsPage = useCallback(() => {
+    void navigate('/activity/downloads');
+  }, [navigate]);
   const headerRef = useCallback((el: HTMLDivElement | null) => {
     if (headerObserverRef.current) {
       headerObserverRef.current.disconnect();
@@ -716,7 +725,6 @@ function App() {
     observer.observe(el);
     headerObserverRef.current = observer;
   }, []);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mamAccountOpen, setMamAccountOpen] = useState(false);
   // Bumped when the account dialog closes, so the header re-reads ratio and unsatisfied.
   const [mamStatsKey, setMamStatsKey] = useState(0);
@@ -745,7 +753,6 @@ function App() {
     setPendingOnBehalfDownload(null);
     setFulfillingRequest(null);
     resetActivity();
-    setSettingsOpen(false);
     setSelfSettingsOpen(false);
   }, [handleLogout, resetActivity, resetSearchResultsState]);
 
@@ -754,14 +761,14 @@ function App() {
       if (authIsAdmin) {
         void primeUsersCache();
         void primeSettingsCache();
-        setSettingsOpen(true);
+        void navigate('/settings');
       } else {
         setSelfSettingsOpen(true);
       }
       return;
     }
     setConfigBannerOpen(true);
-  }, [authIsAdmin, config?.settings_enabled]);
+  }, [authIsAdmin, config?.settings_enabled, navigate]);
 
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   useShowOnboardingDebug({
@@ -842,7 +849,7 @@ function App() {
     currentStatus,
     config,
     showToast,
-    openDownloadsSidebar,
+    showDownloadsPage,
     bookToReleaseMap,
     markBookCompleted,
   });
@@ -1712,7 +1719,7 @@ function App() {
     }
     if (!book) {
       // Not found directly: search for it (a failed row keeps its own Retry button).
-      setDownloadsSidebarOpen(false);
+      void navigate('/');
       runSearchWithPolicyRefresh({ query: `${item.title} ${item.author}`.trim() });
       showToast(`Searching for "${item.title}"`, 'info');
       return;
@@ -2086,15 +2093,9 @@ function App() {
       onAutoGet={savedStore.setAutoGet}
     />
   );
-  const savedTabs = {
-    queued: {
-      count: savedStore.items.filter((item) => savedStage(item) === 'queued').length,
-      panel: savedPanelFor('queued'),
-    },
-    later: {
-      count: savedStore.items.filter((item) => savedStage(item) === 'later').length,
-      panel: savedPanelFor('later'),
-    },
+  const savedCounts: Record<SavedStage, number> = {
+    queued: savedStore.items.filter((item) => savedStage(item) === 'queued').length,
+    later: savedStore.items.filter((item) => savedStage(item) === 'later').length,
   };
 
   const handleRequestCancel = useCallback(
@@ -2773,8 +2774,6 @@ function App() {
   const combinedHasPreviousStep = effectiveCombinedState
     ? combinedSelectionPhases.indexOf(effectiveCombinedState.phase) > 0
     : false;
-  const usePinnedMainScrollContainer =
-    downloadsSidebarOpen && isDesktopViewport && sidebarPinnedOpen;
 
   const handleReleaseModalClose = useCallback(() => {
     if (isBrowseFulfilMode) {
@@ -2803,6 +2802,315 @@ function App() {
     ? formatActingAsUserName(effectivePendingOnBehalfDownload.actingAsUser)
     : '';
 
+  // Main navigation, Sonarr/Radarr style: each section, and the open one's pages.
+  const libraryAvailable =
+    (requestRoleIsAdmin || !authRequired) && Boolean(config?.library_browser_available);
+  const settingsPageAvailable = authIsAdmin && Boolean(config?.settings_enabled);
+  const visibleActivityTabs = ACTIVITY_TABS.filter((tab) => tab !== 'requests' || showRequestsTab);
+  const activityTabFromPath = location.pathname.split('/')[2];
+  const activityTab =
+    section === 'activity'
+      ? (visibleActivityTabs.find((tab) => tab === activityTabFromPath) ?? null)
+      : null;
+  const settingsRoute = parseSettingsRoute(location.pathname);
+  const activeSettingsCategory = settingsRoute.category ?? SETTINGS_CATEGORIES[0]?.key;
+  const activityBadge = getActivityBadgeState(statusCounts, requestRoleIsAdmin);
+  const downloadCount = statusCounts.ongoing + statusCounts.completed + statusCounts.errored;
+  let downloadBadgeClass = 'bg-green-500 text-white';
+  if (statusCounts.errored > 0) {
+    downloadBadgeClass = 'bg-red-500 text-white';
+  } else if (statusCounts.ongoing > 0) {
+    downloadBadgeClass = 'bg-blue-500 text-white';
+  }
+  const navItems: NavItem[] = [
+    { key: 'search', label: 'Search', icon: 'search', to: '/', active: section === 'search' },
+    ...(libraryAvailable
+      ? [
+          {
+            key: 'library',
+            label: 'Library',
+            icon: 'library' as const,
+            to: '/library',
+            active: section === 'library',
+          },
+        ]
+      : []),
+    {
+      key: 'activity',
+      label: 'Activity',
+      icon: 'activity',
+      to: '/activity/downloads',
+      active: section === 'activity',
+      badge: activityBadge
+        ? {
+            count: activityBadge.total,
+            className: `${activityBadge.colorClass} text-white`,
+            title: activityBadge.title,
+          }
+        : null,
+      children: visibleActivityTabs.map((tab) => {
+        let badge = null;
+        if (tab === 'queued') {
+          badge = {
+            count: savedCounts.queued,
+            className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+          };
+        } else if (tab === 'downloads') {
+          badge = { count: downloadCount, className: downloadBadgeClass };
+        } else if (tab === 'requests') {
+          badge = {
+            count: pendingRequestCount,
+            className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+          };
+        }
+        return {
+          key: tab,
+          label: ACTIVITY_TAB_LABELS[tab],
+          to: `/activity/${tab}`,
+          active: activityTab === tab,
+          badge,
+        };
+      }),
+    },
+    {
+      key: 'wanted',
+      label: 'Wanted',
+      icon: 'wanted',
+      to: '/wanted',
+      active: section === 'wanted',
+      badge: {
+        count: savedCounts.later,
+        className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+        title: 'Saved for later',
+      },
+    },
+    settingsPageAvailable
+      ? {
+          key: 'settings',
+          label: 'Settings',
+          icon: 'settings',
+          to: '/settings',
+          active: section === 'settings',
+          children: SETTINGS_CATEGORIES.map((category) => ({
+            key: category.key,
+            label: category.label,
+            to: settingsPath(category.key),
+            active: activeSettingsCategory === category.key,
+          })),
+        }
+      : {
+          key: 'settings',
+          label: 'Settings',
+          icon: 'settings',
+          onClick: handleSettingsClick,
+          active: false,
+        },
+    { key: 'system', label: 'System', icon: 'system', to: '/system', active: section === 'system' },
+  ];
+
+  const goToSearch = () => {
+    if (section !== 'search') void navigate('/');
+  };
+
+  let pageContent: ReactNode;
+  if (section === 'library') {
+    pageContent = (
+      <LibraryPage
+        actions={{
+          contentType: effectiveContentType,
+          allowedContentTypes,
+          onContentTypeChange: setContentType,
+          onShowDetails: (book) => showBookDetails(book, book.id),
+          onGetReleases: handleGetReleases,
+          getButtonState: getUniversalActionButtonState,
+          onShowToast: showToast,
+        }}
+      />
+    );
+  } else if (section === 'activity') {
+    pageContent = activityTab ? (
+      <>
+        {activityTab === 'history' && (
+          <ActivityHistoryLoader onLoad={() => handleActivityTabChange('history')} />
+        )}
+        <ActivityPage
+          key={activityTab}
+          tab={activityTab}
+          queuedPanel={savedPanelFor('queued')}
+          status={activitySidebarStatus}
+          isAdmin={requestRoleIsAdmin}
+          onClearCompleted={handleClearCompleted}
+          onOpenDetails={(item) => {
+            void handleOpenActivityDetails(item);
+          }}
+          onOpenInLibrary={
+            requestRoleIsAdmin
+              ? (item) => {
+                  void handleOpenInLibrary(item);
+                }
+              : undefined
+          }
+          onCancel={(id) => {
+            void handleCancel(id);
+          }}
+          onRetry={(id) => {
+            void handleRetry(id);
+          }}
+          onDownloadDismiss={handleDownloadDismiss}
+          requestItems={requestItems}
+          dismissedItemKeys={dismissedActivityKeys}
+          historyItems={historyItems}
+          historyLoaded={activityHistoryLoaded}
+          historyHasMore={activityHistoryHasMore}
+          historyLoading={activityHistoryLoading}
+          onHistoryLoadMore={handleActivityHistoryLoadMore}
+          onClearHistory={handleClearHistory}
+          showRequestsTab={showRequestsTab}
+          isRequestsLoading={isActivitySnapshotLoading}
+          onRequestCancel={showRequestsTab ? handleRequestCancel : undefined}
+          onRequestApprove={requestRoleIsAdmin ? handleRequestApprove : undefined}
+          onRequestReject={requestRoleIsAdmin ? handleRequestReject : undefined}
+          onRequestDismiss={showRequestsTab ? handleRequestDismiss : undefined}
+        />
+      </>
+    ) : (
+      <Navigate to="/activity/downloads" replace />
+    );
+  } else if (section === 'wanted') {
+    pageContent = (
+      <section className="space-y-4" aria-labelledby="wanted-title">
+        <div>
+          <h1 id="wanted-title" className="text-2xl font-semibold">
+            Wanted
+          </h1>
+          <p className="text-sm opacity-60">Books and releases you saved for later.</p>
+        </div>
+        <div className="max-w-4xl">{savedPanelFor('later')}</div>
+      </section>
+    );
+  } else if (section === 'settings') {
+    pageContent = settingsPageAvailable ? (
+      <SettingsPage
+        category={settingsRoute.category}
+        tab={settingsRoute.tab}
+        onNavigate={(path) => void navigate(path)}
+        authMode={authMode}
+        onShowToast={showToast}
+        onSettingsSaved={handleSettingsSaved}
+        onRefreshAuth={refreshAuth}
+      />
+    ) : (
+      <Navigate to="/" replace />
+    );
+  } else if (section === 'system') {
+    pageContent = (
+      <SystemPage
+        buildVersion={config?.build_version}
+        releaseVersion={config?.release_version}
+        searchMode={config?.search_mode}
+        debug={config?.debug}
+        onShowToast={showToast}
+        onRemoveToast={removeToast}
+      />
+    );
+  } else {
+    pageContent = (
+      <>
+        <AdvancedFilters
+          visible={effectiveShowAdvanced}
+          bookLanguages={bookLanguages}
+          defaultLanguage={defaultLanguageCodes}
+          filters={advancedFilters}
+          onFiltersChange={updateAdvancedFilters}
+          formClassName="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+          renderWrapper={(form) => (
+            <div className="mb-4 rounded-xl border border-(--border-muted) bg-(--bg-soft) py-4 pr-4 pl-2">
+              {form}
+            </div>
+          )}
+          searchMode={effectiveSearchMode}
+          onSearchModeChange={handleSearchModeChange}
+          metadataProviders={metadataProviders}
+          activeMetadataProvider={effectiveMetadataProvider}
+          onMetadataProviderChange={handleMetadataProviderChange}
+          contentType={effectiveContentType}
+          combinedMode={effectiveCombinedMode}
+          isAdmin={requestRoleIsAdmin}
+          onClose={() => setShowAdvanced(false)}
+        />
+
+        {effectiveActiveQueryTarget === 'manual' && (
+          <p className="mb-3 text-xs opacity-50">
+            Manual search queries release sources directly. Some sources may return limited
+            metadata, which can affect file naming templates.
+          </p>
+        )}
+
+        {isInitialState ? (
+          <div className="flex flex-col items-center px-4 pt-[12vh] text-center">
+            <img src={logoUrl} alt="" className="mb-4 h-14 w-14 opacity-90" />
+            <h1 className="text-2xl font-semibold">{config?.search_page_title || 'Shelfmark'}</h1>
+            <p className="mt-2 max-w-md text-sm opacity-60">
+              {isSearching
+                ? 'Searching…'
+                : 'Search for a book, author or series with the search bar above.'}
+            </p>
+          </div>
+        ) : (
+          <ResultsSection
+            books={books}
+            visible={hasResults}
+            onDetails={handleShowDetails}
+            onDownload={handleDownload}
+            onGetReleases={handleGetReleases}
+            getButtonState={getDirectActionButtonState}
+            getUniversalButtonState={getUniversalActionButtonState}
+            sortValue={visibleResultsSort}
+            showSortControl={
+              !activeQueryUsesSeriesBrowse && !activeQueryUsesListBrowse && !resultsSourceUrl
+            }
+            onSortChange={(value) => {
+              const request = buildCurrentSearchRequest(value);
+              const shouldPersistAppliedSort = !(
+                effectiveSearchMode === 'universal' &&
+                activeQueryUsesSeriesBrowse &&
+                request.appliedSort === seriesBrowseCapability?.sort
+              );
+              if (shouldPersistAppliedSort) {
+                updateAdvancedFilters({ sort: request.appliedSort });
+              }
+              setActiveResultsSort(request.appliedSort);
+
+              // "Most downloads" is a client-side sort — just re-sort existing books
+              if (request.appliedSort === 'downloads' && effectiveSearchMode === 'direct') {
+                reSortByDownloads();
+                return;
+              }
+
+              runSearchWithPolicyRefresh({
+                query: request.query,
+                fieldValues: request.fieldValues,
+                searchModeOverride: effectiveSearchMode,
+                providerOverride: request.providerOverride,
+                sort: request.appliedSort,
+              });
+            }}
+            metadataSortOptions={resolvedMetadataSortOptions}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={() => {
+              void loadMore(config, effectiveSearchMode);
+            }}
+            totalFound={totalFound}
+            directTotalResults={directTotalResults}
+            onShowToast={showToast}
+            resultsSourceUrl={resultsSourceUrl}
+          />
+        )}
+      </>
+    );
+  }
+
   const mainAppContent = (
     <SearchModeProvider searchMode={effectiveSearchMode}>
       <SavedItemsProvider value={savedStore}>
@@ -2815,20 +3123,13 @@ function App() {
               calibreWebName={config?.calibre_web_name || undefined}
               audiobookLibraryName={config?.audiobook_library_name || undefined}
               audiobookLibraryUrl={config?.audiobook_library_url || ''}
-              debug={config?.debug || false}
               logoUrl={logoUrl}
-              showSearch={!isInitialState}
+              title={config?.search_page_title || 'Shelfmark'}
               searchInput={activeQueryValue}
               searchInputLabel={activeQueryValueLabel}
               onSearchChange={handleActiveQueryValueChange}
               onSuggestionPick={handleSuggestionPick}
-              onDownloadsClick={toggleDownloadsSidebar}
-              onSettingsClick={handleSettingsClick}
-              onLibraryClick={
-                (requestRoleIsAdmin || !authRequired) && config?.library_browser_available
-                  ? () => void navigate('/library')
-                  : undefined
-              }
+              onMenuClick={() => setMobileNavOpen(true)}
               mamStatsKey={mamStatsKey}
               onMamAccountClick={
                 // Without login everyone is an admin, as the backend's admin check treats them.
@@ -2837,7 +3138,6 @@ function App() {
                   : undefined
               }
               isAdmin={requestRoleIsAdmin}
-              canAccessSettings={isAuthenticated}
               username={username}
               displayName={displayName}
               actingAsUser={effectiveActingAsUser}
@@ -2847,9 +3147,8 @@ function App() {
               adminUsersError={adminUsersError}
               hasLoadedAdminUsers={hasLoadedAdminUsers}
               onLoadAdminUsers={loadAdminUsers}
-              statusCounts={statusCounts}
               onLogoClick={() => {
-                if (isLibraryRoute) void navigate('/');
+                goToSearch();
                 handleResetSearch(config);
                 setActiveQueryTarget('general');
                 setActiveResultsSort('');
@@ -2860,17 +3159,25 @@ function App() {
                 void handleLogoutWithCleanup();
               }}
               onSearch={() => {
-                // Searching from the library page shows the results on the search page.
-                if (isLibraryRoute) void navigate('/');
+                // Searching from another page shows the results on the search page.
+                goToSearch();
                 handleSearchDispatch();
               }}
               onAdvancedToggle={
-                hasAdvancedContent ? () => setShowAdvanced(!effectiveShowAdvanced) : undefined
+                hasAdvancedContent
+                  ? () => {
+                      // The filters show above the results, on the search page.
+                      if (section !== 'search') {
+                        goToSearch();
+                        setShowAdvanced(true);
+                        return;
+                      }
+                      setShowAdvanced(!effectiveShowAdvanced);
+                    }
+                  : undefined
               }
               isAdvancedActive={effectiveShowAdvanced}
               isLoading={isSearching}
-              onShowToast={showToast}
-              onRemoveToast={removeToast}
               contentType={effectiveContentType}
               onContentTypeChange={setContentType}
               allowedContentTypes={allowedContentTypes}
@@ -2884,320 +3191,126 @@ function App() {
             />
           </div>
 
-          <div
-            className={`flex flex-col${
-              usePinnedMainScrollContainer
-                ? ' min-h-0 overflow-y-auto overscroll-y-contain'
-                : ' flex-1'
-            }`}
-            style={
-              usePinnedMainScrollContainer
-                ? {
-                    position: 'fixed',
-                    top: `${headerHeight}px`,
-                    bottom: 0,
-                    left: 0,
-                    right: '25rem',
-                    zIndex: 20,
-                  }
-                : { paddingTop: `${headerHeight}px` }
-            }
-          >
-            <AdvancedFilters
-              visible={effectiveShowAdvanced && !isInitialState}
-              bookLanguages={bookLanguages}
-              defaultLanguage={defaultLanguageCodes}
-              filters={advancedFilters}
-              onFiltersChange={updateAdvancedFilters}
-              searchMode={effectiveSearchMode}
-              onSearchModeChange={handleSearchModeChange}
-              metadataProviders={metadataProviders}
-              activeMetadataProvider={effectiveMetadataProvider}
-              onMetadataProviderChange={handleMetadataProviderChange}
-              contentType={effectiveContentType}
-              combinedMode={effectiveCombinedMode}
-              isAdmin={requestRoleIsAdmin}
-              onClose={() => setShowAdvanced(false)}
-            />
+          <AppSidebar
+            items={navItems}
+            topOffset={headerHeight}
+            mobileOpen={mobileNavOpen}
+            onMobileClose={() => setMobileNavOpen(false)}
+          />
 
-            {!isInitialState && effectiveActiveQueryTarget === 'manual' && (
-              <p className="px-4 pt-2 text-xs opacity-50 sm:px-6 lg:ml-16 lg:px-8">
-                Manual search queries release sources directly. Some sources may return limited
-                metadata, which can affect file naming templates.
-              </p>
+          <div className="lg:pl-56" style={{ paddingTop: `${headerHeight}px` }}>
+            {section === 'settings' ? (
+              <main
+                className="flex flex-col"
+                style={{ height: `calc(100dvh - ${headerHeight}px)` }}
+              >
+                {pageContent}
+              </main>
+            ) : (
+              <main className="relative mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+                {pageContent}
+              </main>
             )}
-
-            <main
-              className="relative mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 sm:py-6 lg:px-8"
-              style={
-                usePinnedMainScrollContainer
-                  ? { display: 'block', flex: '0 0 auto', minHeight: 0 }
-                  : undefined
-              }
-            >
-              {isLibraryRoute ? (
-                <LibraryPage
-                  onBack={() => void navigate('/')}
-                  actions={{
-                    contentType: effectiveContentType,
-                    allowedContentTypes,
-                    onContentTypeChange: setContentType,
-                    onShowDetails: (book) => showBookDetails(book, book.id),
-                    onGetReleases: handleGetReleases,
-                    getButtonState: getUniversalActionButtonState,
-                    onShowToast: showToast,
-                  }}
-                />
-              ) : (
-                <>
-                  <SearchSection
-                    onSearch={handleSearchDispatch}
-                    isLoading={isSearching}
-                    isInitialState={isInitialState}
-                    searchPageTitle={config?.search_page_title || 'Shelfmark'}
-                    bookLanguages={bookLanguages}
-                    defaultLanguage={defaultLanguageCodes}
-                    logoUrl={logoUrl}
-                    queryValue={activeQueryValue}
-                    queryValueLabel={activeQueryValueLabel}
-                    onQueryValueChange={handleActiveQueryValueChange}
-                    onSuggestionPick={handleSuggestionPick}
-                    queryTargets={queryTargets}
-                    activeQueryTarget={effectiveActiveQueryTarget}
-                    onQueryTargetChange={handleQueryTargetChange}
-                    showAdvanced={effectiveShowAdvanced}
-                    onAdvancedToggle={
-                      hasAdvancedContent ? () => setShowAdvanced(!effectiveShowAdvanced) : undefined
-                    }
-                    advancedFilters={advancedFilters}
-                    onAdvancedFiltersChange={updateAdvancedFilters}
-                    contentType={effectiveContentType}
-                    onContentTypeChange={setContentType}
-                    allowedContentTypes={allowedContentTypes}
-                    combinedMode={effectiveCombinedMode}
-                    combinedModeLocked={combinedModeLocked}
-                    onCombinedModeChange={combinedModeAllowed ? setCombinedMode : undefined}
-                    activeQueryField={activeQueryField}
-                    searchMode={effectiveSearchMode}
-                    onSearchModeChange={handleSearchModeChange}
-                    metadataProviders={metadataProviders}
-                    activeMetadataProvider={effectiveMetadataProvider}
-                    onMetadataProviderChange={handleMetadataProviderChange}
-                    isAdmin={requestRoleIsAdmin}
-                  />
-
-                  <ResultsSection
-                    books={books}
-                    visible={hasResults}
-                    onDetails={handleShowDetails}
-                    onDownload={handleDownload}
-                    onGetReleases={handleGetReleases}
-                    getButtonState={getDirectActionButtonState}
-                    getUniversalButtonState={getUniversalActionButtonState}
-                    sortValue={visibleResultsSort}
-                    showSortControl={
-                      !activeQueryUsesSeriesBrowse &&
-                      !activeQueryUsesListBrowse &&
-                      !resultsSourceUrl
-                    }
-                    onSortChange={(value) => {
-                      const request = buildCurrentSearchRequest(value);
-                      const shouldPersistAppliedSort = !(
-                        effectiveSearchMode === 'universal' &&
-                        activeQueryUsesSeriesBrowse &&
-                        request.appliedSort === seriesBrowseCapability?.sort
-                      );
-                      if (shouldPersistAppliedSort) {
-                        updateAdvancedFilters({ sort: request.appliedSort });
-                      }
-                      setActiveResultsSort(request.appliedSort);
-
-                      // "Most downloads" is a client-side sort — just re-sort existing books
-                      if (request.appliedSort === 'downloads' && effectiveSearchMode === 'direct') {
-                        reSortByDownloads();
-                        return;
-                      }
-
-                      runSearchWithPolicyRefresh({
-                        query: request.query,
-                        fieldValues: request.fieldValues,
-                        searchModeOverride: effectiveSearchMode,
-                        providerOverride: request.providerOverride,
-                        sort: request.appliedSort,
-                      });
-                    }}
-                    metadataSortOptions={resolvedMetadataSortOptions}
-                    hasMore={hasMore}
-                    isLoadingMore={isLoadingMore}
-                    onLoadMore={() => {
-                      void loadMore(config, effectiveSearchMode);
-                    }}
-                    totalFound={totalFound}
-                    directTotalResults={directTotalResults}
-                    onShowToast={showToast}
-                    resultsSourceUrl={resultsSourceUrl}
-                  />
-                </>
-              )}
-
-              {selectedBook && (
-                <DetailsModal
-                  book={selectedBook}
-                  notice={detailsNotice?.bookId === selectedBook.id ? detailsNotice.notice : null}
-                  onClose={() => setSelectedBook(null)}
-                  onDownload={handleDownload}
-                  onShowToast={showToast}
-                  onFindDownloads={(book) => {
-                    setSelectedBook(null);
-                    void handleGetReleases(book);
-                  }}
-                  onSearchSeries={
-                    canSearchSeriesForBook(selectedBook) ? handleSearchSeries : undefined
-                  }
-                  buttonState={
-                    isMetadataBook(selectedBook)
-                      ? getUniversalActionButtonState(selectedBook.id)
-                      : getDirectActionButtonState(selectedBook.id)
-                  }
-                  showReleaseSourceLinks={config?.show_release_source_links !== false}
-                />
-              )}
-
-              {activeReleaseBook && (
-                <ReleaseModal
-                  book={activeReleaseBook}
-                  onClose={handleReleaseModalClose}
-                  onDownload={
-                    isBrowseFulfilMode ? handleBrowseFulfilDownload : handleReleaseDownload
-                  }
-                  onRequestRelease={isBrowseFulfilMode ? undefined : handleReleaseRequest}
-                  onRequestBook={
-                    isBrowseFulfilMode || !requestRoleIsAdmin ? undefined : handleReleaseBookRequest
-                  }
-                  getPolicyModeForSource={
-                    isBrowseFulfilMode
-                      ? () => 'download'
-                      : (source, ct) => getSourceMode(source, ct)
-                  }
-                  supportedFormats={supportedFormats}
-                  supportedAudiobookFormats={config?.supported_audiobook_formats || []}
-                  contentType={activeReleaseContentType}
-                  defaultLanguages={defaultLanguageCodes}
-                  bookLanguages={bookLanguages}
-                  currentStatus={statusForButtonState}
-                  defaultReleaseSource={config?.default_release_source}
-                  defaultAudiobookReleaseSource={config?.default_release_source_audiobook}
-                  onSearchSeries={
-                    isBrowseFulfilMode || !canSearchSeriesForBook(activeReleaseBook)
-                      ? undefined
-                      : handleSearchSeries
-                  }
-                  defaultShowManualQuery={
-                    isBrowseFulfilMode || activeReleaseBook?.provider === 'manual'
-                  }
-                  isRequestMode={isBrowseFulfilMode || activeReleaseBook?.provider === 'manual'}
-                  showReleaseSourceLinks={config?.show_release_source_links !== false}
-                  onShowToast={showToast}
-                  mamRatio={effectiveCombinedState ? mamRatio : null}
-                  combinedMode={
-                    effectiveCombinedState
-                      ? {
-                          phase: effectiveCombinedState.phase,
-                          stepLabel: `Step ${combinedCurrentStep} of ${combinedSelectionPhases.length} — Select ${effectiveCombinedState.phase === 'ebook' ? 'book' : 'audiobooks'}`,
-                          ebookMode: effectiveCombinedState.ebookMode,
-                          audiobookMode: effectiveCombinedState.audiobookMode,
-                          stagedEbookRelease: effectiveCombinedState.stagedEbook?.release ?? null,
-                          stagedAudiobookReleases: effectiveCombinedState.stagedAudiobooks,
-                          onNext: !combinedIsFinalStep ? handleCombinedNext : undefined,
-                          onBack: combinedHasPreviousStep ? handleCombinedBack : undefined,
-                          onClearSelection: handleCombinedClearSelection,
-                          onDownload: combinedIsFinalStep
-                            ? (releases) => {
-                                void handleCombinedDownload(releases);
-                              }
-                            : undefined,
-                        }
-                      : null
-                  }
-                />
-              )}
-
-              {pendingRequestPayload && (
-                <RequestConfirmationModal
-                  payload={pendingRequestPayload}
-                  extraPayloads={pendingRequestExtraPayloads}
-                  allowNotes={allowRequestNotes}
-                  onConfirm={handleConfirmRequest}
-                  onClose={() => {
-                    setPendingRequestPayload(null);
-                    setPendingRequestExtraPayloads([]);
-                  }}
-                />
-              )}
-
-              {effectivePendingOnBehalfDownload && (
-                <OnBehalfConfirmationModal
-                  isOpen={Boolean(effectivePendingOnBehalfDownload)}
-                  actingAsName={pendingOnBehalfUserName}
-                  itemTitle={pendingOnBehalfTitle}
-                  onConfirm={handleConfirmOnBehalfDownload}
-                  onClose={() => setPendingOnBehalfDownload(null)}
-                />
-              )}
-            </main>
-
-            <div className={usePinnedMainScrollContainer ? 'mt-auto' : undefined}>
-              <Footer
-                buildVersion={config?.build_version}
-                releaseVersion={config?.release_version}
-                debug={config?.debug}
-              />
-            </div>
           </div>
 
-          <ActivitySidebar
-            savedTabs={savedTabs}
-            isOpen={downloadsSidebarOpen}
-            onClose={() => setDownloadsSidebarOpen(false)}
-            status={activitySidebarStatus}
-            isAdmin={requestRoleIsAdmin}
-            onClearCompleted={handleClearCompleted}
-            onOpenDetails={(item) => {
-              void handleOpenActivityDetails(item);
-            }}
-            onOpenInLibrary={
-              requestRoleIsAdmin
-                ? (item) => {
-                    void handleOpenInLibrary(item);
-                  }
-                : undefined
-            }
-            onCancel={(id) => {
-              void handleCancel(id);
-            }}
-            onRetry={(id) => {
-              void handleRetry(id);
-            }}
-            onDownloadDismiss={handleDownloadDismiss}
-            requestItems={requestItems}
-            dismissedItemKeys={dismissedActivityKeys}
-            historyItems={historyItems}
-            historyLoaded={activityHistoryLoaded}
-            historyHasMore={activityHistoryHasMore}
-            historyLoading={activityHistoryLoading}
-            onHistoryLoadMore={handleActivityHistoryLoadMore}
-            onClearHistory={handleClearHistory}
-            onActiveTabChange={handleActivityTabChange}
-            pendingRequestCount={pendingRequestCount}
-            showRequestsTab={showRequestsTab}
-            isRequestsLoading={isActivitySnapshotLoading}
-            onRequestCancel={showRequestsTab ? handleRequestCancel : undefined}
-            onRequestApprove={requestRoleIsAdmin ? handleRequestApprove : undefined}
-            onRequestReject={requestRoleIsAdmin ? handleRequestReject : undefined}
-            onRequestDismiss={showRequestsTab ? handleRequestDismiss : undefined}
-            onPinnedOpenChange={setSidebarPinnedOpen}
-            pinnedTopOffset={headerHeight}
-          />
+          {selectedBook && (
+            <DetailsModal
+              book={selectedBook}
+              notice={detailsNotice?.bookId === selectedBook.id ? detailsNotice.notice : null}
+              onClose={() => setSelectedBook(null)}
+              onDownload={handleDownload}
+              onShowToast={showToast}
+              onFindDownloads={(book) => {
+                setSelectedBook(null);
+                void handleGetReleases(book);
+              }}
+              onSearchSeries={canSearchSeriesForBook(selectedBook) ? handleSearchSeries : undefined}
+              buttonState={
+                isMetadataBook(selectedBook)
+                  ? getUniversalActionButtonState(selectedBook.id)
+                  : getDirectActionButtonState(selectedBook.id)
+              }
+              showReleaseSourceLinks={config?.show_release_source_links !== false}
+            />
+          )}
+
+          {activeReleaseBook && (
+            <ReleaseModal
+              book={activeReleaseBook}
+              onClose={handleReleaseModalClose}
+              onDownload={isBrowseFulfilMode ? handleBrowseFulfilDownload : handleReleaseDownload}
+              onRequestRelease={isBrowseFulfilMode ? undefined : handleReleaseRequest}
+              onRequestBook={
+                isBrowseFulfilMode || !requestRoleIsAdmin ? undefined : handleReleaseBookRequest
+              }
+              getPolicyModeForSource={
+                isBrowseFulfilMode ? () => 'download' : (source, ct) => getSourceMode(source, ct)
+              }
+              supportedFormats={supportedFormats}
+              supportedAudiobookFormats={config?.supported_audiobook_formats || []}
+              contentType={activeReleaseContentType}
+              defaultLanguages={defaultLanguageCodes}
+              bookLanguages={bookLanguages}
+              currentStatus={statusForButtonState}
+              defaultReleaseSource={config?.default_release_source}
+              defaultAudiobookReleaseSource={config?.default_release_source_audiobook}
+              onSearchSeries={
+                isBrowseFulfilMode || !canSearchSeriesForBook(activeReleaseBook)
+                  ? undefined
+                  : handleSearchSeries
+              }
+              defaultShowManualQuery={
+                isBrowseFulfilMode || activeReleaseBook?.provider === 'manual'
+              }
+              isRequestMode={isBrowseFulfilMode || activeReleaseBook?.provider === 'manual'}
+              showReleaseSourceLinks={config?.show_release_source_links !== false}
+              onShowToast={showToast}
+              mamRatio={effectiveCombinedState ? mamRatio : null}
+              combinedMode={
+                effectiveCombinedState
+                  ? {
+                      phase: effectiveCombinedState.phase,
+                      stepLabel: `Step ${combinedCurrentStep} of ${combinedSelectionPhases.length} — Select ${effectiveCombinedState.phase === 'ebook' ? 'book' : 'audiobooks'}`,
+                      ebookMode: effectiveCombinedState.ebookMode,
+                      audiobookMode: effectiveCombinedState.audiobookMode,
+                      stagedEbookRelease: effectiveCombinedState.stagedEbook?.release ?? null,
+                      stagedAudiobookReleases: effectiveCombinedState.stagedAudiobooks,
+                      onNext: !combinedIsFinalStep ? handleCombinedNext : undefined,
+                      onBack: combinedHasPreviousStep ? handleCombinedBack : undefined,
+                      onClearSelection: handleCombinedClearSelection,
+                      onDownload: combinedIsFinalStep
+                        ? (releases) => {
+                            void handleCombinedDownload(releases);
+                          }
+                        : undefined,
+                    }
+                  : null
+              }
+            />
+          )}
+
+          {pendingRequestPayload && (
+            <RequestConfirmationModal
+              payload={pendingRequestPayload}
+              extraPayloads={pendingRequestExtraPayloads}
+              allowNotes={allowRequestNotes}
+              onConfirm={handleConfirmRequest}
+              onClose={() => {
+                setPendingRequestPayload(null);
+                setPendingRequestExtraPayloads([]);
+              }}
+            />
+          )}
+
+          {effectivePendingOnBehalfDownload && (
+            <OnBehalfConfirmationModal
+              isOpen={Boolean(effectivePendingOnBehalfDownload)}
+              actingAsName={pendingOnBehalfUserName}
+              itemTitle={pendingOnBehalfTitle}
+              onConfirm={handleConfirmOnBehalfDownload}
+              onClose={() => setPendingOnBehalfDownload(null)}
+            />
+          )}
 
           <ToastContainer toasts={toasts} />
 
@@ -3235,15 +3348,6 @@ function App() {
             />
           )}
 
-          <SettingsModal
-            isOpen={settingsOpen}
-            authMode={authMode}
-            onClose={() => setSettingsOpen(false)}
-            onShowToast={showToast}
-            onSettingsSaved={handleSettingsSaved}
-            onRefreshAuth={refreshAuth}
-          />
-
           <SelfSettingsModal
             isOpen={selfSettingsOpen}
             onClose={() => setSelfSettingsOpen(false)}
@@ -3263,7 +3367,7 @@ function App() {
               if (authIsAdmin) {
                 void primeUsersCache();
                 void primeSettingsCache();
-                setSettingsOpen(true);
+                void navigate('/settings');
               } else {
                 setSelfSettingsOpen(true);
               }
