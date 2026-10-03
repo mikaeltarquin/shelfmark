@@ -10,6 +10,12 @@ import {
   updateSelfUser,
 } from '../../services/api';
 import {
+  LIBRARY_DEFAULT_FIELDS,
+  libraryDefaultValue,
+  loadLibraryDefaults,
+  setLibraryDefault,
+} from '../../utils/libraryDefaults';
+import {
   getStoredThemePreference,
   setThemePreference,
   THEME_FIELD,
@@ -123,6 +129,7 @@ const SelfSettingsModalSession = ({
   const [editPasswordConfirm, setEditPasswordConfirm] = useState('');
 
   const [themeValue, setThemeValue] = useState(getStoredThemePreference());
+  const [libraryDefaults, setLibraryDefaults] = useState(loadLibraryDefaults);
 
   const preferenceGroups = useMemo(
     () => [deliveryPreferences, searchPreferences, notificationPreferences],
@@ -347,6 +354,20 @@ const SelfSettingsModalSession = ({
                       }}
                     />
                   </FieldWrapper>
+
+                  {/* Like the theme, kept in this browser and applied at once. */}
+                  {LIBRARY_DEFAULT_FIELDS.map(({ key, field }) => (
+                    <FieldWrapper key={field.key} field={field}>
+                      <SelectField
+                        field={field}
+                        value={libraryDefaultValue(libraryDefaults, key)}
+                        onChange={(value) => {
+                          setLibraryDefault(key, value);
+                          setLibraryDefaults(loadLibraryDefaults());
+                        }}
+                      />
+                    </FieldWrapper>
+                  ))}
 
                   <UserAccountCardContent
                     user={editingUser}

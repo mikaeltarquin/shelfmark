@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { getLibraryBooks, lookupLibraryBook } from '../../services/api';
 import type { Book, ContentType, LibraryBook, LibraryBooksResponse } from '../../types';
+import { loadLibraryDefaults } from '../../utils/libraryDefaults';
 import { libraryPath, parseLibraryRoute, type LibraryTab } from '../../utils/libraryRoute';
 import { LibraryAllView } from './LibraryAllView';
 import { LibraryAuthorsView } from './LibraryAuthorsView';
@@ -13,7 +14,7 @@ import { LibrarySeriesView } from './LibraryGroupsView';
 import type { LibraryBookActions } from './LibraryMissingSection';
 
 const TABS: Array<{ tab: LibraryTab; label: string; path: string }> = [
-  { tab: 'all', label: 'All', path: '/library' },
+  { tab: 'all', label: 'All', path: '/library/all' },
   { tab: 'authors', label: 'Authors', path: '/library/authors' },
   { tab: 'series', label: 'Series', path: '/library/series' },
 ];
@@ -40,7 +41,8 @@ interface LibraryPageProps {
 export const LibraryPage = ({ actions }: LibraryPageProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const route = parseLibraryRoute(location.pathname);
+  const [defaultTab] = useState(() => loadLibraryDefaults().tab);
+  const route = parseLibraryRoute(location.pathname, defaultTab);
   const [data, setData] = useState<LibraryBooksResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 

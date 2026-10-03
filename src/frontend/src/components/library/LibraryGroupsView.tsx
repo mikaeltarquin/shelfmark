@@ -3,6 +3,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { LibraryBook } from '../../types';
 import { lastFirstName } from '../../utils/authorNames';
 import { matchesFormat, type LibraryFormatFilter } from '../../utils/libraryBrowser';
+import { SERIES_SORT_OPTIONS, loadLibraryDefaults } from '../../utils/libraryDefaults';
 import {
   defaultSeriesSortDirection,
   groupBySeries,
@@ -53,18 +54,21 @@ const DEFAULT_PREFS: SeriesPrefs = {
   format: 'any',
 };
 
-const SORT_OPTIONS: Array<{ value: SeriesSortField; label: string }> = [
-  { value: 'name', label: 'Series name' },
-  { value: 'author_first', label: 'Author (First Last)' },
-  { value: 'author_last', label: 'Author (Last, First)' },
-  { value: 'books', label: 'Book Count' },
-  { value: 'added', label: 'Recently added' },
-];
+const SORT_OPTIONS = SERIES_SORT_OPTIONS;
 
 const isSortField = (value: unknown): value is SeriesSortField =>
   SORT_OPTIONS.some((option) => option.value === value);
 
+// The sort chosen under My Account, if any, wins over the one last used.
 const loadPrefs = (): SeriesPrefs => {
+  const { seriesSort } = loadLibraryDefaults();
+  const prefs = loadRememberedPrefs();
+  return seriesSort
+    ? { ...prefs, sort: seriesSort, direction: defaultSeriesSortDirection(seriesSort) }
+    : prefs;
+};
+
+const loadRememberedPrefs = (): SeriesPrefs => {
   const raw = loadStoredPrefs(PREFS_KEY);
   if (!raw) return DEFAULT_PREFS;
   const sort: unknown = Reflect.get(raw, 'sort');

@@ -133,4 +133,23 @@ describe('combineRows', () => {
     const [section] = rowSeriesSections([third, second, first].map(ownedRow));
     expect(section.rows.map(rowTitle)).toEqual(['First', 'Second', 'A Third']);
   });
+
+  it('lists a book in several series under each of them', () => {
+    const rhythm = owned('Rhythm of War', {
+      series: [
+        { name: 'The Cosmere', number: '15' },
+        { name: 'The Stormlight Archive', number: '4' },
+      ],
+    });
+    const way = owned('The Way of Kings', {
+      series: [{ name: 'The Stormlight Archive', number: '1' }],
+    });
+    const sections = rowSeriesSections([rhythm, way].map(ownedRow));
+    expect(sections.map((section) => section.series)).toEqual([
+      'The Cosmere',
+      'The Stormlight Archive',
+    ]);
+    expect(sections[0].rows.map(rowTitle)).toEqual(['Rhythm of War']);
+    expect(sections[1].rows.map(rowTitle)).toEqual(['The Way of Kings', 'Rhythm of War']);
+  });
 });

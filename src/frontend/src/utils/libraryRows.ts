@@ -122,6 +122,14 @@ const missingSeries = (
   return { name, number: missingNumber(book) };
 };
 
+/** Every series the row is in: the library's own, plus one only the provider's record names. */
+const rowSeriesNames = (row: LibraryRow): string[] => {
+  const names = row.kind === 'owned' ? row.book.series.map((entry) => entry.name) : [];
+  const provider = row.kind === 'owned' ? row.match?.series_name : row.book.series_name;
+  if (provider && !names.some((name) => sameSeries(name, provider))) names.push(provider);
+  return names.filter((name) => fold(name));
+};
+
 const missingNumber = (book: Book): string | null =>
   book.series_position != null ? String(book.series_position) : null;
 
@@ -180,20 +188,25 @@ export interface LibraryRowSection {
   rows: LibraryRow[];
 }
 
-/** Series › book: each series (A–Z) in reading order, then the books outside any series. */
+/**
+ * Series › book: each series (A–Z) in reading order, then the books outside any series.
+ * A book in several series (Stormlight and the Cosmere) appears under each of them.
+ */
 export const rowSeriesSections = (rows: LibraryRow[]): LibraryRowSection[] => {
   const sections = new Map<string, LibraryRowSection>();
   const standalone: LibraryRow[] = [];
   for (const row of rows) {
-    const series = rowSeries(row);
-    if (!series) {
+    const names = rowSeriesNames(row);
+    if (names.length === 0) {
       standalone.push(row);
       continue;
     }
-    const key = fold(series.name);
-    const section = sections.get(key) ?? { series: series.name, rows: [] };
-    section.rows.push(row);
-    sections.set(key, section);
+    for (const name of names) {
+      const key = fold(name);
+      const section = sections.get(key) ?? { series: name, rows: [] };
+      if (!section.rows.includes(row)) section.rows.push(row);
+      sections.set(key, section);
+    }
   }
   const ordered = [...sections.values()]
     .toSorted((a, b) => fold(a.series ?? '').localeCompare(fold(b.series ?? '')))
