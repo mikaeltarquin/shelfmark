@@ -540,11 +540,7 @@
     background-color: color-mix(in srgb, var(--bg-soft) 95%, var(--text) 5%);
   }
 
-  /* Search wrapper and input - base styles */
-  .search-wrapper {
-    width: 100%;
-  }
-
+  /* Search input - base styles */
   .search-input {
     min-width: 0; /* Allow input to shrink on mobile flex containers */
     -webkit-appearance: none;
@@ -603,87 +599,10 @@
     animation: fade-out 0.15s ease-in;
   }
 
-  /* ============================================
-       MOBILE: Full viewport width, no fixed widths
-       ============================================ */
-  @media (max-width: 639px) {
-    /* Break search section out to full viewport width, escaping the centered main container */
-    #search-section {
-      position: relative;
-      left: 50%;
-      right: 50%;
-      margin-left: -50vw;
-      margin-right: -50vw;
-      width: 100vw;
-      padding-left: 1rem;
-      padding-right: 1rem;
-      box-sizing: border-box;
-    }
-
-    /* Remove any width constraints on search wrapper */
-    .search-wrapper {
-      width: 100% !important;
-      min-width: 0 !important;
-      max-width: none !important;
-    }
-
-    /* Ensure flex containers are full width */
-    .search-wrapper > .flex,
-    #search-filters {
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-    }
-  }
-
-  /* ============================================
-       DESKTOP: Fixed px widths for consistency
-       ============================================ */
-  /* Medium screens (small tablets/large phones): 640px - 1023px */
-  @media (min-width: 640px) and (max-width: 1023px) {
-    .search-wrapper {
-      width: 600px; /* Fixed width for medium screens */
-      max-width: 600px; /* Prevent expansion */
-    }
-  }
-
-  /* Large screens (desktop): 1024px+ */
-  @media (min-width: 1024px) {
-    .search-wrapper {
-      width: 800px; /* Fixed width for large screens */
-      max-width: 800px; /* Prevent expansion */
-    }
-  }
-
-  /* Search section base styles - always center horizontally on desktop */
-  #search-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center; /* Keep search box centered horizontally */
-  }
-
-  /* Center search section vertically when in initial state (no results, no queue) */
-  /* Responsive to different window sizes */
-  .search-initial-state {
-    flex: 1;
-    justify-content: flex-start;
-    padding-top: 20vh; /* Position in upper portion of screen */
-  }
-
   /* Mobile-friendly book card layout */
   /* On mobile (below 640px), use horizontal layout: image left, text right, buttons below */
   /* Desktop remains unchanged - full width, full height artwork via Tailwind classes */
   @media (max-width: 639px) {
-    .search-initial-state {
-      justify-content: flex-start;
-      padding-top: 18vh; /* push the search UI toward the upper third */
-    }
-
-    /* When advanced filters are visible, pull the search bar to the very top */
-    .search-initial-state.search-advanced-visible {
-      padding-top: calc(env(safe-area-inset-top) + 1rem);
-    }
-
     .book-card-content {
       flex-direction: row !important;
       gap: 0.75rem !important;

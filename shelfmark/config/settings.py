@@ -1659,8 +1659,8 @@ def download_settings() -> list[SettingsField]:
         ),
         CheckboxField(
             key="AUTO_OPEN_DOWNLOADS_SIDEBAR",
-            label="Auto-Open Downloads Sidebar",
-            description="Automatically open the downloads sidebar when a new download is queued.",
+            label="Show Downloads When Queued",
+            description="Go to Activity > Downloads when a new download is queued.",
             default=False,
         ),
         MultiSelectField(

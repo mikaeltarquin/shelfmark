@@ -548,7 +548,7 @@ function SettingsContentPanel({
           paddingBottom: saveBarHasChanges ? 'calc(5rem + env(safe-area-inset-bottom))' : '1.5rem',
         }}
       >
-        {renderedFields}
+        <div className="max-w-3xl">{renderedFields}</div>
       </div>
 
       {/* Save button - only visible when there are changes */}

@@ -33,12 +33,11 @@ const lookupCached = (book: LibraryBook, contentType: ContentType): Promise<Book
 };
 
 interface LibraryPageProps {
-  onBack: () => void;
   actions: LibraryBookActions;
 }
 
 /** Browse the books already in the user's libraries (Audiobookshelf, Calibre). */
-export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
+export const LibraryPage = ({ actions }: LibraryPageProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const route = parseLibraryRoute(location.pathname);
@@ -145,13 +144,6 @@ export const LibraryPage = ({ onBack, actions }: LibraryPageProps) => {
   return (
     <section className="space-y-5" aria-labelledby="library-title">
       <div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-1 text-xs font-medium opacity-60 hover:opacity-100"
-        >
-          ← Back to search
-        </button>
         <h1 id="library-title" className="text-2xl font-semibold">
           Library
         </h1>
