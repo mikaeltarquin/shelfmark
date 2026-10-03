@@ -4,12 +4,14 @@ import { useMountEffect } from '../../hooks/useMountEffect';
 import type { LibraryMissingResult } from '../../services/api';
 import type { ContentType, LibraryBook } from '../../types';
 import type { LibraryFormatFilter } from '../../utils/libraryBrowser';
+import { loadLibraryDefaults } from '../../utils/libraryDefaults';
 import {
   combineRows,
   rowMatches,
   rowSeriesSections,
   sortRowsByYear,
   sortRowsInSeries,
+  withoutTakenNumbers,
   type LibraryRow,
   type OwnershipFilter,
 } from '../../utils/libraryRows';
@@ -93,6 +95,11 @@ export const LibraryGroupBooks = ({
     />
   );
 
+  // Hiding collections also hides missing books numbered like ones the library holds.
+  const [hideTaken] = useState(() => loadLibraryDefaults().collections === 'hide');
+  const inSeries = (seriesRows: LibraryRow[], series: string) =>
+    sortRowsInSeries(hideTaken ? withoutTakenNumbers(seriesRows, series) : seriesRows, series);
+
   let body;
   if (rows.length === 0) {
     body =
@@ -100,11 +107,16 @@ export const LibraryGroupBooks = ({
         <p className="px-3 py-2 text-sm opacity-60">No books match these filters.</p>
       );
   } else if (kind === 'series') {
-    body = table(sortRowsInSeries(rows, name), name);
+    body = table(inSeries(rows, name), name);
   } else if (order === 'series') {
+    const sections = rowSeriesSections(rows).map((section) =>
+      section.series === null
+        ? section
+        : { ...section, rows: inSeries(section.rows, section.series) },
+    );
     body = (
       <div className="space-y-3">
-        {rowSeriesSections(rows).map((section) => (
+        {sections.map((section) => (
           <div key={section.series ?? '(none)'}>
             <h4 className="px-3 pt-1 text-xs font-semibold tracking-wide uppercase opacity-70">
               {section.series ? (

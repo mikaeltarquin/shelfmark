@@ -176,6 +176,26 @@ const byYear = (a: LibraryRow, b: LibraryRow): number =>
 const numberIn = (row: LibraryRow, series: string): number =>
   seriesNumberValue(rowSeries(row, series)?.number);
 
+/**
+ * Without missing books numbered where the library already holds a book in the series.
+ * Providers number side collections and other editions in the series too (Hardcover lists
+ * a story collection as "Planned book #1" of Dungeon Crawler Carl), so a second #1 beside
+ * the #1 you own is noise. Unnumbered missing books stay.
+ */
+export const withoutTakenNumbers = (rows: LibraryRow[], series: string): LibraryRow[] => {
+  const taken = new Set(
+    rows.flatMap((row) => {
+      const number = row.kind === 'owned' ? rowSeries(row, series)?.number : null;
+      return number ? [seriesNumberValue(number)] : [];
+    }),
+  );
+  return rows.filter((row) => {
+    if (row.kind === 'owned') return true;
+    const number = rowSeries(row, series)?.number;
+    return !number || !taken.has(seriesNumberValue(number));
+  });
+};
+
 /** Reading order within one series; unnumbered books last, by title. */
 export const sortRowsInSeries = (rows: LibraryRow[], series: string): LibraryRow[] =>
   rows.toSorted((a, b) => numberIn(a, series) - numberIn(b, series) || byTitle(a, b));
