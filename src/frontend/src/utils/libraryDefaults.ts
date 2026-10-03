@@ -129,7 +129,7 @@ export const LIBRARY_DEFAULT_FIELDS: Array<{ key: LibraryDefaultKey; field: Sele
       key: '_LIBRARY_COLLECTIONS',
       label: 'Library: collections in missing books',
       description:
-        'Box sets, omnibuses and story collections the metadata provider lists. Hardcover numbers them in the series, so a "Books 1-3" set shows as another book #1.',
+        'Box sets, omnibuses and story collections the metadata provider lists. Hardcover numbers them in the series, so a "Books 1-3" set shows as another book #1. Hide also leaves out missing books numbered like a book you already have in that series.',
       value: 'hide',
       options: [
         { value: 'hide', label: 'Hide' },

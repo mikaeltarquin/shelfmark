@@ -10,6 +10,7 @@ import {
   rowSeriesSections,
   rowTitle,
   sortRowsInSeries,
+  withoutTakenNumbers,
 } from '../utils/libraryRows';
 
 const owned = (title: string, overrides: Partial<LibraryBook> = {}): LibraryBook => ({
@@ -151,5 +152,28 @@ describe('combineRows', () => {
     ]);
     expect(sections[0].rows.map(rowTitle)).toEqual(['Rhythm of War']);
     expect(sections[1].rows.map(rowTitle)).toEqual(['The Way of Kings', 'Rhythm of War']);
+  });
+});
+
+describe('withoutTakenNumbers', () => {
+  it('drops missing books numbered like a book the library holds', () => {
+    const carl = owned('Dungeon Crawler Carl', {
+      series: [{ name: 'Dungeon Crawler Carl', number: '1' }],
+    });
+    const backstage = provider('Backstage at the Pineapple Cabaret', {
+      series_name: 'Dungeon Crawler Carl',
+      series_position: 1,
+    });
+    const second = provider("Carl's Doomsday Scenario", {
+      series_name: 'Dungeon Crawler Carl',
+      series_position: 2,
+    });
+    const unnumbered = provider('Side Story', { series_name: 'Dungeon Crawler Carl' });
+    const carlRows = [ownedRow(carl), ...[backstage, second, unnumbered].map(missingRow)];
+    expect(withoutTakenNumbers(carlRows, 'Dungeon Crawler Carl').map(rowTitle)).toEqual([
+      'Dungeon Crawler Carl',
+      "Carl's Doomsday Scenario",
+      'Side Story',
+    ]);
   });
 });
