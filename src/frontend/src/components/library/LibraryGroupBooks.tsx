@@ -109,11 +109,10 @@ export const LibraryGroupBooks = ({
   } else if (kind === 'series') {
     body = table(inSeries(rows, name), name);
   } else if (order === 'series') {
-    const sections = rowSeriesSections(rows).map((section) =>
-      section.series === null
-        ? section
-        : { ...section, rows: inSeries(section.rows, section.series) },
-    );
+    const sections = rowSeriesSections(rows);
+    for (const section of sections) {
+      if (section.series !== null) section.rows = inSeries(section.rows, section.series);
+    }
     body = (
       <div className="space-y-3">
         {sections.map((section) => (

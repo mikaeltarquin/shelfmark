@@ -169,8 +169,8 @@ describe('withoutTakenNumbers', () => {
       series_position: 2,
     });
     const unnumbered = provider('Side Story', { series_name: 'Dungeon Crawler Carl' });
-    const rows = [ownedRow(carl), ...[backstage, second, unnumbered].map(missingRow)];
-    expect(withoutTakenNumbers(rows, 'Dungeon Crawler Carl').map(rowTitle)).toEqual([
+    const carlRows = [ownedRow(carl), ...[backstage, second, unnumbered].map(missingRow)];
+    expect(withoutTakenNumbers(carlRows, 'Dungeon Crawler Carl').map(rowTitle)).toEqual([
       'Dungeon Crawler Carl',
       "Carl's Doomsday Scenario",
       'Side Story',
