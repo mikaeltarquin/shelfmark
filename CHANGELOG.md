@@ -2,111 +2,85 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
-## Unreleased
+## v1.1.0
 
 ### Added
-- **Queued and Later tabs**: Activity's Saved tab is now two tabs, **Queued** (releases
-  picked, downloading on their own) and **Later** (saved for later), each with its count.
-  The tab row scrolls when the tabs don't fit.
-- **What's on its way, in the library tables**: the Ebook and Audiobook columns show a blue
-  badge for each queued pick (an audiobook by its narrator, an ebook by its format) and an
-  indigo **Downloading** badge while one downloads, in place of **Missing**.
-- **Marks on releases**: the release list (Get) marks each release you downloaded
-  (or are downloading, or that failed) and one that's queued or saved for later.
-- **Retry search**: when a release search fails ("indexer 12 did not respond within
-  30s"), **Retry search** runs it again.
-- **Every copy in the library tables**: the book tables (All, under an author or a series)
-  have an **Ebook** and an **Audiobook** column instead of one status. Each copy gets its
-  own badge: an audiobook by its narrator ("Ray Porter"), an ebook by its files ("EPUB,
-  AZW3"); a format the metadata provider lists as lacking reads **Missing** in the same
-  row, so a book held as an ebook and missing as an audiobook is one row, not two.
-- **Saved for later, or queued for download**: Saved items are marked **Saved for later**
-  (no release picked, or one to get by hand) or **Queued** (releases picked, downloading on
-  their own once there's room). Picking releases to save queues them at once when
-  automatic downloads are on; the Saved tab lists the queued ones first and **Queue for
-  download** (formerly *Get automatically*) moves an item between the two.
-- **A bookmark on every library table row**: outlined to save the book for later, filled
-  once saved (blue when queued); click again to remove it.
-- **Open a finished download in your library**: completed rows in Activity have an
-  "Open in your library" button that opens the book in Audiobookshelf or Calibre-Web
-  (the copy in the format downloaded). Every link out to a library app (the header
-  buttons, the details' "Open in Audiobookshelf", this button) now shares one icon,
-  books on a shelf with an arrow, apart from the source-page link; the header's Library
-  browser button is now a database.
-- **Open a download's source page from Activity**: every download row (queued, done,
-  failed, in History) has a button that opens the release's page at its source, such as
-  the torrent's page on MyAnonamouse, to grab it by hand when a link has expired.
-  Older MyAnonamouse downloads link to their torrent page by its id.
-- **Your copies on every book page**: the library section of the book details lists the
-  copies (format, narrator, size, folder, files, open link) wherever the details open,
-  from an Activity row, a library card or a search result alike, not only from search.
-- **Downloads wait for an unsatisfied slot instead of failing**: a MyAnonamouse torrent
-  that reaches its turn with no slot free (counting **Unsatisfied Slots to Keep Free**),
-  or whose grab MAM refuses at the limit, goes back to the queue as "Waiting for an
-  unsatisfied slot" and starts on its own once a slot frees up (checked every 5
-  minutes), longest waiting first. The hold-back prompt offers **Queue and wait for a
-  slot** when slots are all that's missing.
-- **Activity rows open the book**: click a download (in Downloads or History) to see the
-  book's details and your library copies. A failed or cancelled one says why, with
-  **Retry download**; History rows get a Retry button too. Saving a finished file to this
-  device is now a small download button on the row rather than the title link.
-- **Smarter automatic downloads from Saved**: one **Get automatically** switch per item
-  instead of freeleech and ratio checkboxes. Freeleech torrents go as soon as there's
-  room, even while the ratio is below target; small downloads that barely move the ratio
-  (ebooks) go too; anything else waits for the ratio or for freeleech. The target is one
-  setting, **Keep Ratio At Least** (2.0), under Prowlarr → Saved for Later.
-- **See what's already saved or downloaded**: search results (cards, list and compact),
-  the library's book tables and covers, author and series rows, and the book details show
-  **Saved** and **Downloading / Downloaded / Failed** marks, so you don't save or get a
-  book twice. Downloads now record the book they were for; older downloads (and library
-  books) are matched by title and author.
-- **Library views work alike**: All, Authors and Series each have a Grid and a Table
-  layout and a format filter. In the Authors and Series tables a row opens onto its
-  books, and **Owned / Missing / Owned + missing** shows the books the metadata provider
-  lists that you don't have, in line with your own (in series order, with **Get**), with
-  no need to open the author or series page. Authors' **Author › Series › Book** sort
-  (formerly "Series") orders each author's books by series, then number.
-- **What's in your library, on the book details**: for admins, the Library section now
-  lists every library copy of the book, not just "Have ebook + audio". Each copy shows its
-  library, format (audiobook, ebook, EPUB/AZW3…), narrator, year, length, size and
-  folder path, with **Show files** to list its files and a link to open it in
-  Audiobookshelf or Calibre-Web.
-- **Saved for later**: bookmark a book, one release, or a combined ebook + audiobook pick to
-  download later, from search results, library cards, release lists and the combined
-  flow, or straight from the MyAnonamouse hold-back prompt when a download doesn't fit.
-  Saved items live in a new **Saved** tab in Activity, per user, with **+ Get** to
-  download them through the usual checks.
-- **Get saved books automatically**: tick *Get automatically when there's room* on a saved
-  pick and it downloads once its MyAnonamouse torrents fit the buffer and unsatisfied
-  limit, optionally only when freeleech (checked live) and only while the ratio after the
-  download stays at or above a set value (2.0 by default). Never buys upload credit;
-  shows why each item is waiting; sends a *Saved book got automatically* notification.
-- **When unsatisfied slots free up**: the MyAnonamouse panel and the header button's
-  tooltip estimate when the next unsatisfied torrent reaches 72 hours seeded and how many
-  will in the next 6 hours ("Next slot in 2:05 · 3 slots in the next 6 hours"), from the
-  seeding time Deluge, qBittorrent or Transmission reports.
 
-### Changed
-- The library no longer marks books **Downloaded**: what's in the library says it.
-  Downloading and failed downloads are still marked.
-- Library sort names: **Author (First Last)**, **Author (Last, First)**, **Book Count**.
-  Authors' **Author › Series › Book** sorts authors by first name, with an **Author (Last,
-  First) › Series › Book** choice.
+**Saved for later and the download queue**
+- **Save books to get later**: bookmark a book, one release, or a combined ebook +
+  audiobook pick from search results, library cards and table rows, release lists and the
+  combined flow, or straight from the MyAnonamouse hold-back prompt when a download
+  doesn't fit. Each user has their own list.
+- **Queued or Later**: a book with releases picked is **Queued** and downloads on its own
+  once there's room; one without (or one you untick **Queue for download** on) is saved
+  for **Later**, to get with **+ Get**. Activity has a tab for each, with counts.
+- **Smart automatic downloads**: a queued item goes once its MyAnonamouse torrents fit the
+  buffer and the unsatisfied limit (keeping **Unsatisfied Slots to Keep Free**).
+  Freeleech (checked live) goes as soon as there's room, even below the target ratio;
+  small downloads that barely move the ratio (ebooks) go too; anything else waits until
+  the ratio stays at **Keep Ratio At Least** (2.0, under Prowlarr → Saved for Later).
+  Never buys upload credit, shows why each item waits, and sends a *Saved book got
+  automatically* notification.
+- **Downloads wait for an unsatisfied slot instead of failing**: a MyAnonamouse torrent
+  that reaches its turn with no slot free, or whose grab MAM refuses at the limit, waits
+  in the queue as "Waiting for an unsatisfied slot" and starts on its own once one frees
+  up (checked every 5 minutes), longest waiting first. The hold-back prompt offers
+  **Queue and wait for a slot** when slots are all that's missing.
+- **When unsatisfied slots free up**: the MyAnonamouse panel and header button estimate
+  when the next unsatisfied torrent reaches 72 hours seeded ("Next slot in 2:05 · 3 slots
+  in the next 6 hours"), from Deluge, qBittorrent or Transmission.
+
+**What you already have, everywhere**
+- **Marks on books**: search results, the library's covers and tables, author and series
+  rows and the book details mark books **Saved for later** or **Queued**, and
+  **Downloading / Downloaded / Failed**, so nothing is saved or got twice.
+- **Marks on releases**: the release list (Get) marks each release you downloaded (or are
+  downloading, or that failed) and one that's queued or saved for later.
+- **Your copies on every book page**: the book details list each library copy (library,
+  format, narrator, year, length, size, folder, **Show files**, and a link to open it in
+  Audiobookshelf or Calibre-Web), wherever the details open.
+
+**Library browser**
+- **All, Authors and Series work alike**: each has a Grid and a Table layout and a format
+  filter. Author and series rows open onto their books, and **Owned / Missing / Owned +
+  missing** lists the books the metadata provider has that you don't, in line with yours,
+  with **Get**.
+- **Ebook and Audiobook columns** in the book tables, with a badge per copy: an audiobook
+  by its narrator ("Ray Porter"), an ebook by its files ("EPUB, AZW3"). Queued picks show
+  in blue and a running download in indigo; a format you lack reads **Missing**. A book
+  held in one format and missing the other is one row.
+- **A bookmark on every table row** to save the book for later (filled once saved, blue
+  once queued).
+- **Sorting**: **Author (First Last)**, **Author (Last, First)**, **Book Count**, and
+  **Author › Series › Book** by first or last name, each author's books by series, then
+  number.
+
+**Activity**
+- **Rows open the book**: click a download (in Downloads or History) for the book's
+  details and your copies. A failed or cancelled one says why, with **Retry download**;
+  History rows have Retry too.
+- **Row buttons**: open the release's page at its source (the torrent on MyAnonamouse,
+  to grab it by hand when a link has expired), open a finished download in
+  Audiobookshelf or Calibre-Web, and save the file to this device.
+- **One icon for library links**: the header buttons, the details' "Open in
+  Audiobookshelf" and Activity's button share one icon; the Library browser button is a
+  database.
+
+**Searching**
+- **Retry search** when a release search fails ("indexer 12 did not respond within 30s").
 
 ### Fixed
-- A library book whose ISBN belongs to another book (a wrong match in Audiobookshelf, say)
-  opened that other book's details and searched for it on **Get** ("The Extinction Trials
-  Riddle" for *Leviathan Falls*). An ISBN now counts only when the title and author agree;
+- A library book whose ISBN the metadata provider files under another book opened that
+  book's details and searched for it on **Get** ("The Extinction Trials Riddle" for
+  *Leviathan Falls*). An ISBN now counts only when the title and author agree;
   otherwise the book is looked up by title.
-- Under **Author › Series › Book**, books in a series whose records name it with and
-  without "The" ("The Expanse", "Expanse") fell to the end of the series, by title, and
-  lost their number. They're in series order now.
-- Automatic downloads from Saved could queue past the MyAnonamouse unsatisfied limit:
-  a torrent handed to the client (an ebook that finished in seconds, say) stopped
-  counting before MAM's own count caught up, and MAM then refused the rest. Snatches
-  since shortly before the account was read now count until MAM's figure includes them.
-- **Clear Completed** in Activity no longer clears failed downloads; dismiss those one
-  by one (cleared items are still under History).
+- Automatic downloads could queue past the MyAnonamouse unsatisfied limit when a torrent
+  stopped counting before MAM's own count caught up. Recent snatches now count until it
+  does.
+- **Clear Completed** in Activity no longer clears failed downloads (cleared items are
+  still under History).
+- Books in a series whose records name it with and without "The" ("The Expanse",
+  "Expanse") fell to the end of the series and lost their number.
 
 ## v1.0.2
 
