@@ -801,10 +801,6 @@ export const listActivityHistory = async (
   return fetchJSON<ActivityHistoryItem[]>(`${API.activityHistory}?${params.toString()}`);
 };
 
-export const clearActivityHistory = async (): Promise<void> => {
-  await fetchJSON(API.activityHistory, { method: 'DELETE' });
-};
-
 export const cancelDownload = async (id: string): Promise<void> => {
   await fetchJSON(`${API.cancelDownload}/${encodeURIComponent(id)}/cancel`, { method: 'DELETE' });
 };

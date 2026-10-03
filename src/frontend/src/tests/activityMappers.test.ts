@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { sourcePageName } from '../components/activity/ActivityCard';
+import { sourcePageName } from '../components/activity/ActivityItemParts';
 import {
   downloadToActivityItem,
   requestToActivityItem,

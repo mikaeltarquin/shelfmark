@@ -29,6 +29,7 @@ import {
   SelfSettingsModal,
   SettingsPage,
   parseSettingsRoute,
+  resolveSettingsCategory,
   settingsPath,
 } from './components/settings';
 import { SystemPage } from './components/system/SystemPage';
@@ -448,7 +449,6 @@ function App() {
     handleRequestDismiss,
     handleDownloadDismiss,
     handleClearCompleted,
-    handleClearHistory,
   } = useActivity({
     isAuthenticated,
     isAdmin: requestRoleIsAdmin,
@@ -2813,7 +2813,7 @@ function App() {
       ? (visibleActivityTabs.find((tab) => tab === activityTabFromPath) ?? null)
       : null;
   const settingsRoute = parseSettingsRoute(location.pathname);
-  const activeSettingsCategory = settingsRoute.category ?? SETTINGS_CATEGORIES[0]?.key;
+  const activeSettingsCategory = resolveSettingsCategory(settingsRoute.category);
   const activityBadge = getActivityBadgeState(statusCounts, requestRoleIsAdmin);
   const downloadCount = statusCounts.ongoing + statusCounts.completed + statusCounts.errored;
   let downloadBadgeClass = 'bg-green-500 text-white';
@@ -2964,7 +2964,6 @@ function App() {
           historyHasMore={activityHistoryHasMore}
           historyLoading={activityHistoryLoading}
           onHistoryLoadMore={handleActivityHistoryLoadMore}
-          onClearHistory={handleClearHistory}
           showRequestsTab={showRequestsTab}
           isRequestsLoading={isActivitySnapshotLoading}
           onRequestCancel={showRequestsTab ? handleRequestCancel : undefined}
@@ -2985,7 +2984,7 @@ function App() {
           </h1>
           <p className="text-sm opacity-60">Books and releases you saved for later.</p>
         </div>
-        <div className="max-w-4xl">{savedPanelFor('later')}</div>
+        {savedPanelFor('later')}
       </section>
     );
   } else if (section === 'settings') {
@@ -3207,7 +3206,12 @@ function App() {
                 {pageContent}
               </main>
             ) : (
-              <main className="relative mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+              <main
+                className={`relative w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 ${
+                  // Search results stay centred; the table pages use the whole width, as in Sonarr.
+                  section === 'search' ? 'mx-auto max-w-7xl' : ''
+                }`}
+              >
                 {pageContent}
               </main>
             )}

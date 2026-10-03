@@ -337,17 +337,17 @@ export const LibraryBookTable = ({
   showSeries = true,
 }: LibraryBookTableProps) => (
   <SearchModeProvider searchMode="universal">
-    <table className="w-full table-fixed text-sm">
+    <table className="w-full text-sm">
       <thead className="border-b border-(--border-muted) text-xs">
         <tr>
           <th scope="col" className="w-9 pl-1">
             <span className="sr-only">Saved</span>
           </th>
           {series !== undefined && <PlainHeader label="#" align="right" className="w-14" />}
-          <PlainHeader label="Title" />
-          {showAuthor && <PlainHeader label="Author" className="w-1/5 max-md:hidden" />}
+          <PlainHeader label="Title" className="w-full" />
+          {showAuthor && <PlainHeader label="Author" className="min-w-40 max-md:hidden" />}
           {series === undefined && showSeries && (
-            <PlainHeader label="Series" className="w-1/5 max-sm:hidden" />
+            <PlainHeader label="Series" className="min-w-40 max-sm:hidden" />
           )}
           <PlainHeader label="Year" align="right" className="w-16 max-sm:hidden" />
           <PlainHeader label="Ebook" className="w-32 max-sm:hidden" />
@@ -373,7 +373,7 @@ export const LibraryBookTable = ({
                   {entry?.number ?? ''}
                 </td>
               )}
-              <td className="px-3 py-1.5">
+              <td className="min-w-48 px-3 py-1.5 wrap-break-word">
                 <span className={missing ? 'opacity-75' : 'font-medium'}>{rowTitle(row)}</span>
                 <ActivityChips
                   book={rowActivityRef(row)}

@@ -122,7 +122,11 @@ class ActivityViewStateService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Return active dismissal history rows for a viewer."""
+        """Return a viewer's history: everything they dismissed, newest first.
+
+        History is never cleared. Rows hidden by the old Clear History (``cleared_at``)
+        are listed again.
+        """
         normalized_scope = normalize_viewer_scope(viewer_scope)
         normalized_limit = max(1, min(int(limit), 5000))
         normalized_offset = max(0, int(offset))
@@ -135,7 +139,6 @@ class ActivityViewStateService:
                 FROM activity_view_state
                 WHERE viewer_scope = ?
                   AND dismissed_at IS NOT NULL
-                  AND cleared_at IS NULL
                 ORDER BY dismissed_at DESC, id DESC
                 LIMIT ? OFFSET ?
                 """,
@@ -239,30 +242,6 @@ class ActivityViewStateService:
                     total += max(rowcount, 0)
                 conn.commit()
                 return total
-            finally:
-                conn.close()
-
-    def clear_history(self, *, viewer_scope: str) -> int:
-        """Mark all dismissed items as cleared for a viewer."""
-        normalized_scope = normalize_viewer_scope(viewer_scope)
-        cleared_at = now_utc_iso()
-
-        with self._lock:
-            conn = self._connect()
-            try:
-                cursor = conn.execute(
-                    """
-                    UPDATE activity_view_state
-                    SET cleared_at = ?
-                    WHERE viewer_scope = ?
-                      AND dismissed_at IS NOT NULL
-                      AND cleared_at IS NULL
-                    """,
-                    (cleared_at, normalized_scope),
-                )
-                conn.commit()
-                rowcount = int(cursor.rowcount) if cursor.rowcount is not None else 0
-                return max(rowcount, 0)
             finally:
                 conn.close()
 

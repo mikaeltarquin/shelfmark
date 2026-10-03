@@ -177,12 +177,10 @@ class TestActivityRoutes:
         assert history_response.json[0]["snapshot"]["kind"] == "download"
         assert history_response.json[0]["snapshot"]["download"]["title"] == "Dismiss Me"
 
-        assert clear_history_response.status_code == 200
-        assert clear_history_response.json["status"] == "cleared"
-        assert clear_history_response.json["cleared_count"] == 1
-
+        # History can't be cleared.
+        assert clear_history_response.status_code == 405
         assert history_after_clear.status_code == 200
-        assert history_after_clear.json == []
+        assert [row["item_key"] for row in history_after_clear.json] == ["download:test-task"]
         assert main_module.download_history_service.get_by_task_id("test-task") is not None
 
     def test_dismiss_preserves_terminal_snapshot_without_live_queue_merge(
@@ -217,9 +215,7 @@ class TestActivityRoutes:
         assert snapshot_download["author"] == "Recorded Author"
         assert snapshot_download["status_message"] is None
 
-    def test_clear_history_hides_dismissed_requests_without_deleting_them(
-        self, main_module, client
-    ):
+    def test_history_cannot_be_cleared_and_keeps_dismissed_requests(self, main_module, client):
         user = _create_user(main_module, prefix="reader")
         _set_session(client, user_id=user["username"], db_user_id=user["id"], is_admin=False)
 
@@ -255,12 +251,9 @@ class TestActivityRoutes:
         assert history_before_clear.status_code == 200
         assert any(row["item_key"] == request_key for row in history_before_clear.json)
 
-        assert clear_history_response.status_code == 200
-        assert clear_history_response.json["status"] == "cleared"
-        assert clear_history_response.json["cleared_count"] == 1
-
+        assert clear_history_response.status_code == 405
         assert history_after_clear.status_code == 200
-        assert history_after_clear.json == []
+        assert any(row["item_key"] == request_key for row in history_after_clear.json)
 
         assert snapshot_after_clear.status_code == 200
         assert all(row["id"] != request_row["id"] for row in snapshot_after_clear.json["requests"])
@@ -934,25 +927,6 @@ class TestActivityRoutes:
             ANY,
         )
 
-    def test_clear_history_logs_identity_failure(self, main_module, client):
-        admin = _create_user(main_module, prefix="admin", role="admin")
-        _set_session(client, user_id=admin["username"], db_user_id=None, is_admin=True)
-
-        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
-            with patch("shelfmark.core.activity_routes.logger.warning") as mock_warning:
-                response = client.delete("/api/activity/history")
-
-        assert response.status_code == 403
-        assert response.json["code"] == "user_identity_unavailable"
-        mock_warning.assert_called_once()
-        log_message = mock_warning.call_args.args[0]
-        assert "Activity history_clear rejected" in log_message
-        assert "status=403" in log_message
-        assert "reason=User identity unavailable for activity workflow" in log_message
-        assert "path=/api/activity/history" in log_message
-        assert f"user={admin['username']}" in log_message
-        assert "is_admin=True" in log_message
-
     def test_dismiss_many_logs_actor_and_row_context_for_forbidden_download(
         self, main_module, client
     ):
@@ -1402,7 +1376,7 @@ class TestActivityRoutes:
                 "item_key": "download:shared-task",
             } not in snapshot_two.json["dismissed"]
 
-    def test_admin_dismiss_and_clear_do_not_affect_owner_view(self, main_module, client):
+    def test_admin_dismiss_does_not_affect_owner_view(self, main_module, client):
         admin = _create_user(main_module, prefix="admin", role="admin")
         owner = _create_user(main_module, prefix="reader")
         task_id = f"admin-owned-{uuid.uuid4().hex[:8]}"
@@ -1439,24 +1413,18 @@ class TestActivityRoutes:
                 "item_key": f"download:{task_id}",
             } not in owner_snapshot_after_admin_dismiss.json["dismissed"]
 
-            _set_session(client, user_id=admin["username"], db_user_id=admin["id"], is_admin=True)
-            clear_response = client.delete("/api/activity/history")
-            assert clear_response.status_code == 200
-            assert clear_response.json["cleared_count"] >= 1
-
-            _set_session(client, user_id=owner["username"], db_user_id=owner["id"], is_admin=False)
             with patch.object(
                 main_module.backend, "queue_status", return_value=_sample_status_payload()
             ):
-                owner_snapshot_after_admin_clear = client.get("/api/activity/snapshot")
+                owner_snapshot_later = client.get("/api/activity/snapshot")
             owner_history = client.get("/api/activity/history?limit=10&offset=0")
 
-        assert owner_snapshot_after_admin_clear.status_code == 200
-        assert task_id in owner_snapshot_after_admin_clear.json["status"]["complete"]
+        assert owner_snapshot_later.status_code == 200
+        assert task_id in owner_snapshot_later.json["status"]["complete"]
         assert {
             "item_type": "download",
             "item_key": f"download:{task_id}",
-        } not in owner_snapshot_after_admin_clear.json["dismissed"]
+        } not in owner_snapshot_later.json["dismissed"]
         assert owner_history.status_code == 200
         assert owner_history.json == []
 
@@ -1611,64 +1579,6 @@ class TestActivityRoutes:
             "activity_update",
             ANY,
             to=f"user_{user['id']}",
-        )
-
-    def test_clear_history_emits_activity_update_only_to_acting_user_room(
-        self, main_module, client
-    ):
-        user = _create_user(main_module, prefix="reader")
-        _set_session(client, user_id=user["username"], db_user_id=user["id"], is_admin=False)
-        _record_terminal_download(
-            main_module,
-            task_id="history-clear-task",
-            user_id=user["id"],
-            username=user["username"],
-        )
-        main_module.activity_view_state_service.dismiss(
-            viewer_scope=f"user:{user['id']}",
-            item_type="download",
-            item_key="download:history-clear-task",
-        )
-
-        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
-            with patch.object(main_module.ws_manager, "is_enabled", return_value=True):
-                with patch.object(main_module.ws_manager.socketio, "emit") as mock_emit:
-                    response = client.delete("/api/activity/history")
-
-        assert response.status_code == 200
-        mock_emit.assert_called_once_with(
-            "activity_update",
-            ANY,
-            to=f"user_{user['id']}",
-        )
-
-    def test_admin_clear_history_emits_activity_update_to_admin_room(self, main_module, client):
-        admin = _create_user(main_module, prefix="admin", role="admin")
-        owner = _create_user(main_module, prefix="reader")
-        task_id = f"admin-history-clear-{uuid.uuid4().hex[:8]}"
-        _set_session(client, user_id=admin["username"], db_user_id=admin["id"], is_admin=True)
-        _record_terminal_download(
-            main_module,
-            task_id=task_id,
-            user_id=owner["id"],
-            username=owner["username"],
-        )
-        main_module.activity_view_state_service.dismiss(
-            viewer_scope="admin:shared",
-            item_type="download",
-            item_key=f"download:{task_id}",
-        )
-
-        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
-            with patch.object(main_module.ws_manager, "is_enabled", return_value=True):
-                with patch.object(main_module.ws_manager.socketio, "emit") as mock_emit:
-                    response = client.delete("/api/activity/history")
-
-        assert response.status_code == 200
-        mock_emit.assert_called_once_with(
-            "activity_update",
-            ANY,
-            to="admins",
         )
 
 

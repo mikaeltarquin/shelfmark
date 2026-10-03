@@ -91,10 +91,12 @@ export const downloadToActivityItem = (book: Book, statusKey: DownloadStatusKey)
   const downloadsCount = getDownloadsCount(book);
   const downloadsText =
     downloadsCount != null ? `${downloadsCount.toLocaleString()} downloads` : undefined;
+  const format = toOptionalText(book.format)?.toUpperCase();
+  const sourceLabel = toOptionalText(book.source_display_name) || toSourceLabel(book.source);
   const metaLine = joinMetaParts([
-    toOptionalText(book.format)?.toUpperCase(),
+    format,
     toOptionalText(book.size),
-    toOptionalText(book.source_display_name) || toSourceLabel(book.source),
+    sourceLabel,
     downloadsText,
     toOptionalText(book.username),
   ]);
@@ -123,6 +125,8 @@ export const downloadToActivityItem = (book: Book, statusKey: DownloadStatusKey)
     contentType: toOptionalText(book.content_type),
     infoUrl: toOptionalText(book.info_url),
     sizeRaw: toOptionalText(book.size),
+    format,
+    sourceLabel,
     downloads: downloadsCount ?? undefined,
     requestId,
   };
@@ -181,6 +185,9 @@ export const requestToActivityItem = (
     author: toText(bookData.author ?? releaseData.author, 'Unknown author'),
     preview: toOptionalText(bookData.preview) || toOptionalText(releaseData.preview),
     metaLine: buildRequestMetaLine(record, bookData, releaseData, viewerRole),
+    format: toOptionalText(releaseData.format)?.toUpperCase(),
+    sizeRaw: toOptionalText(releaseData.size),
+    sourceLabel: toSourceLabel(releaseData.source || record.source_hint),
     statusLabel: STATUS_LABELS[visualStatus],
     adminNote: toOptionalText(record.admin_note),
     timestamp,

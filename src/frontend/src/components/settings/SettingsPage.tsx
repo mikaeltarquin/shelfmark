@@ -5,11 +5,11 @@ import { useMountEffect } from '../../hooks/useMountEffect';
 import { useSettings } from '../../hooks/useSettings';
 import { getAdminSettingsOverridesSummary, getSettingsTab } from '../../services/api';
 import {
-  SETTINGS_CATEGORIES,
+  resolveSettingsCategory,
   settingsCategoryLabel,
   settingsCategoryOfTab,
+  settingsEntriesInCategory,
   settingsPath,
-  tabsInSettingsCategory,
 } from './settingsCategories';
 import { SettingsContent } from './SettingsContent';
 
@@ -120,15 +120,14 @@ export const SettingsPage = ({
   >({});
   const overrideSummaryRequestIdRef = useRef(0);
 
-  const categoryKey = SETTINGS_CATEGORIES.some((entry) => entry.key === category)
-    ? (category ?? 'general')
-    : 'general';
+  const categoryKey = resolveSettingsCategory(category);
   const categoryTabs = useMemo(
-    () => tabsInSettingsCategory(tabs, categoryKey),
+    () => settingsEntriesInCategory(tabs, categoryKey),
     [tabs, categoryKey],
   );
-  const selectedTab =
-    tab && categoryTabs.some((entry) => entry.name === tab) ? tab : (categoryTabs[0]?.name ?? null);
+  const selectedEntry = categoryTabs.find((entry) => entry.id === tab) ?? categoryTabs[0] ?? null;
+  // The backend tab it loads and saves as.
+  const selectedTab = selectedEntry?.tabName ?? null;
 
   const refreshOverrideSummaryForTab = useCallback(async (tabName: string) => {
     const requestId = ++overrideSummaryRequestIdRef.current;
@@ -152,13 +151,18 @@ export const SettingsPage = ({
     }
   }, []);
 
+  // A tab of this section by its id, or any backend tab by its name.
   const selectTab = useCallback(
-    (tabName: string) => {
-      const target = tabs.find((entry) => entry.name === tabName);
+    (id: string) => {
+      if (categoryTabs.some((entry) => entry.id === id)) {
+        onNavigate(settingsPath(categoryKey, id));
+        return;
+      }
+      const target = tabs.find((entry) => entry.name === id);
       if (!target) return;
-      onNavigate(settingsPath(settingsCategoryOfTab(target), tabName));
+      onNavigate(settingsPath(settingsCategoryOfTab(target), id));
     },
-    [onNavigate, tabs],
+    [categoryKey, categoryTabs, onNavigate, tabs],
   );
 
   const handleRefreshCurrentTabOverrideSummary = useCallback(() => {
@@ -247,7 +251,7 @@ export const SettingsPage = ({
     [selectedTab, hasChanges],
   );
 
-  const currentTab = tabs.find((t) => t.name === selectedTab);
+  const currentTab = selectedEntry?.tab;
   const tabSync = selectedTab ? (
     <SettingsTabSync
       key={selectedTab}
@@ -303,7 +307,7 @@ export const SettingsPage = ({
   } else {
     body = (
       <SettingsContent
-        key={currentTab.name}
+        key={selectedEntry?.id ?? currentTab.name}
         tab={currentTab}
         values={values[currentTab.name] || {}}
         onChange={handleFieldChange}
@@ -338,20 +342,20 @@ export const SettingsPage = ({
             aria-label={`${settingsCategoryLabel(categoryKey)} settings`}
           >
             {categoryTabs.map((entry) => {
-              const selected = entry.name === selectedTab;
+              const selected = entry.id === selectedEntry?.id;
               return (
                 <button
-                  key={entry.name}
+                  key={entry.id}
                   type="button"
                   aria-current={selected ? 'page' : undefined}
-                  onClick={() => selectTab(entry.name)}
+                  onClick={() => selectTab(entry.id)}
                   className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
                     selected
                       ? 'border-sky-500 text-sky-600 dark:text-sky-400'
                       : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                   }`}
                 >
-                  {entry.displayName}
+                  {entry.label}
                 </button>
               );
             })}

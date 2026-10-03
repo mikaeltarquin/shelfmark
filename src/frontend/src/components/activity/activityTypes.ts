@@ -32,6 +32,8 @@ export interface ActivityItem {
   progress?: number;
   progressAnimated?: boolean;
   sizeRaw?: string;
+  format?: string; // "EPUB", "M4B"
+  sourceLabel?: string; // Where it came from: "Prowlarr", "Anna's Archive"
   downloads?: number;
 
   timestamp: number;

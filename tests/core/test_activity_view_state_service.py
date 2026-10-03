@@ -25,7 +25,7 @@ def activity_view_state_service(db_path):
 
 
 class TestActivityViewStateService:
-    def test_dismiss_and_clear_history_are_viewer_scoped(self, activity_view_state_service):
+    def test_dismiss_and_history_are_viewer_scoped(self, activity_view_state_service):
         activity_view_state_service.dismiss(
             viewer_scope="user:1",
             item_type="download",
@@ -51,18 +51,7 @@ class TestActivityViewStateService:
         assert [row["item_key"] for row in user_history] == ["request:12", "download:first-task"]
         assert all(isinstance(row["dismissed_at"], str) for row in user_history)
 
-        cleared_count = activity_view_state_service.clear_history(viewer_scope="user:1")
-        assert cleared_count == 2
-        assert (
-            activity_view_state_service.list_history(viewer_scope="user:1", limit=10, offset=0)
-            == []
-        )
-
-        user_hidden_after_clear = activity_view_state_service.list_hidden(viewer_scope="user:1")
-        assert {row["item_key"] for row in user_hidden_after_clear} == {
-            "download:first-task",
-            "request:12",
-        }
+        assert not hasattr(activity_view_state_service, "clear_history")
 
         admin_history = activity_view_state_service.list_history(
             viewer_scope="admin:shared",
@@ -126,3 +115,22 @@ class TestActivityViewStateService:
 
         assert len(all_hidden) == 5001
         assert len(limited_hidden) == 10
+
+    def test_history_lists_rows_hidden_by_the_old_clear_history(self, activity_view_state_service):
+        activity_view_state_service.dismiss(
+            viewer_scope="user:1",
+            item_type="download",
+            item_key="download:old-task",
+        )
+        # What Clear History used to do: hide the row, keeping it.
+        conn = activity_view_state_service._connect()
+        try:
+            conn.execute("UPDATE activity_view_state SET cleared_at = dismissed_at")
+            conn.commit()
+        finally:
+            conn.close()
+
+        history = activity_view_state_service.list_history(
+            viewer_scope="user:1", limit=10, offset=0
+        )
+        assert [row["item_key"] for row in history] == ["download:old-task"]
