@@ -7,7 +7,7 @@ import type { Book, ButtonStateInfo, LibraryBook, LibraryFormat } from '../../ty
 import type { ActivityBookRef } from '../../utils/bookActivity';
 import { copyBadges } from '../../utils/libraryCopies';
 import { rowAuthors, rowSeries, rowTitle, rowYear, type LibraryRow } from '../../utils/libraryRows';
-import { SAVED_STAGE_LABELS, savedStage } from '../../utils/savedItems';
+import { SAVED_STAGE_LABELS, pickLabel, savedStage } from '../../utils/savedItems';
 import { BookActionButton } from '../BookActionButton';
 import { BookmarkIcon } from '../SaveForLaterButton';
 import { ActivityChips, activityRef } from '../shared';
@@ -48,9 +48,80 @@ const MissingBadge = ({ format, compact }: { format: LibraryFormat; compact: boo
   </span>
 );
 
+interface CellBadge {
+  key: string;
+  text: string;
+  title: string;
+  tone: 'held' | 'queued' | 'downloading';
+}
+
+const TONES: Record<CellBadge['tone'], string> = {
+  held: 'bg-emerald-600/90',
+  queued: 'bg-sky-600/90',
+  downloading: 'bg-indigo-600/90',
+};
+
+/** What is on its way in a format: queued picks (by narrator or format), a download. */
+const usePendingBadges = (row: LibraryRow, format: LibraryFormat): CellBadge[] => {
+  const activity = useBookActivity();
+  if (!activity) return [];
+  const ref = rowActivityRef(row);
+  const badges: CellBadge[] = [];
+  const download = activity.downloadFor(ref);
+  if (download?.state === 'active' && download.formats.includes(format)) {
+    badges.push({
+      key: 'downloading',
+      text: 'Downloading',
+      title: `The ${FORMAT_WORDS[format]} is downloading`,
+      tone: 'downloading',
+    });
+  }
+  const saved = activity.savedFor(ref);
+  if (saved && savedStage(saved) === 'queued') {
+    saved.releases
+      .filter((pick) => pick.content_type === format)
+      .forEach((pick, index) => {
+        const text = pickLabel(pick);
+        badges.push({
+          key: `queued:${index}`,
+          text,
+          title:
+            format === 'audiobook' && text !== 'Audiobook'
+              ? `Queued for download: the audiobook read by ${text}`
+              : `Queued for download: the ${FORMAT_WORDS[format]} (${text})`,
+          tone: 'queued',
+        });
+      });
+  }
+  return badges;
+};
+
+const heldBadges = (row: LibraryRow, format: LibraryFormat): CellBadge[] => {
+  if (row.kind === 'owned') {
+    if (!row.book.formats.includes(format)) return [];
+    return copyBadges(row.book, format).map(({ key, text, title }) => ({
+      key,
+      text,
+      title,
+      tone: 'held',
+    }));
+  }
+  if (row.missingFormats.includes(format)) return [];
+  // The provider's book, held in this format under another author or title.
+  return [
+    {
+      key: 'held',
+      text: 'In library',
+      title: `The ${FORMAT_WORDS[format]} is in your library`,
+      tone: 'held',
+    },
+  ];
+};
+
 /**
- * What the library holds of a book in one format: a badge per copy (an audiobook by its
- * narrator), "Missing" when the provider lists it as lacking, else a dash.
+ * What the library holds of a book in one format, a badge per copy (an audiobook by its
+ * narrator), then what's on its way: queued picks in blue, a download in indigo. Else
+ * "Missing" when the provider lists it as lacking, or a dash.
  */
 const FormatCell = ({
   row,
@@ -61,13 +132,14 @@ const FormatCell = ({
   format: LibraryFormat;
   compact?: boolean; // Badges under the title on a phone: nothing for an unknown format
 }) => {
-  if (row.kind === 'owned' && row.book.formats.includes(format)) {
+  const badges = [...heldBadges(row, format), ...usePendingBadges(row, format)];
+  if (badges.length > 0) {
     return (
       <span className={`flex items-start gap-1 ${compact ? 'flex-wrap' : 'flex-col'}`}>
-        {copyBadges(row.book, format).map((badge) => (
+        {badges.map((badge) => (
           <span
             key={badge.key}
-            className={`${badgeClass} bg-emerald-600/90 text-white shadow`}
+            className={`${badgeClass} ${TONES[badge.tone]} text-white shadow`}
             title={badge.title}
           >
             <FormatIcon format={format} />
@@ -79,18 +151,6 @@ const FormatCell = ({
   }
   if (row.missingFormats.includes(format)) {
     return <MissingBadge format={format} compact={compact} />;
-  }
-  if (row.kind === 'missing') {
-    // The provider's book, held in this format under another author or title.
-    return (
-      <span
-        className={`${badgeClass} w-fit bg-emerald-600/90 text-white shadow`}
-        title={`The ${FORMAT_WORDS[format]} is in your library`}
-      >
-        <FormatIcon format={format} />
-        <span className="truncate">In library</span>
-      </span>
-    );
   }
   return compact ? null : <span className="opacity-30">—</span>;
 };

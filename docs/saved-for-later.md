@@ -31,9 +31,9 @@ A saved item is one of two things, marked on books everywhere they show:
   (see below). Picking releases queues them straight away when **Get Saved Books
   Automatically** is on.
 
-## The Saved tab
+## The Queued and Later tabs
 
-**Activity → Saved** lists your saved books, queued ones first, with what each will download ("Ebook EPUB +
+**Activity → Queued** and **Activity → Later** list your saved books, with what each will download ("Ebook EPUB +
 audiobook, Narrator Name", or "Book only"). **+ Get** downloads it through the usual path:
 the MyAnonamouse buffer and unsatisfied checks still apply, and for users who need
 approval it becomes a request. A book saved on its own opens its releases instead.
@@ -44,7 +44,7 @@ picked releases) any other way.
 ## Getting automatically
 
 A saved item with picked releases can download on its own once it makes sense to. It's
-queued as it's saved; in **Activity → Saved**, untick **Queue for download** to keep it for
+queued as it's saved; in **Activity → Queued**, untick **Queue for download** to keep it for
 later instead, or tick it on an older pick. A background check (every 10 minutes by
 default, and a few seconds after you tick it) gets it once:
 

@@ -5,6 +5,16 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 ## Unreleased
 
 ### Added
+- **Queued and Later tabs**: Activity's Saved tab is now two tabs, **Queued** (releases
+  picked, downloading on their own) and **Later** (saved for later), each with its count.
+  The tab row scrolls when the tabs don't fit.
+- **What's on its way, in the library tables**: the Ebook and Audiobook columns show a blue
+  badge for each queued pick (an audiobook by its narrator, an ebook by its format) and an
+  indigo **Downloading** badge while one downloads, in place of **Missing**.
+- **Marks on releases**: the release list (Get) marks each release you downloaded
+  (or are downloading, or that failed) and one that's queued or saved for later.
+- **Retry search**: when a release search fails ("indexer 12 did not respond within
+  30s"), **Retry search** runs it again.
 - **Every copy in the library tables**: the book tables (All, under an author or a series)
   have an **Ebook** and an **Audiobook** column instead of one status. Each copy gets its
   own badge: an audiobook by its narrator ("Ray Porter"), an ebook by its files ("EPUB,

@@ -7,9 +7,11 @@ import {
   downloadSummary,
   indexDownloads,
   mergeDownloads,
+  releaseDownloadState,
   savedItemFor,
   type ActivityBookRef,
   type BookDownloadEntry,
+  type BookDownloadState,
   type BookDownloadSummary,
 } from '../utils/bookActivity';
 import type { SavedItem } from '../utils/savedItems';
@@ -19,6 +21,8 @@ export interface BookActivityContextValue {
   downloadFor: (book: ActivityBookRef) => BookDownloadSummary | null;
   /** The book's saved item, if it is saved. */
   savedFor: (book: ActivityBookRef) => SavedItem | undefined;
+  /** Where one release (by source id) stands in Downloads, or null if never downloaded. */
+  releaseDownloadFor: (sourceId: string) => BookDownloadState | null;
   refresh: () => Promise<void>;
 }
 
@@ -54,7 +58,14 @@ export const useBookActivityStore = ({
     (book: ActivityBookRef) => savedItemFor(savedItems, book),
     [savedItems],
   );
-  return useMemo(() => ({ downloadFor, savedFor, refresh }), [downloadFor, savedFor, refresh]);
+  const releaseDownloadFor = useCallback(
+    (sourceId: string) => releaseDownloadState(index, sourceId),
+    [index],
+  );
+  return useMemo(
+    () => ({ downloadFor, savedFor, releaseDownloadFor, refresh }),
+    [downloadFor, savedFor, releaseDownloadFor, refresh],
+  );
 };
 
 // Live status covers new downloads; this re-read picks up dismissals and other devices.

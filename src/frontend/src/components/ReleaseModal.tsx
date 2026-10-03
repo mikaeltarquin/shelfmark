@@ -64,6 +64,7 @@ import { LanguageMultiSelect } from './LanguageMultiSelect';
 import { PackReviewPanel } from './PackReviewPanel';
 import { ReleaseCell } from './ReleaseCell';
 import { BookmarkIcon, SaveForLaterButton } from './SaveForLaterButton';
+import { ReleaseChips } from './shared';
 
 // Combined mode configuration for the ReleaseModal
 interface CombinedModeConfig {
@@ -572,6 +573,7 @@ const ReleaseRow = ({
               Narration in library
             </span>
           )}
+          <ReleaseChips book={saveTarget?.book} release={release} className="mt-0.5" />
         </div>
 
         {/* Dynamic columns from schema */}
@@ -631,6 +633,7 @@ const ReleaseRow = ({
               <span className="font-normal text-zinc-500 dark:text-zinc-400"> — {author}</span>
             )}
           </p>
+          <ReleaseChips book={saveTarget?.book} release={release} className="mt-0.5" />
           {/* Plugin-provided info line (format, size, indexer, seeders, etc.) */}
           {mobileColumns.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
@@ -810,8 +813,8 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-// Error state component
-function ErrorState({ message }: { message: string }) {
+// Error state component; a failed search (an indexer that timed out) can be run again.
+function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="px-4 py-12 text-center">
       <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
@@ -833,6 +836,29 @@ function ErrorState({ message }: { message: string }) {
         Error Loading Releases
       </h4>
       <p className="mx-auto max-w-xs text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+            />
+          </svg>
+          Retry search
+        </button>
+      )}
     </div>
   );
 }
@@ -2408,7 +2434,7 @@ const ReleaseModalSession = ({
                   return <ReleaseSkeleton />;
                 }
                 if (currentTabError) {
-                  return <ErrorState message={currentTabError} />;
+                  return <ErrorState message={currentTabError} onRetry={applyCurrentFilters} />;
                 }
                 if (filteredReleases.length === 0 && !currentTabLoading) {
                   return (

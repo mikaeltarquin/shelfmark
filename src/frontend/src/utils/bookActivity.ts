@@ -18,7 +18,7 @@ export interface BookDownloadEntry {
   status: string; // A queue bucket: queued, downloading, complete, error, cancelled…
 }
 
-type BookDownloadState = 'active' | 'complete' | 'error';
+export type BookDownloadState = 'active' | 'complete' | 'error';
 
 /** Where a book stands in Downloads: the most advanced state, and for which formats. */
 export interface BookDownloadSummary {
@@ -148,6 +148,7 @@ export const mergeDownloads = (
 export interface DownloadIndex {
   byKey: Map<string, BookDownloadEntry[]>;
   byTitle: Map<string, BookDownloadEntry[]>; // Downloads with no book key, by title
+  byId: Map<string, BookDownloadEntry>; // By task id: a release's source id
 }
 
 const push = <K, V>(map: Map<K, V[]>, key: K, value: V) => {
@@ -157,9 +158,10 @@ const push = <K, V>(map: Map<K, V[]>, key: K, value: V) => {
 };
 
 export const indexDownloads = (entries: readonly BookDownloadEntry[]): DownloadIndex => {
-  const index: DownloadIndex = { byKey: new Map(), byTitle: new Map() };
+  const index: DownloadIndex = { byKey: new Map(), byTitle: new Map(), byId: new Map() };
   for (const entry of entries) {
     if (rank(entry.status) === 0) continue;
+    index.byId.set(entry.id, entry);
     if (entry.book_key) push(index.byKey, entry.book_key, entry);
     // Library books have no provider key, so every download is also findable by title.
     if (entry.title) push(index.byTitle, titleKey(entry.title), entry);
@@ -189,6 +191,23 @@ export const downloadSummary = (
     top.some((entry) => formatOf(entry.content_type) === format),
   );
   return { state, formats };
+};
+
+const stateOf = (status: string): BookDownloadState | null => {
+  const value = rank(status);
+  if (value === 3) return 'active';
+  if (value === 2) return 'complete';
+  if (value === 1) return 'error';
+  return null;
+};
+
+/** Where one release stands in Downloads (its download's id is the release's source id). */
+export const releaseDownloadState = (
+  index: DownloadIndex,
+  sourceId: string,
+): BookDownloadState | null => {
+  const entry = index.byId.get(sourceId);
+  return entry ? stateOf(entry.status) : null;
 };
 
 /** The saved item for a book: by its key, or (library books) by title and author. */
