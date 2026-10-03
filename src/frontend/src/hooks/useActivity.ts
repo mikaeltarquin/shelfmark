@@ -289,7 +289,6 @@ interface UseActivityResult {
   handleActivityHistoryLoadMore: () => void;
   handleRequestDismiss: (requestId: number) => void;
   handleDownloadDismiss: (bookId: string, linkedRequestId?: number) => void;
-  handleClearCompleted: (items: ActivityDismissTarget[]) => void;
 }
 
 export const useActivity = ({
@@ -416,10 +415,12 @@ export const useActivity = ({
     }
 
     const refreshFromSocketEvent = () => {
-      void refreshActivitySnapshot();
-      if (activityHistoryLoaded) {
-        void refreshActivityHistory();
-      }
+      // The snapshot moves finished downloads to History, so refresh History after it.
+      void refreshActivitySnapshot().then(() => {
+        if (activityHistoryLoaded) {
+          void refreshActivityHistory();
+        }
+      });
     };
 
     socket.on('activity_update', refreshFromSocketEvent);
@@ -530,24 +531,6 @@ export const useActivity = ({
     [dismissItems],
   );
 
-  const handleClearCompleted = useCallback(
-    (items: ActivityDismissTarget[]) => {
-      if (!items.length) {
-        return;
-      }
-
-      dismissItems(
-        items.map((item) => ({
-          item_type: item.itemType,
-          item_key: item.itemKey,
-        })),
-        Array.from(new Set(items.map((item) => item.itemKey))),
-        'Failed to clear finished downloads',
-      );
-    },
-    [dismissItems],
-  );
-
   return {
     activityStatus,
     requestItems,
@@ -566,6 +549,5 @@ export const useActivity = ({
     handleActivityHistoryLoadMore,
     handleRequestDismiss,
     handleDownloadDismiss,
-    handleClearCompleted,
   };
 };

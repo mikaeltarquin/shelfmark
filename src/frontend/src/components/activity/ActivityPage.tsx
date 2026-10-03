@@ -12,7 +12,6 @@ interface ActivityPageProps {
   tab: ActivityTabKey;
   status: StatusData;
   isAdmin: boolean;
-  onClearCompleted: (items: ActivityDismissTarget[]) => void;
   /** Opens an item's book details. */
   onOpenDetails?: (item: ActivityItem) => void;
   /** Opens a finished download in its library app. */
@@ -204,7 +203,6 @@ export const ActivityPage = ({
   tab,
   status,
   isAdmin,
-  onClearCompleted,
   onOpenDetails,
   onOpenInLibrary,
   onCancel,
@@ -338,17 +336,6 @@ export const ActivityPage = ({
     };
   }, [downloadItems, visibleRequestItems]);
 
-  const hasTerminalDownloadItems = useMemo(
-    () =>
-      mergedDownloadItems.some(
-        (item) =>
-          item.visualStatus === 'complete' ||
-          item.visualStatus === 'error' ||
-          item.visualStatus === 'cancelled',
-      ),
-    [mergedDownloadItems],
-  );
-
   let baseVisibleItems = mergedDownloadItems;
   if (effectiveActiveTab === 'requests') {
     baseVisibleItems = mergedRequestItems.filter((item) => {
@@ -438,38 +425,6 @@ export const ActivityPage = ({
 
   const hasUserFilter = isAdmin && availableUsers.length > 1;
 
-  const clearCompletedTargets = useMemo(() => {
-    const targets: ActivityDismissTarget[] = [];
-    const seen = new Set<string>();
-
-    visibleItems.forEach((item) => {
-      // Failed downloads stay until dismissed one by one: they still need attention.
-      const isClearable =
-        item.kind === 'download' &&
-        (item.visualStatus === 'complete' || item.visualStatus === 'cancelled');
-
-      if (!isClearable || !item.downloadBookId) {
-        return;
-      }
-
-      const downloadKey = `download:${item.downloadBookId}`;
-      if (!seen.has(downloadKey)) {
-        seen.add(downloadKey);
-        targets.push({ itemType: 'download', itemKey: downloadKey });
-      }
-
-      if (item.requestId) {
-        const requestKey = `request:${item.requestId}`;
-        if (!seen.has(requestKey)) {
-          seen.add(requestKey);
-          targets.push({ itemType: 'request', itemKey: requestKey });
-        }
-      }
-    });
-
-    return targets;
-  }, [visibleItems]);
-
   const visibleCategoryOrder = useMemo(
     () => getVisibleCategoryOrder(effectiveActiveTab),
     [effectiveActiveTab],
@@ -502,13 +457,6 @@ export const ActivityPage = ({
       }))
       .filter((group) => group.items.length > 0);
   }, [effectiveActiveTab, isAdmin, visibleItems, visibleCategoryOrder]);
-
-  const showClearCompleted =
-    effectiveActiveTab === 'downloads' &&
-    hasTerminalDownloadItems &&
-    clearCompletedTargets.length > 0;
-  const toolbarButtonClass =
-    'hover-action rounded-full px-3 py-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200';
 
   return (
     <section className="space-y-4" aria-labelledby="activity-title">
@@ -598,15 +546,6 @@ export const ActivityPage = ({
                 </div>
               )}
             </Dropdown>
-          )}
-          {showClearCompleted && (
-            <button
-              type="button"
-              onClick={() => onClearCompleted(clearCompletedTargets)}
-              className={toolbarButtonClass}
-            >
-              Clear Completed
-            </button>
           )}
         </div>
       </div>

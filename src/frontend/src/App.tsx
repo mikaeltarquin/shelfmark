@@ -448,7 +448,6 @@ function App() {
     handleActivityHistoryLoadMore,
     handleRequestDismiss,
     handleDownloadDismiss,
-    handleClearCompleted,
   } = useActivity({
     isAuthenticated,
     isAdmin: requestRoleIsAdmin,
@@ -469,34 +468,6 @@ function App() {
     }
     return result;
   }, [dismissedActivityKeys]);
-
-  const isDownloadTaskDismissed = useCallback(
-    (taskId: string) => {
-      return dismissedDownloadTaskIds.has(taskId);
-    },
-    [dismissedDownloadTaskIds],
-  );
-
-  const statusForButtonState = useMemo(() => {
-    if (!currentStatus.complete || dismissedDownloadTaskIds.size === 0) {
-      return currentStatus;
-    }
-
-    const filteredComplete = Object.fromEntries(
-      Object.entries(currentStatus.complete).filter(
-        ([taskId]) => !dismissedDownloadTaskIds.has(taskId),
-      ),
-    ) as Record<string, Book>;
-
-    if (Object.keys(filteredComplete).length === Object.keys(currentStatus.complete).length) {
-      return currentStatus;
-    }
-
-    return {
-      ...currentStatus,
-      complete: filteredComplete,
-    };
-  }, [currentStatus, dismissedDownloadTaskIds]);
 
   // Use real-time buckets for active work and persisted activity snapshot
   // buckets for terminal history. Filter out dismissed items so the sidebar
@@ -2216,44 +2187,19 @@ function App() {
       if (!book) {
         return baseState;
       }
-      if (baseState.state === 'complete' && isDownloadTaskDismissed(bookId)) {
-        return applyDirectPolicyModeToButtonState(
-          { text: 'Download', state: 'download' },
-          getDirectPolicyMode(book),
-        );
-      }
       const mode = getDirectPolicyMode(book);
       return applyDirectPolicyModeToButtonState(baseState, mode);
     },
-    [books, getButtonState, getDirectPolicyMode, isDownloadTaskDismissed],
+    [books, getButtonState, getDirectPolicyMode],
   );
 
   const getUniversalActionButtonState = useCallback(
     (bookId: string): ButtonStateInfo => {
       const baseState = getUniversalButtonState(bookId);
-      const trackedReleaseIds = bookToReleaseMap[bookId] || [];
-      const allTrackedReleasesDismissed =
-        trackedReleaseIds.length > 0 &&
-        trackedReleaseIds.every((releaseId) => isDownloadTaskDismissed(releaseId));
-
-      if (
-        baseState.state === 'complete' &&
-        (isDownloadTaskDismissed(bookId) || allTrackedReleasesDismissed)
-      ) {
-        return applyUniversalPolicyModeToButtonState(
-          { text: 'Get', state: 'download' },
-          getUniversalDefaultPolicyMode(),
-        );
-      }
       const mode = getUniversalDefaultPolicyMode();
       return applyUniversalPolicyModeToButtonState(baseState, mode);
     },
-    [
-      bookToReleaseMap,
-      getUniversalButtonState,
-      getUniversalDefaultPolicyMode,
-      isDownloadTaskDismissed,
-    ],
+    [getUniversalButtonState, getUniversalDefaultPolicyMode],
   );
 
   const bookLanguages = useMemo(
@@ -2939,7 +2885,6 @@ function App() {
           queuedPanel={savedPanelFor('queued')}
           status={activitySidebarStatus}
           isAdmin={requestRoleIsAdmin}
-          onClearCompleted={handleClearCompleted}
           onOpenDetails={(item) => {
             void handleOpenActivityDetails(item);
           }}
@@ -3255,7 +3200,7 @@ function App() {
               contentType={activeReleaseContentType}
               defaultLanguages={defaultLanguageCodes}
               bookLanguages={bookLanguages}
-              currentStatus={statusForButtonState}
+              currentStatus={currentStatus}
               defaultReleaseSource={config?.default_release_source}
               defaultAudiobookReleaseSource={config?.default_release_source_audiobook}
               onSearchSeries={

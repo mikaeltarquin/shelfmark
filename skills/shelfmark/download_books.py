@@ -222,17 +222,6 @@ def download_book(page, title, author):
             print("  >> Timeout waiting for download")
         sys.stdout.flush()
 
-def clear_completed_downloads(page):
-    """Clear completed downloads from previous sessions"""
-    page.evaluate('''
-        () => {
-            for (const b of document.querySelectorAll('button')) {
-                if (b.textContent.includes('Clear Completed')) { b.click(); return; }
-            }
-        }
-    ''')
-    page.wait_for_timeout(2000)
-
 def check_calibre(title):
     """Check if a book is already in the calibre database."""
     import subprocess
@@ -329,13 +318,6 @@ def main():
         page = browser.new_page(viewport={'width': 1280, 'height': 900})
         page.goto(SHELFMARK_URL)
         page.wait_for_load_state('networkidle')
-        
-        # Clear completed downloads at start of batch
-        print(f"\n{'='*60}")
-        print("Clearing completed downloads from previous sessions...")
-        print('='*60)
-        sys.stdout.flush()
-        clear_completed_downloads(page)
         
         for i, (title, author) in enumerate(BOOKS, 1):
             print(f"\n{'='*60}")
