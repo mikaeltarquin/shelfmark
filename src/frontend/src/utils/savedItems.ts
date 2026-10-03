@@ -3,6 +3,7 @@
 import type { DownloadReleasePayload } from '../services/api';
 import type { Book, ContentType, Release } from '../types';
 import { isPartRelease, releaseNarrators } from './combinedSelection';
+import { narratorNames, shortNarrators } from './narrators';
 import { buildReleaseDownloadPayload } from './releasePayload';
 
 export type SavedKind = 'book' | 'release' | 'combined';
@@ -92,25 +93,36 @@ export const savedBookKey = (book: Pick<Book, 'id' | 'provider' | 'provider_id'>
 
 const formatLabel = (release: Release): string => (release.format ?? '').toUpperCase();
 
-const narratorOf = (release: Release): string | null => {
-  const raw = release.extra?.narrators ?? release.extra?.narrator;
-  if (Array.isArray(raw)) return raw.filter((n): n is string => typeof n === 'string').join(', ');
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-};
+const narratorsOf = (release: Release): string[] =>
+  narratorNames(release.extra?.narrators ?? release.extra?.narrator);
 
-/** One pick as a badge names it: an audiobook by its narrators, an ebook by its format. */
-export const pickLabel = (pick: SavedPick): string => {
-  if (pick.content_type === 'audiobook') return narratorOf(pick.release) ?? 'Audiobook';
+/**
+ * One pick as a badge names it: an audiobook by its narrators, the first and how many
+ * more ("Andrew Scott +9"), or all of them with `full`; an ebook by its format.
+ */
+export const pickLabel = (pick: SavedPick, { full = false }: { full?: boolean } = {}): string => {
+  if (pick.content_type === 'audiobook') {
+    const names = narratorsOf(pick.release);
+    if (names.length === 0) return 'Audiobook';
+    return full ? names.join(', ') : shortNarrators(names);
+  }
   return formatLabel(pick.release) || 'Ebook';
 };
 
-/** What a saved item will download: "Ebook EPUB + audiobook, Narrator Name", or "Book only". */
-export const describeSavedPick = (item: Pick<SavedItem, 'kind' | 'releases'>): string => {
+/**
+ * What a saved item will download: "Ebook EPUB + audiobook, Narrator Name +2", or "Book
+ * only"; `full` names every narrator.
+ */
+export const describeSavedPick = (
+  item: Pick<SavedItem, 'kind' | 'releases'>,
+  { full = false }: { full?: boolean } = {},
+): string => {
   if (item.kind === 'book' || item.releases.length === 0) return 'Book only, pick a release later';
   const parts = item.releases.map((pick) => {
     if (pick.content_type === 'audiobook') {
-      const narrator = narratorOf(pick.release);
-      return narrator ? `audiobook, ${narrator}` : 'audiobook';
+      const names = narratorsOf(pick.release);
+      if (names.length === 0) return 'audiobook';
+      return `audiobook, ${full ? names.join(', ') : shortNarrators(names)}`;
     }
     const format = formatLabel(pick.release);
     return format ? `ebook ${format}` : 'ebook';

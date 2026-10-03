@@ -116,6 +116,7 @@ const SavedRow = ({
     }
   };
   const picks = describeSavedPick(item);
+  const allPicks = describeSavedPick(item, { full: true });
   const saved = Date.parse(item.created_at);
 
   return (
@@ -134,7 +135,7 @@ const SavedRow = ({
         )}
       </td>
       <td className={`${cellClassName} min-w-[12rem]`}>
-        <p className="text-xs" title={picks}>
+        <p className="text-xs" title={allPicks}>
           {picks}
         </p>
         {item.last_error && (

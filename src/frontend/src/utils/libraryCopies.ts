@@ -1,10 +1,11 @@
 import type { LibraryBook, LibraryCopy, LibraryFormat } from '../types';
+import { shortNarrators } from './narrators';
 
 /** One version of a book the library holds, as a table badge shows it. */
 export interface CopyBadge {
   key: string;
-  text: string; // The narrators of an audiobook, the file formats of an ebook
-  title: string;
+  text: string; // An audiobook's narrators ("Andrew Scott +9"), an ebook's file formats
+  title: string; // On hover: every narrator, and where the copy is
 }
 
 // Audio files an Audiobookshelf item may list beside its ebook.
@@ -35,7 +36,11 @@ const badgeFor = (copy: LibraryCopy, format: LibraryFormat): CopyBadge => {
   if (format === 'audiobook') {
     const narrators = copy.narrators.join(', ');
     return narrators
-      ? { key, text: narrators, title: `Audiobook read by ${narrators}${where}` }
+      ? {
+          key,
+          text: shortNarrators(copy.narrators),
+          title: `Audiobook read by ${narrators}${where}`,
+        }
       : { key, text: 'Audiobook', title: `Audiobook${where}` };
   }
   const files = copy.file_formats

@@ -82,13 +82,14 @@ const usePendingBadges = (row: LibraryRow, format: LibraryFormat): CellBadge[] =
       .filter((pick) => pick.content_type === format)
       .forEach((pick, index) => {
         const text = pickLabel(pick);
+        const fullText = pickLabel(pick, { full: true });
         badges.push({
           key: `queued:${index}`,
           text,
           title:
             format === 'audiobook' && text !== 'Audiobook'
-              ? `Queued for download: the audiobook read by ${text}`
-              : `Queued for download: the ${FORMAT_WORDS[format]} (${text})`,
+              ? `Queued for download: the audiobook read by ${fullText}`
+              : `Queued for download: the ${FORMAT_WORDS[format]} (${fullText})`,
           tone: 'queued',
         });
       });
