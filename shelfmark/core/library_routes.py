@@ -182,8 +182,13 @@ def register_library_routes(app: Flask, login_required: Callable[..., Any]) -> N
             return jsonify({"error": "kind (author or series) and name are required"}), 400
         if content_type not in {"ebook", "audiobook"}:
             content_type = "ebook"
+        include_compilations = request.args.get("collections") == "1"
         try:
-            return jsonify(library_missing.candidates(kind, name, content_type))
+            return jsonify(
+                library_missing.candidates(
+                    kind, name, content_type, include_compilations=include_compilations
+                )
+            )
         except Exception as exc:  # noqa: BLE001 - shown on the page
             logger.warning("Missing books for %s %s failed: %s", kind, name, exc)
             return jsonify({"error": f"The metadata provider could not be reached: {exc}"}), 502

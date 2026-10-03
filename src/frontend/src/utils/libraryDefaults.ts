@@ -44,6 +44,7 @@ export interface LibraryDefaults {
   allSort: LibrarySort | null; // null: last used
   authorsSort: AuthorSortField | null;
   seriesSort: SeriesSortField | null;
+  collections: 'hide' | 'show'; // Box sets and omnibuses among missing books
 }
 
 export type LibraryDefaultKey = keyof LibraryDefaults;
@@ -58,6 +59,7 @@ export const loadLibraryDefaults = (): LibraryDefaults => {
     allSort: pick(ALL_SORT_OPTIONS, Reflect.get(raw, 'allSort')),
     authorsSort: pick(AUTHOR_SORT_OPTIONS, Reflect.get(raw, 'authorsSort')),
     seriesSort: pick(SERIES_SORT_OPTIONS, Reflect.get(raw, 'seriesSort')),
+    collections: Reflect.get(raw, 'collections') === 'show' ? 'show' : 'hide',
   };
 };
 
@@ -118,6 +120,21 @@ export const LIBRARY_DEFAULT_FIELDS: Array<{ key: LibraryDefaultKey; field: Sele
       description: 'The sort the Series tab opens with.',
       value: LAST_USED,
       options: [lastUsed, ...SERIES_SORT_OPTIONS],
+    },
+  },
+  {
+    key: 'collections',
+    field: {
+      type: 'SelectField',
+      key: '_LIBRARY_COLLECTIONS',
+      label: 'Library: collections in missing books',
+      description:
+        'Box sets, omnibuses and story collections the metadata provider lists. Hardcover numbers them in the series, so a "Books 1-3" set shows as another book #1.',
+      value: 'hide',
+      options: [
+        { value: 'hide', label: 'Hide' },
+        { value: 'show', label: 'Show' },
+      ],
     },
   },
 ];

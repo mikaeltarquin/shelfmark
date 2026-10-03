@@ -116,3 +116,20 @@ def test_unsupported(use_provider):
 
     use_provider(None)
     assert not library_missing.candidates("author", "X")["supported"]
+
+
+def test_compilations_left_out_unless_asked_for(use_provider):
+    carl = _book("1", "Dungeon Crawler Carl", "Matt Dinniman")
+    box_set = BookMetadata(
+        "hardcover", "2", "3 Books Collection Set", authors=["Matt Dinniman"], compilation=True
+    )
+    use_provider(FakeProvider([[carl, box_set]]))
+
+    result = library_missing.candidates("series", "Dungeon Crawler Carl")
+    assert [b["title"] for b in result["books"]] == ["Dungeon Crawler Carl"]
+
+    result = library_missing.candidates("series", "Dungeon Crawler Carl", include_compilations=True)
+    assert [b["title"] for b in result["books"]] == [
+        "Dungeon Crawler Carl",
+        "3 Books Collection Set",
+    ]

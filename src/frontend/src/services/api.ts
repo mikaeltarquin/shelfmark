@@ -645,8 +645,10 @@ export const getLibraryMissing = async (
   kind: 'author' | 'series',
   name: string,
   contentType: 'ebook' | 'audiobook',
+  collections = false, // Include box sets, omnibuses and story collections
 ): Promise<LibraryMissingResult> => {
   const params = new URLSearchParams({ kind, name, content_type: contentType });
+  if (collections) params.set('collections', '1');
   const response = await fetchJSON<LibraryMissingResponse>(
     `${API_BASE}/library/missing?${params.toString()}`,
   );

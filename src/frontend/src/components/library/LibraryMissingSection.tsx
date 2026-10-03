@@ -4,6 +4,7 @@ import { SearchModeProvider } from '../../contexts/SearchModeContext';
 import { useMountEffect } from '../../hooks/useMountEffect';
 import { getLibraryMissing, type LibraryMissingResult } from '../../services/api';
 import type { Book, ButtonStateInfo, ContentType } from '../../types';
+import { loadLibraryDefaults } from '../../utils/libraryDefaults';
 import { isMissing, type MissingFormat } from '../../utils/libraryMissing';
 import { CardView } from '../resultsViews/CardView';
 import { segmentClass } from './libraryStyles';
@@ -26,10 +27,11 @@ export const lookupMissing = (
   name: string,
   contentType: ContentType,
 ): Promise<LibraryMissingResult> => {
-  const key = `${kind}|${name.toLowerCase()}|${contentType}`;
+  const collections = loadLibraryDefaults().collections === 'show';
+  const key = `${kind}|${name.toLowerCase()}|${contentType}|${collections}`;
   let pending = lookups.get(key);
   if (!pending) {
-    pending = getLibraryMissing(kind, name, contentType);
+    pending = getLibraryMissing(kind, name, contentType, collections);
     lookups.set(key, pending);
     pending.catch(() => lookups.delete(key));
   }

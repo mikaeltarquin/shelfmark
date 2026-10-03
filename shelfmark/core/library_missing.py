@@ -105,8 +105,15 @@ def book_dict(book: BookMetadata) -> dict[str, Any]:
     return data
 
 
-def candidates(kind: str, name: str, content_type: str = "ebook") -> dict[str, Any]:
-    """What the metadata provider lists for an author or series, with ownership flags."""
+def candidates(
+    kind: str, name: str, content_type: str = "ebook", *, include_compilations: bool = False
+) -> dict[str, Any]:
+    """What the metadata provider lists for an author or series, with ownership flags.
+
+    Compilations (box sets, omnibuses, story collections) are left out unless asked for:
+    Hardcover numbers them in the series too, so a "Books 1-3" set would show as a second
+    book #1.
+    """
     from shelfmark.metadata_providers import get_configured_provider
 
     provider = get_configured_provider(content_type)
@@ -138,6 +145,9 @@ def candidates(kind: str, name: str, content_type: str = "ebook") -> dict[str, A
         books = _fetch(provider, {"author": value}, SortOrder.RELEVANCE)
         if value == name:  # A name search can bring in other authors' books
             books = [book for book in books if _by_author(book, name)]
+
+    if not include_compilations:
+        books = [book for book in books if not book.compilation]
 
     result = _result(supported=True, provider=provider)
     result["books"] = [book_dict(book) for book in books]

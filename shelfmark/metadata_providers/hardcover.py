@@ -3042,6 +3042,7 @@ class HardcoverProvider(MetadataProvider):
             series_name=series_name,
             series_position=series_position,
             series_count=series_count,
+            compilation=bool(book.get("compilation")),
             titles_by_language=titles_by_language,
             display_fields=display_fields,
         )
