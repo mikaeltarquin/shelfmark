@@ -94,6 +94,10 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   First) › Series › Book** choice.
 
 ### Fixed
+- A library book whose ISBN belongs to another book (a wrong match in Audiobookshelf, say)
+  opened that other book's details and searched for it on **Get** ("The Extinction Trials
+  Riddle" for *Leviathan Falls*). An ISBN now counts only when the title and author agree;
+  otherwise the book is looked up by title.
 - Under **Author › Series › Book**, books in a series whose records name it with and
   without "The" ("The Expanse", "Expanse") fell to the end of the series, by title, and
   lost their number. They're in series order now.

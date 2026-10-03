@@ -234,13 +234,25 @@ class TestProviderCover:
     def covers_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr(library_catalog, "CONFIG_DIR", tmp_path)
 
-    def _metadata(self, monkeypatch, *, by_isbn: str | None, search: list[BookMetadata]):
+    def _metadata(
+        self,
+        monkeypatch,
+        *,
+        by_isbn: str | None,
+        search: list[BookMetadata],
+        isbn_title: str = "The Martian",
+        isbn_author: str = "Andy Weir",
+    ):
         calls: list[Any] = []
 
         class Fake:
             def search_by_isbn(self, isbn):
                 calls.append(("isbn", isbn))
-                return BookMetadata("hardcover", "1", "x", cover_url=by_isbn) if by_isbn else None
+                if not by_isbn:
+                    return None
+                return BookMetadata(
+                    "hardcover", "1", isbn_title, authors=[isbn_author], cover_url=by_isbn
+                )
 
             def search_paginated(self, options):
                 calls.append(("search", options.query))
@@ -257,6 +269,33 @@ class TestProviderCover:
         assert library_catalog.provider_cover_url(CALIBRE, entry) == "https://img/1.jpg"
         assert library_catalog.provider_cover_url(CALIBRE, entry) == "https://img/1.jpg"
         assert calls == [("isbn", "9780804139021")]
+
+    def test_an_isbn_naming_another_book_is_not_taken(self, monkeypatch):
+        # The library's ISBN is another book's: the title search finds the right one.
+        same = BookMetadata(
+            "hardcover", "3", "Leviathan Falls", authors=["James S. A. Corey"], cover_url="u3"
+        )
+        calls = self._metadata(
+            monkeypatch,
+            by_isbn="wrong",
+            search=[same],
+            isbn_title="The Extinction Trials",
+            isbn_author="A. G. Riddle",
+        )
+        entry = _entry(
+            "audiobookshelf",
+            "li_9",
+            "Leviathan Falls",
+            "James S. A. Corey",
+            isbn="9780316332910",
+            has_cover=False,
+        )
+        found = library_catalog.find_provider_book(entry, "audiobook")
+        assert found is not None and found.provider_id == "3"
+        assert calls == [
+            ("isbn", "9780316332910"),
+            ("search", "Leviathan Falls James S. A. Corey"),
+        ]
 
     def test_title_search_needs_a_matching_book(self, monkeypatch):
         other = BookMetadata("hardcover", "2", "Artemis", authors=["Andy Weir"], cover_url="u2")

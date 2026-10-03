@@ -12,6 +12,7 @@ results show them; the answer is remembered in ``library_covers.json``.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import threading
 import time
@@ -220,8 +221,20 @@ def find_provider_book(entry: LibraryEntry, content_type: str) -> BookMetadata |
         return None
     if item.isbn:
         found = provider.search_by_isbn(item.isbn)
-        if found is not None:
+        # A library's ISBN can be wrong (a bad match in Audiobookshelf, another edition's
+        # number), and the book it names is then someone else's. It counts only when the
+        # title and author agree too; otherwise the title search below decides.
+        if found is not None and _names_entry(found, entry):
             return found
+        if found is not None:
+            logger.info(
+                "ISBN %s of %s:%s names %r, not %r; looking it up by title",
+                item.isbn,
+                item.source,
+                item.item_id,
+                found.title,
+                item.title,
+            )
     author = item.authors[0] if item.authors else ""
     results = provider.search_paginated(
         MetadataSearchOptions(query=f"{item.title} {author}".strip(), limit=5)
@@ -229,6 +242,12 @@ def find_provider_book(entry: LibraryEntry, content_type: str) -> BookMetadata |
     return next(
         (book for book in results if library_index.book_matches_entries(book, [entry])), None
     )
+
+
+def _names_entry(book: BookMetadata, entry: LibraryEntry) -> bool:
+    """Whether ``book`` is the library item by title and author, its ISBNs aside."""
+    unnumbered = dataclasses.replace(book, isbn_10=None, isbn_13=None)
+    return library_index.book_matches_entries(unnumbered, [entry])
 
 
 def _lookup_cover(entry: LibraryEntry, content_type: str) -> str | None:
