@@ -3,6 +3,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { LibraryBook } from '../../types';
 import { lastFirstName } from '../../utils/authorNames';
 import { matchesFormat, type LibraryFormatFilter } from '../../utils/libraryBrowser';
+import { AUTHOR_SORT_OPTIONS, loadLibraryDefaults } from '../../utils/libraryDefaults';
 import {
   defaultAuthorSortDirection,
   groupByAuthor,
@@ -54,20 +55,22 @@ const DEFAULT_PREFS: AuthorPrefs = {
   format: 'any',
 };
 
-const SORT_OPTIONS: Array<{ value: AuthorSortField; label: string }> = [
-  { value: 'first', label: 'Author (First Last)' },
-  { value: 'last', label: 'Author (Last, First)' },
-  { value: 'series_order', label: 'Author (First Last) › Series › Book' },
-  { value: 'series_order_last', label: 'Author (Last, First) › Series › Book' },
-  { value: 'books', label: 'Book Count' },
-  { value: 'added', label: 'Recently added' },
-];
+const SORT_OPTIONS = AUTHOR_SORT_OPTIONS;
 
 // "Series" (the count) is a table column, not a menu choice.
 const isSortField = (value: unknown): value is AuthorSortField =>
   value === 'series' || SORT_OPTIONS.some((option) => option.value === value);
 
+// The sort chosen under My Account, if any, wins over the one last used.
 const loadPrefs = (): AuthorPrefs => {
+  const { authorsSort } = loadLibraryDefaults();
+  const prefs = loadRememberedPrefs();
+  return authorsSort
+    ? { ...prefs, sort: authorsSort, direction: defaultAuthorSortDirection(authorsSort) }
+    : prefs;
+};
+
+const loadRememberedPrefs = (): AuthorPrefs => {
   const raw = loadStoredPrefs(PREFS_KEY);
   if (!raw) return DEFAULT_PREFS;
   const sort: unknown = Reflect.get(raw, 'sort');
@@ -93,11 +96,15 @@ const groupDetail = (group: LibraryAuthorGroup): string =>
     ? `${plural(group.books.length, 'book')} · ${group.seriesCount} series`
     : plural(group.books.length, 'book');
 
-// Author › Series › Book: the cover strip follows the same order as the opened row.
-const inSeriesOrder = (books: LibraryBook[]): LibraryBook[] =>
-  rowSeriesSections(books.map(ownedRow)).flatMap((section) =>
-    section.rows.flatMap((row) => (row.kind === 'owned' ? [row.book] : [])),
-  );
+// Author › Series › Book: the cover strip follows the same order as the opened row,
+// each book once (at its first series) though it may sit in several.
+const inSeriesOrder = (books: LibraryBook[]): LibraryBook[] => [
+  ...new Set(
+    rowSeriesSections(books.map(ownedRow)).flatMap((section) =>
+      section.rows.flatMap((row) => (row.kind === 'owned' ? [row.book] : [])),
+    ),
+  ),
+];
 
 interface LibraryAuthorsViewProps {
   books: LibraryBook[];

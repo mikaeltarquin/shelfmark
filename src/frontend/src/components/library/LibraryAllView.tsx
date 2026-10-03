@@ -7,6 +7,7 @@ import {
   type LibraryFormatFilter,
   type LibrarySort,
 } from '../../utils/libraryBrowser';
+import { ALL_SORT_OPTIONS, loadLibraryDefaults } from '../../utils/libraryDefaults';
 import { loadStoredPrefs, saveStoredPrefs } from '../../utils/libraryPrefs';
 import { ownedRow } from '../../utils/libraryRows';
 import type { LibraryCardActions } from './LibraryBookCard';
@@ -26,11 +27,7 @@ import { inputClass } from './libraryStyles';
 const PREFS_KEY = 'shelfmark.library.all';
 const TABLE_PAGE_SIZE = 200;
 
-const SORT_OPTIONS: Array<{ value: LibrarySort; label: string }> = [
-  { value: 'title', label: 'Title' },
-  { value: 'author', label: 'Author' },
-  { value: 'added', label: 'Recently added' },
-];
+const SORT_OPTIONS = ALL_SORT_OPTIONS;
 
 const isSort = (value: string): value is LibrarySort =>
   SORT_OPTIONS.some((option) => option.value === value);
@@ -38,6 +35,14 @@ const isSort = (value: string): value is LibrarySort =>
 const loadView = (): LibraryLayout => {
   const view: unknown = Reflect.get(loadStoredPrefs(PREFS_KEY) ?? {}, 'view');
   return isLayout(view) ? view : 'grid';
+};
+
+// The sort chosen under My Account, else the one last used, else by title.
+const loadSort = (): LibrarySort => {
+  const chosen = loadLibraryDefaults().allSort;
+  if (chosen) return chosen;
+  const sort: unknown = Reflect.get(loadStoredPrefs(PREFS_KEY) ?? {}, 'sort');
+  return typeof sort === 'string' && isSort(sort) ? sort : 'title';
 };
 
 interface LibraryAllViewProps {
@@ -58,7 +63,7 @@ export const LibraryAllView = ({
 }: LibraryAllViewProps) => {
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<LibraryFormatFilter>('any');
-  const [sort, setSort] = useState<LibrarySort>('title');
+  const [sort, setSort] = useState<LibrarySort>(loadSort);
   const [view, setView] = useState<LibraryLayout>(loadView);
   const [shown, setShown] = useState(TABLE_PAGE_SIZE);
 
@@ -92,7 +97,10 @@ export const LibraryAllView = ({
           value={sort}
           onChange={(event) => {
             const value = event.target.value;
-            if (isSort(value)) setSort(value);
+            if (isSort(value)) {
+              setSort(value);
+              saveStoredPrefs(PREFS_KEY, { view, sort: value });
+            }
           }}
           aria-label="Sort by"
           className={inputClass}
@@ -107,7 +115,7 @@ export const LibraryAllView = ({
           value={view}
           onChange={(next) => {
             setView(next);
-            saveStoredPrefs(PREFS_KEY, { view: next });
+            saveStoredPrefs(PREFS_KEY, { view: next, sort });
           }}
         />
         {(query || format !== 'any') && (

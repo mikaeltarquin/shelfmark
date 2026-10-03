@@ -111,6 +111,12 @@ describe('helpers', () => {
     expect(parseLibraryRoute(path)).toEqual({ tab: 'authors', name: 'Ursula K. Le Guin / AC/DC' });
     expect(parseLibraryRoute('/library/nonsense')).toEqual({ tab: 'all', name: null });
   });
+
+  it('bare /library opens on the chosen tab; /library/all is always All', () => {
+    expect(parseLibraryRoute('/library', 'authors')).toEqual({ tab: 'authors', name: null });
+    expect(parseLibraryRoute('/library/all', 'authors')).toEqual({ tab: 'all', name: null });
+    expect(libraryPath('all')).toBe('/library/all');
+  });
 });
 
 describe('author sorting', () => {
