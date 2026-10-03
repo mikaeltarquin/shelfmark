@@ -192,13 +192,18 @@ class ActivityViewStateService:
         viewer_scope: str,
         items: list[dict[str, str]],
     ) -> int:
-        """Mark multiple activity items as dismissed for a viewer."""
+        """Mark multiple activity items as dismissed for a viewer.
+
+        An item may carry its own ``dismissed_at`` (when it should be dated in History);
+        otherwise it is dismissed now.
+        """
         normalized_scope = normalize_viewer_scope(viewer_scope)
         if not items:
             return 0
 
+        dismissed_now = now_utc_iso()
         seen: set[tuple[str, str]] = set()
-        normalized_items: list[tuple[str, str]] = []
+        normalized_items: list[tuple[str, str, str]] = []
         for item in items:
             normalized_type = _normalize_item_type(item.get("item_type"))
             normalized_key = _normalize_item_key(item.get("item_key"), item_type=normalized_type)
@@ -206,17 +211,19 @@ class ActivityViewStateService:
             if marker in seen:
                 continue
             seen.add(marker)
-            normalized_items.append(marker)
+            item_dismissed_at = item.get("dismissed_at")
+            if not isinstance(item_dismissed_at, str) or not item_dismissed_at.strip():
+                item_dismissed_at = dismissed_now
+            normalized_items.append((normalized_type, normalized_key, item_dismissed_at))
 
         if not normalized_items:
             return 0
 
-        dismissed_at = now_utc_iso()
         with self._lock:
             conn = self._connect()
             try:
                 total = 0
-                for normalized_type, normalized_key in normalized_items:
+                for normalized_type, normalized_key, dismissed_at in normalized_items:
                     cursor = conn.execute(
                         """
                         INSERT INTO activity_view_state (

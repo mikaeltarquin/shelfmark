@@ -802,7 +802,9 @@ class TestActivityRoutes:
             ):
                 snapshot_one = client_one.get("/api/activity/snapshot")
                 snapshot_two = client_two.get("/api/activity/snapshot")
-            history_one = client_one.get("/api/activity/history?limit=10&offset=0")
+            # Wide page: the snapshots also move other tests' finished no-auth downloads
+            # into this shared History.
+            history_one = client_one.get("/api/activity/history?limit=500&offset=0")
 
         assert dismiss_many_response.status_code == 200
         assert dismiss_many_response.json["status"] == "dismissed"
@@ -985,7 +987,8 @@ class TestActivityRoutes:
             username=user["username"],
             title="Expired Task",
             author="Expired Author",
-            status_message="Finished",
+            final_status="error",
+            status_message="Failed",
         )
 
         with patch.object(main_module, "get_auth_mode", return_value="builtin"):
@@ -995,8 +998,52 @@ class TestActivityRoutes:
                 response = client.get("/api/activity/snapshot")
 
         assert response.status_code == 200
-        assert "expired-task-1" in response.json["status"]["complete"]
-        assert response.json["status"]["complete"]["expired-task-1"]["id"] == "expired-task-1"
+        assert "expired-task-1" in response.json["status"]["error"]
+        assert response.json["status"]["error"]["expired-task-1"]["id"] == "expired-task-1"
+
+    def test_snapshot_moves_completed_downloads_to_history(self, main_module, client):
+        user = _create_user(main_module, prefix="reader")
+        _set_session(client, user_id=user["username"], db_user_id=user["id"], is_admin=False)
+        request_row = main_module.user_db.create_request(
+            user_id=user["id"],
+            content_type="ebook",
+            request_level="release",
+            policy_mode="request_release",
+            book_data={"title": "Finished Book", "author": "Finished Author"},
+            release_data={"source_id": "finished-task"},
+            status="fulfilled",
+            delivery_state="complete",
+        )
+        _record_terminal_download(
+            main_module,
+            task_id="finished-task",
+            user_id=user["id"],
+            username=user["username"],
+            title="Finished Book",
+            origin="requested",
+            request_id=request_row["id"],
+        )
+
+        with patch.object(main_module, "get_auth_mode", return_value="builtin"):
+            with patch.object(
+                main_module.backend, "queue_status", return_value=_sample_status_payload()
+            ):
+                response = client.get("/api/activity/snapshot")
+            history = client.get("/api/activity/history?limit=10&offset=0")
+
+        assert response.status_code == 200
+        assert response.json["status"]["complete"] == {}
+        assert all(row["id"] != request_row["id"] for row in response.json["requests"])
+        assert {"item_type": "download", "item_key": "download:finished-task"} in response.json[
+            "dismissed"
+        ]
+        assert {
+            "item_type": "request",
+            "item_key": f"request:{request_row['id']}",
+        } in response.json["dismissed"]
+        assert history.status_code == 200
+        history_keys = {row["item_key"] for row in history.json}
+        assert "download:finished-task" in history_keys
 
     def test_admin_snapshot_backfills_terminal_downloads_across_users(self, main_module, client):
         admin = _create_user(main_module, prefix="admin", role="admin")
@@ -1012,7 +1059,8 @@ class TestActivityRoutes:
             author="Another User",
             origin="requested",
             request_id=123,
-            status_message="Finished",
+            final_status="error",
+            status_message="Failed",
         )
 
         with patch.object(main_module, "get_auth_mode", return_value="builtin"):
@@ -1022,9 +1070,9 @@ class TestActivityRoutes:
                 response = client.get("/api/activity/snapshot")
 
         assert response.status_code == 200
-        assert "cross-user-expired-task" in response.json["status"]["complete"]
+        assert "cross-user-expired-task" in response.json["status"]["error"]
         assert (
-            response.json["status"]["complete"]["cross-user-expired-task"]["id"]
+            response.json["status"]["error"]["cross-user-expired-task"]["id"]
             == "cross-user-expired-task"
         )
 
@@ -1387,6 +1435,7 @@ class TestActivityRoutes:
             user_id=owner["id"],
             username=owner["username"],
             title="Admin Owned Task",
+            final_status="error",
         )
 
         with patch.object(main_module, "get_auth_mode", return_value="builtin"):
@@ -1407,7 +1456,7 @@ class TestActivityRoutes:
             ):
                 owner_snapshot_after_admin_dismiss = client.get("/api/activity/snapshot")
             assert owner_snapshot_after_admin_dismiss.status_code == 200
-            assert task_id in owner_snapshot_after_admin_dismiss.json["status"]["complete"]
+            assert task_id in owner_snapshot_after_admin_dismiss.json["status"]["error"]
             assert {
                 "item_type": "download",
                 "item_key": f"download:{task_id}",
@@ -1420,7 +1469,7 @@ class TestActivityRoutes:
             owner_history = client.get("/api/activity/history?limit=10&offset=0")
 
         assert owner_snapshot_later.status_code == 200
-        assert task_id in owner_snapshot_later.json["status"]["complete"]
+        assert task_id in owner_snapshot_later.json["status"]["error"]
         assert {
             "item_type": "download",
             "item_key": f"download:{task_id}",

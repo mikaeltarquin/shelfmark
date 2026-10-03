@@ -434,6 +434,45 @@ def _build_download_status_from_db(
     return status
 
 
+def _completed_download_dismissals(
+    user_db: UserDB,
+    db_rows: list[dict[str, Any]],
+    hidden_item_keys: set[str],
+) -> list[dict[str, str]]:
+    """Dismissal items for completed downloads (and their finished requests) not yet hidden.
+
+    Each is dated when its download finished, so History lists them in that order.
+    """
+    items: list[dict[str, str]] = []
+    seen: set[str] = set(hidden_item_keys)
+    for row in db_rows:
+        if row.get("final_status") != QueueStatus.COMPLETE:
+            continue
+        task_id = str(row.get("task_id") or "").strip()
+        if not task_id:
+            continue
+        download_key = f"download:{task_id}"
+        if download_key in seen:
+            continue
+        seen.add(download_key)
+        finished_at = str(row.get("terminal_at") or "")
+        items.append(
+            {"item_type": "download", "item_key": download_key, "dismissed_at": finished_at}
+        )
+
+        request_id = normalize_positive_int(row.get("request_id"))
+        request_key = f"request:{request_id}"
+        if request_id is None or request_key in seen:
+            continue
+        seen.add(request_key)
+        request_row = user_db.get_request(request_id)
+        if request_row is not None and _check_terminal_request(request_row) is None:
+            items.append(
+                {"item_type": "request", "item_key": request_key, "dismissed_at": finished_at}
+            )
+    return items
+
+
 def _request_terminal_status(row: dict[str, Any]) -> str | None:
     request_status = row.get("status")
     if request_status == RequestStatus.PENDING:
@@ -548,6 +587,21 @@ def register_activity_routes(
             user_id=actor.owner_scope,
             limit=200,
         )
+
+        # Finished downloads go straight to History: dismiss them (and the request
+        # they fulfilled) for this viewer instead of listing them under Downloads.
+        completed_items = _completed_download_dismissals(user_db, db_rows, hidden_item_keys)
+        if completed_items:
+            activity_view_state_service.dismiss_many(
+                viewer_scope=actor.viewer_scope,
+                items=completed_items,
+            )
+            for item in completed_items:
+                hidden_item_keys.add(item["item_key"])
+                dismissed_entries.append(
+                    {"item_type": item["item_type"], "item_key": item["item_key"]}
+                )
+
         visible_db_rows = [
             row
             for row in db_rows

@@ -142,24 +142,6 @@ for i in range(60):
         break
 ```
 
-### 5. Clear Completed Downloads
-
-```python
-# Click "Clear Completed" using JavaScript
-page.evaluate('''
-    () => {
-        for (const b of document.querySelectorAll('button')) {
-            if (b.textContent.includes('Clear Completed')) {
-                b.click();
-                return;
-            }
-        }
-    }
-''')
-
-page.wait_for_timeout(2000)
-```
-
 ### Checking Calibre Database
 
 Use `--check-calibre` (or `-c`) to check if books are already in your calibre database before downloading:
