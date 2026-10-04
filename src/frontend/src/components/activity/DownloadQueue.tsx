@@ -10,7 +10,7 @@ import {
   rowClassName,
   tableClassName,
 } from '../shared/DataTable';
-import { SourcePageLink } from './ActivityItemParts';
+import { NarratorLine, SourcePageLink } from './ActivityItemParts';
 import type { ActivityItem } from './activityTypes';
 import {
   DragHandle,
@@ -149,6 +149,7 @@ export const DownloadQueue = ({
                       {item.author}
                     </p>
                   )}
+                  <NarratorLine narrators={item.narrators} />
                 </td>
                 <td className={`${cellClassName} min-w-[10rem] text-xs opacity-70`}>
                   {item.statusDetail || 'Waiting to start'}

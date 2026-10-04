@@ -1,5 +1,6 @@
 import type { Book, RequestRecord, StatusData } from '../../types';
 import { getDownloadsCount } from '../../types';
+import { narratorNames } from '../../utils/narrators';
 import { STATUS_LABELS, isActiveDownloadStatus } from './activityStyles.js';
 import type { ActivityItem, ActivityVisualStatus } from './activityTypes';
 
@@ -110,6 +111,7 @@ export const downloadToActivityItem = (book: Book, statusKey: DownloadStatusKey)
     visualStatus,
     title: toText(book.title, 'Unknown title'),
     author: toText(book.author, 'Unknown author'),
+    narrators: narratorNames(book.narrators),
     preview: toOptionalText(book.preview),
     metaLine,
     statusLabel: STATUS_LABELS[visualStatus],

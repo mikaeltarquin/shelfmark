@@ -32,6 +32,7 @@ export interface Book {
   status_message?: string; // Detailed status message (e.g., "Trying Libgen (2/5)")
   added_time?: number; // Timestamp when added to queue
   priority?: number; // Downloads: place in the queue, lower first
+  narrators?: string[] | null; // Downloads: the release's narrators (audiobooks)
   content_type?: string; // "ebook", "audiobook", or related book subtype
   book_key?: string | null; // Downloads: the metadata book it was got for ("hardcover:42")
   info_url?: string | null; // Downloads: the release's page at its source (MAM torrent page)
