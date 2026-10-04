@@ -387,25 +387,32 @@ class SavedItemsService:
         *,
         releases: list[dict[str, Any]],
         payloads: list[dict[str, Any]],
-        last_error: str,
+        last_error: str | None = None,
+        auto_status: str | None = None,
     ) -> None:
-        """After a partly failed automatic download: keep only the picks still to get.
+        """After an automatic download got some of an item's picks: keep only the rest.
 
-        Automatic downloading is turned off so the error is seen before anything retries.
+        With `last_error` (a pick couldn't be queued), automatic downloading is turned
+        off so the error is seen before anything retries. Without it, the rest are
+        simply still waiting for room: they stay queued, with `auto_status` saying why.
         """
         kind = "release" if len(releases) == 1 else "combined"
+        failed = last_error is not None
         with self._lock:
             conn = self._connect()
             try:
                 conn.execute(
                     """UPDATE saved_items SET kind = CASE WHEN content_type = 'combined'
-                       THEN 'combined' ELSE ? END, releases = ?, payloads = ?, auto_get = 0,
-                       auto_status = NULL, last_error = ?, updated_at = ?
+                       THEN 'combined' ELSE ? END, releases = ?, payloads = ?, auto_get = ?,
+                       auto_status = ?, auto_checked_at = ?, last_error = ?, updated_at = ?
                        WHERE owner = ? AND id = ?""",
                     (
                         kind,
                         json.dumps(releases),
                         json.dumps(payloads),
+                        0 if failed else 1,
+                        None if failed else (auto_status or None),
+                        None if failed else now_utc_iso(),
                         last_error,
                         now_utc_iso(),
                         owner,

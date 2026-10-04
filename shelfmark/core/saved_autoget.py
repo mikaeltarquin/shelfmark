@@ -75,11 +75,16 @@ class AutoGetHooks:
 
 @dataclass
 class Decision:
-    """Whether an item can be got now; if not, why it waits."""
+    """Which of an item's picks can be got now, and why the rest wait.
 
-    ready: bool
-    status: str = ""
+    `ready` holds the indexes of the picks that can go (into the item's releases and
+    payloads), with `payloads` their payloads to queue. `status` says why the others
+    wait; it is empty when none do.
+    """
+
+    ready: list[int] = field(default_factory=list)
     payloads: list[dict[str, Any]] = field(default_factory=list)
+    status: str = ""
 
 
 def enabled() -> bool:
@@ -172,51 +177,76 @@ def _unsat_wait(check: mam_account.BufferCheck) -> str:
     return f"Waiting for {needed} unsatisfied slot{'s' if needed != 1 else ''}"
 
 
+def _waiting(status: str) -> Decision:
+    return Decision(status=status)
+
+
 def evaluate(item: dict[str, Any], owner: Owner, hooks: AutoGetHooks, run: _RunContext) -> Decision:
-    """Decide whether one saved item can be downloaded now."""
+    """Decide which of a saved item's picks can be downloaded now.
+
+    Each pick is weighed on its own, so a freeleech torrent or a small ebook isn't held
+    back by a large audiobook picked with it that the ratio can't take yet: the cheapest
+    go first (nothing on MAM, then freeleech, then by size), each one that still fits
+    alongside those already going.
+    """
     releases = item.get("releases") or []
     payloads = [p for p in item.get("payloads") or [] if isinstance(p, dict)]
     if not payloads or len(payloads) != len(releases):
-        return Decision(False, "Save the pick again to download it automatically")
+        return _waiting("Save the pick again to download it automatically")
     if not all(hooks.may_download(owner, payload) for payload in payloads):
-        return Decision(False, "Needs approval: use Get to request it")
+        return _waiting("Needs approval: use Get to request it")
 
+    # Nothing counts against MyAnonamouse here, or nothing can be checked: all go.
     mam_indexes = [i for i, p in enumerate(payloads) if mam_torrent_id_for_release(p)]
-    if not mam_indexes:
-        # Nothing here counts against MyAnonamouse, so nothing to wait for.
-        return Decision(True, payloads=payloads)
-    if not mam_account.is_configured():
-        return Decision(True, payloads=payloads)
+    if not mam_indexes or not mam_account.is_configured():
+        return Decision(ready=list(range(len(payloads))), payloads=payloads)
+    free_indexes = [i for i in range(len(payloads)) if i not in mam_indexes]
 
     stats, error = run.stats()
     if stats is None:
-        return Decision(False, f"Couldn't read the MyAnonamouse account: {error}")
+        return Decision(
+            ready=free_indexes,
+            payloads=[payloads[i] for i in free_indexes],
+            status=f"Couldn't read the MyAnonamouse account: {error}",
+        )
 
     # Freeleech can start or end at any time, so ask MAM rather than trusting the save.
     vip = mam_account.is_vip_class(stats.classname)
+    checked = list(payloads)
     for index in mam_indexes:
-        torrent_id = mam_torrent_id_for_release(payloads[index])
+        torrent_id = mam_torrent_id_for_release(checked[index])
         if torrent_id is None:
             continue
         try:
             freeleech = mam_account.torrent_is_freeleech(torrent_id, vip=vip)
         except mam_account.MAM_ERRORS:
             continue  # Keep what the search said; the ratio check covers a wrong guess
-        payloads[index] = _with_freeleech(payloads[index], freeleech)
+        checked[index] = _with_freeleech(checked[index], freeleech)
 
-    check = mam_account.check_buffer(payloads)
+    going: list[int] = []
+    reason = ""
+    for index in sorted(mam_indexes, key=lambda i: mam_charge_bytes_for_release(checked[i])):
+        trial = [checked[i] for i in [*going, index]]
+        wait = _pick_wait(trial, stats)
+        if wait:
+            reason = reason or wait
+            continue
+        going.append(index)
+
+    ready = sorted([*free_indexes, *going])
+    return Decision(ready=ready, payloads=[checked[i] for i in ready], status=reason)
+
+
+def _pick_wait(trial: list[dict[str, Any]], stats: mam_account.MamStats) -> str | None:
+    """Why the last of `trial` must wait, with the rest of it going too; None if it may go."""
+    check = mam_account.check_buffer(trial)
     if not check.ok:
         if not check.unsat_ok:
-            return Decision(False, _unsat_wait(check))
-        return Decision(False, f"Waiting for buffer: {_gib(check.missing_bytes)} short")
+            return _unsat_wait(check)
+        return f"Waiting for buffer: {_gib(check.missing_bytes)} short"
     if not check.checked and check.error:
-        return Decision(False, f"Couldn't check MyAnonamouse: {check.error}")
-
-    wait = _ratio_wait(stats, sum(mam_charge_bytes_for_release(p) for p in payloads))
-    if wait:
-        return Decision(False, wait)
-
-    return Decision(True, payloads=payloads)
+        return f"Couldn't check MyAnonamouse: {check.error}"
+    return _ratio_wait(stats, sum(mam_charge_bytes_for_release(p) for p in trial))
 
 
 @dataclass
@@ -275,28 +305,35 @@ class SavedAutoGetter:
             self._service.update(owner_key, item["id"], auto_status=decision.status)
             return
 
-        failed: list[tuple[dict[str, Any], dict[str, Any], str]] = []
         releases = item.get("releases") or []
-        for pick, payload in zip(releases, decision.payloads, strict=True):
-            ok, error = self._hooks.queue_release(payload, owner)
+        payloads = item.get("payloads") or []
+        failed: list[int] = []
+        error = ""
+        for index, payload in zip(decision.ready, decision.payloads, strict=True):
+            ok, queue_error = self._hooks.queue_release(payload, owner)
             if not ok:
-                failed.append((pick, payload, error or "Could not queue the download"))
-        if len(failed) == len(decision.payloads):
-            error = failed[0][2]
+                failed.append(index)
+                error = error or queue_error or "Could not queue the download"
+        if len(failed) == len(decision.ready):
             report.waiting[item["id"]] = error
             self._service.update(owner_key, item["id"], auto_status=f"Couldn't queue: {error}")
             return
+
         report.queued.append(item["id"])
-        if failed:
+        left = [i for i in range(len(releases)) if i not in decision.ready or i in failed]
+        if not left:
+            self._service.delete(owner_key, item["id"])
+        else:
+            if decision.status:
+                report.waiting[item["id"]] = decision.status
             self._service.keep_picks(
                 owner_key,
                 item["id"],
-                releases=[pick for pick, _, _ in failed],
-                payloads=[payload for _, payload, _ in failed],
-                last_error=f"Some picks couldn't be queued: {failed[0][2]}",
+                releases=[releases[i] for i in left],
+                payloads=[payloads[i] for i in left],
+                last_error=f"Some picks couldn't be queued: {error}" if failed else None,
+                auto_status=decision.status,
             )
-        else:
-            self._service.delete(owner_key, item["id"])
         try:
             self._hooks.notify(item, owner)
         except Exception:  # a notification failure must not undo the download

@@ -138,7 +138,7 @@ def test_gets_an_item_once_it_fits_then_removes_it(service, mam):
 
 
 def test_waits_for_unsatisfied_slots_and_says_how_many(service, mam):
-    mam.unsat_free = 1
+    mam.unsat_free = 0
     recorder = Recorder()
     item_id = _mark(service, [_payload("r1", torrent_id=1), _payload("r2", torrent_id=2)])
     report = SavedAutoGetter(service, recorder.hooks()).run_check()
@@ -149,6 +149,60 @@ def test_waits_for_unsatisfied_slots_and_says_how_many(service, mam):
     assert item is not None
     assert item["auto_status"] == "Waiting for 1 unsatisfied slot"
     assert item["auto_get"] is True
+
+
+def test_picks_that_fit_go_and_the_rest_keep_waiting(service, mam):
+    # One slot free, two picks: the first goes now, the second waits for the next slot.
+    mam.unsat_free = 1
+    recorder = Recorder()
+    item_id = _mark(service, [_payload("r1", torrent_id=1), _payload("r2", torrent_id=2)])
+    report = SavedAutoGetter(service, recorder.hooks()).run_check()
+    assert report.queued == [item_id]
+    assert [p["source_id"] for p in recorder.queued] == ["r1"]
+    item = service.get_item("user:1", item_id)
+    assert item is not None
+    assert [pick["release"]["source_id"] for pick in item["releases"]] == ["r2"]
+    assert item["auto_get"] is True  # Still queued: nothing went wrong
+    assert item["last_error"] is None
+    assert item["auto_status"] == "Waiting for 1 unsatisfied slot"
+    assert recorder.notified == ["Book Title"]
+
+
+def test_freeleech_and_small_picks_are_not_held_back_by_a_large_one(service, mam):
+    # Ratio 1.5, under the 2.0 target. A freeleech audiobook and a small ebook can go;
+    # the 40 GB non-freeleech audiobook picked with them waits for the ratio.
+    mam.stats = _stats(uploaded=150 * GIB, downloaded=100 * GIB)
+    mam.freeleech[2] = True
+    recorder = Recorder()
+    item_id = _mark(
+        service,
+        [
+            _payload("ebook", torrent_id=1, size=5 * 1024**2),
+            _payload("fl-audiobook", torrent_id=2, size=30 * GIB),
+            _payload("big-audiobook", torrent_id=3, size=40 * GIB),
+        ],
+    )
+    report = SavedAutoGetter(service, recorder.hooks()).run_check()
+    assert report.queued == [item_id]
+    assert sorted(p["source_id"] for p in recorder.queued) == ["ebook", "fl-audiobook"]
+    item = service.get_item("user:1", item_id)
+    assert item is not None
+    assert [pick["release"]["source_id"] for pick in item["releases"]] == ["big-audiobook"]
+    assert item["auto_get"] is True
+    assert item["auto_status"].startswith("Waiting for freeleech or ratio 2.00")
+
+
+def test_the_cheapest_picks_get_the_free_slots(service, mam):
+    # One slot: the freeleech pick gets it, though it was picked after the paid one.
+    mam.unsat_free = 1
+    mam.freeleech[2] = True
+    recorder = Recorder()
+    _mark(
+        service,
+        [_payload("paid", torrent_id=1, size=GIB), _payload("freeleech", torrent_id=2, size=GIB)],
+    )
+    SavedAutoGetter(service, recorder.hooks()).run_check()
+    assert [p["source_id"] for p in recorder.queued] == ["freeleech"]
 
 
 def test_freeleech_goes_even_below_the_target_ratio(service, mam):
