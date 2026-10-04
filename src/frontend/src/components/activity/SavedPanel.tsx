@@ -368,7 +368,7 @@ const SavedTable = ({
     <section aria-label={SAVED_STAGE_LABELS[stage]} className="space-y-2">
       <p className="text-xs opacity-60">
         {inLine
-          ? "Each downloads on its own once there's room, checked in this order: one that doesn't fit yet doesn't hold up the ones after it."
+          ? "Each release downloads on its own once there's room, checked in this order: one that doesn't fit yet (a big audiobook waiting for your ratio, say) doesn't hold up the others, even those picked with it."
           : 'Choose releases for a book and it joins the queue, to download once there’s room.'}
       </p>
       <TableFrame>
