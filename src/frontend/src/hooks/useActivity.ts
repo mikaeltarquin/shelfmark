@@ -66,7 +66,8 @@ const isDeliveryState = (value: unknown): value is RequestRecord['delivery_state
   );
 };
 
-const parseHistoryBook = (value: unknown): Book | null => {
+/** A History row's download, keeping only the fields it shows. */
+export const parseHistoryBook = (value: unknown): Book | null => {
   if (!isRecord(value) || Array.isArray(value)) {
     return null;
   }
@@ -106,6 +107,11 @@ const parseHistoryBook = (value: unknown): Book | null => {
     ...(typeof value.content_type === 'string' ? { content_type: value.content_type } : {}),
     ...(typeof value.book_key === 'string' ? { book_key: value.book_key } : {}),
     ...(typeof value.info_url === 'string' ? { info_url: value.info_url } : {}),
+    ...(Array.isArray(value.narrators)
+      ? {
+          narrators: value.narrators.filter((name): name is string => typeof name === 'string'),
+        }
+      : {}),
   };
 };
 
