@@ -46,8 +46,13 @@ def register_saved_routes(
     login_required: Callable[..., Any],
     resolve_auth_mode: Callable[[], str],
     on_auto_get: Callable[[], None] | None = None,
+    next_check_at: Callable[[], float | None] | None = None,
 ) -> None:
-    """Register the saved items API; `on_auto_get` runs when an item is marked."""
+    """Register the saved items API.
+
+    `on_auto_get` runs when an item is marked; `next_check_at` says when the automatic
+    check next runs (epoch seconds), shown beside the queued items.
+    """
 
     @app.route("/api/saved", methods=["GET"])
     @login_required
@@ -55,7 +60,12 @@ def register_saved_routes(
         owner = _owner(resolve_auth_mode)
         if owner is None:
             return _no_owner()
-        return jsonify({"items": service.list_items(owner)})
+        return jsonify(
+            {
+                "items": service.list_items(owner),
+                "next_check_at": next_check_at() if next_check_at is not None else None,
+            }
+        )
 
     @app.route("/api/saved", methods=["POST"])
     @login_required

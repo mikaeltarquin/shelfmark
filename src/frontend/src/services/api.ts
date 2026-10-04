@@ -715,8 +715,16 @@ export const getMamRatio = async (): Promise<MamRatioSnapshot> =>
 export const getBookActivity = async (): Promise<BookDownloadEntry[]> =>
   (await fetchJSON<{ downloads: BookDownloadEntry[] }>(`${API_BASE}/activity/books`)).downloads;
 
-export const getSavedItems = async (): Promise<SavedItem[]> =>
-  (await fetchJSON<{ items: SavedItem[] }>(`${API_BASE}/saved`)).items;
+/** The saved list, and when the automatic check next runs (epoch seconds, or null). */
+export const getSavedItems = async (): Promise<{
+  items: SavedItem[];
+  next_check_at: number | null;
+}> => {
+  const body = await fetchJSON<{ items: SavedItem[]; next_check_at?: number | null }>(
+    `${API_BASE}/saved`,
+  );
+  return { items: body.items, next_check_at: body.next_check_at ?? null };
+};
 
 export const saveForLater = async (payload: {
   book: Book;

@@ -1,15 +1,17 @@
 import { useState } from 'react';
 
-import { useMountEffect } from '../../hooks/useMountEffect';
+import { useDependencyEffect, useMountEffect } from '../../hooks/useMountEffect';
 import { useRowDrag } from '../../hooks/useRowDrag';
 import { withBasePath } from '../../utils/basePath';
+import { formatCountdown } from '../../utils/mamAccount';
 import { formatDateTime, isoTimeAgo } from '../../utils/relativeTime';
 import {
   SAVED_STAGE_LABELS,
   describeSavedPick,
-  hasMamPick,
   queueOrder,
+  savedPickLines,
   savedStage,
+  waitingFor,
   type SavedItem,
   type SavedStage,
 } from '../../utils/savedItems';
@@ -36,19 +38,21 @@ import {
 interface SavedPanelProps {
   items: SavedItem[];
   loaded: boolean;
-  // Whether items can be marked to download on their own (the global setting).
-  autoGetAvailable: boolean;
+  // Downloads the picked releases now.
   onGet: (item: SavedItem) => Promise<void>;
   onRemove: (item: SavedItem) => Promise<void>;
   // Re-reads the list, for what the background checks found since.
   onRefresh: () => Promise<void>;
-  onAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
   // Opens the book's details, as clicking a book does on the other pages.
   onOpenDetails?: (item: SavedItem) => void;
+  // Wanted: opens the release picker; picks saved there move the book to the queue.
+  onChooseReleases?: (item: SavedItem) => Promise<void>;
   // Queued only: put the items in this order (ids, first claim on room first).
   onReorder?: (ids: number[]) => Promise<void>;
   // Queued only: how many downloads are ahead of these, to number on from.
   positionOffset?: number;
+  // Queued only: when the automatic check next runs (ms since epoch), or null.
+  nextCheckAt?: number | null;
 }
 
 // A queued row's place in line and its move buttons.
@@ -62,55 +66,10 @@ interface RowQueue {
   row?: ReturnType<ReturnType<typeof useRowDrag>['rowProps']>;
 }
 
-const AutoGetControls = ({
-  item,
-  onAutoGet,
-}: {
-  item: SavedItem;
-  onAutoGet: SavedPanelProps['onAutoGet'];
-}) => {
-  const [busy, setBusy] = useState(false);
-  const toggle = async (autoGet: boolean) => {
-    setBusy(true);
-    try {
-      await onAutoGet(item, { auto_get: autoGet });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const checkedAgo = item.auto_checked_at ? isoTimeAgo(item.auto_checked_at) : null;
-  let status = 'Waiting for the next check';
-  if (item.auto_status) {
-    status = checkedAgo ? `${item.auto_status} · checked ${checkedAgo}` : item.auto_status;
-  }
-
-  return (
-    <div className="mt-1.5 space-y-1 text-xs">
-      <label
-        className="flex cursor-pointer items-center gap-2"
-        title={
-          hasMamPick(item)
-            ? "Freeleech goes as soon as there's room; anything else once your ratio allows, or right away if it's too small to matter"
-            : undefined
-        }
-      >
-        <input
-          type="checkbox"
-          checked={item.auto_get}
-          disabled={busy}
-          onChange={(event) => void toggle(event.target.checked)}
-          className="h-3.5 w-3.5 accent-emerald-600"
-        />
-        <span>Queue for download</span>
-      </label>
-      {item.auto_get && (
-        <p className="pl-5.5 opacity-60" role="status">
-          {status}
-        </p>
-      )}
-    </div>
-  );
-};
+type RowProps = Omit<
+  SavedPanelProps,
+  'items' | 'loaded' | 'onRefresh' | 'onReorder' | 'positionOffset'
+> & { item: SavedItem; queue?: RowQueue };
 
 const coverUrl = (preview: string | undefined): string | null => {
   if (!preview) return null;
@@ -126,31 +85,66 @@ const savedSortValue = (item: SavedItem, key: SavedSortKey): string | number | u
   return Number.isNaN(saved) ? undefined : saved;
 };
 
+const smallButton =
+  'rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-40';
+const greenButton = `${smallButton} bg-emerald-600 text-white hover:bg-emerald-700`;
+const quietButton = `${smallButton} opacity-70 hover:bg-(--hover-surface) hover:opacity-100`;
+
+/** "in 4:32" to the next automatic check, ticking; "Checking now" once it's due. */
+const NextCheck = ({ at }: { at: number }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useDependencyEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [at]);
+  const seconds = (at - now) / 1000;
+  return (
+    <span className="tabular-nums" title={formatDateTime(at)}>
+      {seconds > 0 ? `in ${formatCountdown(seconds)}` : 'Checking now'}
+    </span>
+  );
+};
+
+const ReleaseLines = ({ item }: { item: SavedItem }) => {
+  const lines = savedPickLines(item);
+  const full = savedPickLines(item, { full: true });
+  return (
+    <ul className="space-y-0.5 text-xs" title={full.join('\n')}>
+      {lines.map((line, index) => (
+        // Lines can repeat ("Audiobook" twice): the index tells them apart.
+        // eslint-disable-next-line react/no-array-index-key
+        <li key={index} className="whitespace-nowrap">
+          {line}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 const SavedRow = ({
   item,
-  autoGetAvailable,
   onGet,
   onRemove,
-  onAutoGet,
   onOpenDetails,
+  onChooseReleases,
+  nextCheckAt,
   queue,
-}: { item: SavedItem; queue?: RowQueue } & Omit<
-  SavedPanelProps,
-  'items' | 'loaded' | 'onRefresh' | 'onReorder' | 'positionOffset'
->) => {
-  const [busy, setBusy] = useState<'get' | 'remove' | null>(null);
-  const run = async (action: 'get' | 'remove') => {
+}: RowProps) => {
+  const [busy, setBusy] = useState<'get' | 'choose' | 'remove' | null>(null);
+  const run = async (action: 'get' | 'choose' | 'remove') => {
     setBusy(action);
     try {
-      await (action === 'get' ? onGet(item) : onRemove(item));
+      if (action === 'get') await onGet(item);
+      else if (action === 'choose') await onChooseReleases?.(item);
+      else await onRemove(item);
     } finally {
       setBusy(null);
     }
   };
-  const picks = describeSavedPick(item);
-  const allPicks = describeSavedPick(item, { full: true });
   const saved = Date.parse(item.created_at);
   const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
+  const hasPicks = item.kind !== 'book' && item.releases.length > 0;
+  const reason = waitingFor(item);
 
   return (
     <tr
@@ -197,44 +191,75 @@ const SavedRow = ({
           </p>
         )}
       </td>
-      <td className={`${cellClassName} min-w-[12rem]`}>
-        <p className="text-xs" title={allPicks}>
-          {picks}
-        </p>
+      <td className={`${cellClassName} min-w-[11rem]`}>
+        {hasPicks && <ReleaseLines item={item} />}
         {item.last_error && (
           <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{item.last_error}</p>
         )}
+        {!queue && (
+          <div className={`flex items-center gap-1 ${hasPicks ? 'mt-1.5' : ''}`}>
+            <button
+              type="button"
+              onClick={() => void run('choose')}
+              disabled={busy !== null || !onChooseReleases}
+              className={hasPicks ? quietButton : greenButton}
+            >
+              {hasPicks ? 'Choose again' : 'Choose releases'}
+            </button>
+            {hasPicks && (
+              <button
+                type="button"
+                onClick={() => void run('get')}
+                disabled={busy !== null}
+                className={greenButton}
+              >
+                {busy === 'get' ? 'Getting…' : '+ Get'}
+              </button>
+            )}
+          </div>
+        )}
       </td>
-      {autoGetAvailable && (
-        <td className={`${cellClassName} min-w-[12rem]`}>
-          {item.releases.length > 0 ? (
-            <AutoGetControls item={item} onAutoGet={onAutoGet} />
-          ) : (
-            <span className="text-xs opacity-50">Pick a release first</span>
-          )}
+      {queue ? (
+        <>
+          <td className={`${cellClassName} min-w-[10rem] text-xs`} title={item.auto_status ?? ''}>
+            {reason ?? <span className="opacity-50">First check pending</span>}
+          </td>
+          <td
+            className={`${cellClassName} text-xs whitespace-nowrap opacity-70`}
+            title={item.auto_checked_at ? formatDateTime(Date.parse(item.auto_checked_at)) : ''}
+          >
+            {item.auto_checked_at ? isoTimeAgo(item.auto_checked_at) : 'Not yet'}
+          </td>
+          <td className={`${cellClassName} text-xs whitespace-nowrap opacity-70`}>
+            {typeof nextCheckAt === 'number' ? <NextCheck at={nextCheckAt} /> : '—'}
+          </td>
+        </>
+      ) : (
+        <td
+          className={`${cellClassName} hidden text-xs whitespace-nowrap opacity-70 sm:table-cell`}
+          title={Number.isNaN(saved) ? undefined : formatDateTime(saved)}
+        >
+          {isoTimeAgo(item.created_at)}
         </td>
       )}
-      <td
-        className={`${cellClassName} hidden text-xs whitespace-nowrap opacity-70 sm:table-cell`}
-        title={Number.isNaN(saved) ? undefined : formatDateTime(saved)}
-      >
-        {isoTimeAgo(item.created_at)}
-      </td>
       <td className={`${cellClassName} w-0`} aria-label="Actions">
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => void run('get')}
-            disabled={busy !== null}
-            className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {busy === 'get' ? 'Getting…' : '+ Get'}
-          </button>
+          {queue && (
+            <button
+              type="button"
+              onClick={() => void run('get')}
+              disabled={busy !== null}
+              className={greenButton}
+              title="Download now, without waiting for room"
+            >
+              {busy === 'get' ? 'Getting…' : '+ Get'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void run('remove')}
             disabled={busy !== null}
-            className="rounded-full px-2.5 py-1 text-xs font-medium opacity-70 transition-colors hover:bg-(--hover-surface) hover:opacity-100 disabled:opacity-40"
+            className={quietButton}
           >
             Remove
           </button>
@@ -247,30 +272,25 @@ const SavedRow = ({
 const EMPTY: Record<SavedStage, { title: string; hint: string }> = {
   queued: {
     title: 'Nothing queued.',
-    hint: "Pick a release and save it (or tick Queue for download on a saved pick) and it downloads on its own once there's room.",
+    hint: "Pick a release and save it, and it downloads on its own once there's room.",
   },
   later: {
     title: 'Nothing saved for later.',
-    hint: "Use the bookmark on a book or release, or Save for later when you're out of room, to keep it here.",
+    hint: "Use the bookmark on a book, or Save for later when you're out of room, to keep it here.",
   },
 };
 
 /**
  * One of the two saved tabs: Queued (releases picked, downloading on their own once
- * there's room) or Saved for later (to get by hand).
+ * there's room) or Wanted (books to choose releases for).
  */
 export const SavedPanel = ({
   stage,
   items,
   loaded,
-  autoGetAvailable,
-  onGet,
-  onRemove,
   onRefresh,
-  onAutoGet,
-  onOpenDetails,
-  onReorder,
   positionOffset = 0,
+  ...rest
 }: SavedPanelProps & { stage: SavedStage }) => {
   useMountEffect(() => {
     void onRefresh();
@@ -294,28 +314,36 @@ export const SavedPanel = ({
     <SavedTable
       stage={stage}
       items={staged}
-      autoGetAvailable={autoGetAvailable}
-      onGet={onGet}
-      onRemove={onRemove}
-      onAutoGet={onAutoGet}
-      onOpenDetails={onOpenDetails}
-      onReorder={onReorder}
       positionOffset={positionOffset}
+      onCheckDue={onRefresh}
+      {...rest}
     />
   );
 };
 
+// How long after a check is due to read the list again: what it found, and the next one.
+const AFTER_CHECK_MS = 4000;
+
 const SavedTable = ({
   stage,
   items,
-  autoGetAvailable,
-  onGet,
-  onRemove,
-  onAutoGet,
-  onOpenDetails,
   onReorder,
   positionOffset = 0,
-}: Omit<SavedPanelProps, 'loaded' | 'onRefresh'> & { stage: SavedStage }) => {
+  onCheckDue,
+  ...rowHandlers
+}: Omit<SavedPanelProps, 'loaded' | 'onRefresh'> & {
+  stage: SavedStage;
+  onCheckDue: () => Promise<void>;
+}) => {
+  const { nextCheckAt } = rowHandlers;
+  useDependencyEffect(() => {
+    if (stage !== 'queued' || typeof nextCheckAt !== 'number') return undefined;
+    const timer = window.setTimeout(
+      () => void onCheckDue(),
+      Math.max(0, nextCheckAt - Date.now()) + AFTER_CHECK_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [stage, nextCheckAt]);
   const [sort, setSort] = useState<SortState<SavedSortKey>>({ key: 'saved', direction: 'desc' });
   const [moving, setMoving] = useState(false);
   // Queued items are in line: shown in the order they get room, not sortable.
@@ -339,9 +367,9 @@ const SavedTable = ({
   return (
     <section aria-label={SAVED_STAGE_LABELS[stage]} className="space-y-2">
       <p className="text-xs opacity-60">
-        {stage === 'queued'
+        {inLine
           ? "Each downloads on its own once there's room, checked in this order: one that doesn't fit yet doesn't hold up the ones after it."
-          : 'Get one with + Get whenever you want it.'}
+          : 'Choose releases for a book and it joins the queue, to download once there’s room.'}
       </p>
       <TableFrame>
         <table className={tableClassName}>
@@ -355,25 +383,23 @@ const SavedTable = ({
                 <>
                   <HeaderCell label="Title" />
                   <HeaderCell label="Releases" />
+                  <HeaderCell label="Waiting for" />
+                  <HeaderCell label="Last checked" />
+                  <HeaderCell label="Next check" />
                 </>
               ) : (
                 <>
                   <HeaderCell label="Title" sortKey="title" sort={sort} onSort={setSort} />
                   <HeaderCell label="Releases" sortKey="picks" sort={sort} onSort={setSort} />
+                  <HeaderCell
+                    label="Saved"
+                    sortKey="saved"
+                    sort={sort}
+                    onSort={setSort}
+                    initialDirection="desc"
+                    className="hidden sm:table-cell"
+                  />
                 </>
-              )}
-              {autoGetAvailable && <HeaderCell label="Automatic download" />}
-              {inLine ? (
-                <HeaderCell label="Saved" className="hidden sm:table-cell" />
-              ) : (
-                <HeaderCell
-                  label="Saved"
-                  sortKey="saved"
-                  sort={sort}
-                  onSort={setSort}
-                  initialDirection="desc"
-                  className="hidden sm:table-cell"
-                />
               )}
               <th scope="col" className={cellClassName}>
                 <span className="sr-only">Actions</span>
@@ -400,11 +426,7 @@ const SavedTable = ({
                       }
                     : undefined
                 }
-                autoGetAvailable={autoGetAvailable}
-                onGet={onGet}
-                onRemove={onRemove}
-                onAutoGet={onAutoGet}
-                onOpenDetails={onOpenDetails}
+                {...rowHandlers}
               />
             ))}
           </tbody>

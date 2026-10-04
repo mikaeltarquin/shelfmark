@@ -24,6 +24,7 @@ from __future__ import annotations
 import copy
 import math
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -239,6 +240,10 @@ class SavedAutoGetter:
         self._thread: threading.Thread | None = None
         self._thread_lock = threading.Lock()
         self._soon: threading.Timer | None = None
+        # When the scheduled check and a pending quick check (`check_soon`) run, in epoch
+        # seconds, for the Queued page.
+        self._next_check_at: float | None = None
+        self._soon_at: float | None = None
 
     def run_check(self) -> RunReport:
         """Check every item marked for automatic download, oldest first."""
@@ -302,6 +307,7 @@ class SavedAutoGetter:
     def _loop(self) -> None:
         delay: float = _STARTUP_DELAY_SECONDS
         while True:
+            self._next_check_at = time.time() + delay
             self._wake.wait(delay)
             self._wake.clear()
             try:
@@ -309,6 +315,15 @@ class SavedAutoGetter:
             except Exception:  # the scheduler must outlive any one check
                 logger.exception("Saved items automatic download check failed")
             delay = interval_minutes() * 60
+
+    def next_check_at(self) -> float | None:
+        """When the next check is due (epoch seconds), or None when none is scheduled."""
+        if not enabled():
+            return None
+        with self._thread_lock:
+            running = self._thread is not None and self._thread.is_alive()
+            due = [at for at in (self._next_check_at, self._soon_at) if at is not None]
+        return min(due) if running and due else None
 
     def start(self) -> None:
         """Start the background schedule (idempotent)."""
@@ -325,11 +340,14 @@ class SavedAutoGetter:
         with self._thread_lock:
             if self._soon is not None and self._soon.is_alive():
                 return
+            self._soon_at = time.time() + _SOON_DELAY_SECONDS
             self._soon = threading.Timer(_SOON_DELAY_SECONDS, self._run_soon)
             self._soon.daemon = True
             self._soon.start()
 
     def _run_soon(self) -> None:
+        with self._thread_lock:
+            self._soon_at = None  # Running now: the schedule says when the next one is
         try:
             self.run_check()
         except Exception:  # a background check must not raise

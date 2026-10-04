@@ -34,6 +34,8 @@ export interface SavedItemsContextValue {
   remove: (item: SavedItem, options?: { quiet?: boolean }) => Promise<void>;
   /** Turn automatic downloading on or off. */
   setAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
+  /** When the automatic check next runs (ms since epoch), or null when none is due. */
+  nextCheckAt: number | null;
   /** Put the queued items in this order (ids, first claim on room first). */
   reorder: (ids: number[]) => Promise<void>;
   refresh: () => Promise<void>;
@@ -64,12 +66,16 @@ export const useSavedItemsStore = ({
 }): SavedItemsContextValue => {
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [nextCheckAt, setNextCheckAt] = useState<number | null>(null);
+  // Wanted items already sent to the queue, so a failed move isn't retried each refresh.
+  const promoted = useRef(new Set<number>());
   // What the last refresh saw, to tell when an automatic download took an item.
   const lastSeen = useRef<SavedItem[] | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const next = await getSavedItems();
+      const { items: next, next_check_at } = await getSavedItems();
+      setNextCheckAt(next_check_at === null ? null : next_check_at * 1000);
       const previous = lastSeen.current;
       if (previous) {
         const remaining = new Set(next.map((item) => item.id));
@@ -79,12 +85,37 @@ export const useSavedItemsStore = ({
       }
       lastSeen.current = next;
       setItems(next);
+      if (autoGetAvailable) {
+        // Picked releases belong in the queue: Wanted is for books still to pick for.
+        // One whose last automatic download failed stays, so its error is seen first.
+        next
+          .filter(
+            (item) =>
+              savedStage(item) === 'later' &&
+              item.releases.length > 0 &&
+              !item.last_error &&
+              !promoted.current.has(item.id),
+          )
+          .forEach((item) => {
+            promoted.current.add(item.id);
+            void updateSavedItem(item.id, {
+              auto_get: true,
+              payloads: savedPayloads(item.book, item.releases),
+            })
+              .then((updated) =>
+                setItems((current) =>
+                  current.map((existing) => (existing.id === updated.id ? updated : existing)),
+                ),
+              )
+              .catch((error: unknown) => console.warn('Could not queue saved item:', error));
+          });
+      }
     } catch (error) {
       console.warn('Could not load saved items:', error);
     } finally {
       setLoaded(true);
     }
-  }, [onShowToast]);
+  }, [autoGetAvailable, onShowToast]);
 
   const replaceItem = useCallback((saved: SavedItem) => {
     const apply = (current: SavedItem[]) => [
@@ -196,10 +227,11 @@ export const useSavedItemsStore = ({
       savePicks: store,
       remove,
       setAutoGet,
+      nextCheckAt,
       reorder,
       refresh,
     };
-  }, [contentType, items, loaded, refresh, remove, reorder, setAutoGet, store]);
+  }, [contentType, items, loaded, nextCheckAt, refresh, remove, reorder, setAutoGet, store]);
 };
 
 // Re-read now and then, so items got automatically leave the list (with a toast).

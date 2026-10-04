@@ -1248,6 +1248,7 @@ if saved_items_service is not None:
         login_required,
         get_auth_mode,
         on_auto_get=saved_autogetter.check_soon,
+        next_check_at=saved_autogetter.next_check_at,
     )
     saved_autogetter.start()
 
