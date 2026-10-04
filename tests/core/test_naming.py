@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from shelfmark.core.naming import (
+    MAX_SEGMENT_BYTES,
     assign_part_numbers,
     build_library_path,
     derive_primary_title,
@@ -404,6 +405,67 @@ class TestArbitraryPrefixSuffix:
             template, {"Author": "Brandon Sanderson", "Title": "Standalone Novel"}
         )
         assert result == "Brandon Sanderson/Standalone Novel"
+
+
+class TestLongNames:
+    """Rendered folder and file names stay under the filesystem's 255-byte limit."""
+
+    FULL_CAST = (
+        "Adjoa Andoh & David Tennant & Lorelei King & Kobna Holdbrook-Smith & "
+        "Gabrielle Glaister & Michael Sheen & Allan Corduner & Peter Forbes & "
+        "Rebecca Front & Arthur Darvill & Lemn Sissay & Matt Reeves & Full Cast & "
+        "Louis Davison & Katherine Kingsley"
+    )
+    GOOD_OMENS = "Good Omens: The Nice and Accurate Prophecies of Agnes Nutter, Witch"
+
+    def test_full_cast_narrator_folder_keeps_whole_names_and_braces(self):
+        result = parse_naming_template(
+            "{Author}/{Title} {{Narrator}}/{Title}",
+            {
+                "Author": "Neil Gaiman, Terry Pratchett",
+                "Title": self.GOOD_OMENS,
+                "Narrator": self.FULL_CAST,
+            },
+        )
+        author, folder, filename = result.split("/")
+        assert author == "Neil Gaiman, Terry Pratchett"
+        assert filename == "Good Omens_ The Nice and Accurate Prophecies of Agnes Nutter, Witch"
+        assert len(folder.encode()) <= MAX_SEGMENT_BYTES
+        assert folder.startswith(f"{filename} {{Adjoa Andoh & David Tennant & ")
+        assert folder.endswith(" et al.}")
+
+    def test_same_metadata_shortens_to_same_folder(self):
+        metadata = {"Title": self.GOOD_OMENS, "Narrator": self.FULL_CAST}
+        template = "{Title} {{Narrator}}/{Title}"
+        assert parse_naming_template(template, metadata) == parse_naming_template(
+            template, metadata
+        )
+
+    def test_long_title_is_cut_at_a_word_boundary(self):
+        result = parse_naming_template("{Author} - {Title}", {"Author": "A", "Title": "word " * 80})
+        assert len(result.encode()) <= MAX_SEGMENT_BYTES
+        assert result.endswith("word")
+
+    def test_multibyte_title_is_measured_in_bytes(self):
+        result = parse_naming_template("{Title}", {"Title": "é" * 200})
+        assert len(result.encode()) <= MAX_SEGMENT_BYTES
+        assert set(result) == {"é"}
+
+    def test_short_names_are_unchanged(self):
+        result = parse_naming_template(
+            "{Author}/{Title} {{Narrator}}",
+            {"Author": "Terry Pratchett", "Title": "Mort", "Narrator": "Nigel Planer"},
+        )
+        assert result == "Terry Pratchett/Mort {Nigel Planer}"
+
+    def test_build_library_path_leaves_room_for_extension(self, tmp_path):
+        path = build_library_path(
+            str(tmp_path),
+            "{Title} {{Narrator}}/{Title}",
+            {"Title": self.GOOD_OMENS, "Narrator": self.FULL_CAST},
+            extension="kepub.epub",
+        )
+        assert all(len(part.encode()) <= 255 for part in path.relative_to(tmp_path).parts)
 
 
 class TestDerivePrimaryTitle:
