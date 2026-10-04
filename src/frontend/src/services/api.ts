@@ -607,6 +607,17 @@ export const inspectRelease = async (
   });
 };
 
+// When this page last queued a download itself: only those may move it to their list
+// (the "Show Downloads When Queued" setting), never ones queued in the background.
+let lastQueuedHereAt = 0;
+
+/** Whether this page queued a download in the last `withinMs`; true once, then forgotten. */
+export const takeQueuedHere = (withinMs: number): boolean => {
+  const recent = Date.now() - lastQueuedHereAt <= withinMs;
+  lastQueuedHereAt = 0;
+  return recent;
+};
+
 export const downloadRelease = async (
   release: DownloadReleasePayload,
   onBehalfOfUserId?: number,
@@ -616,10 +627,17 @@ export const downloadRelease = async (
       ? { ...release, on_behalf_of_user_id: onBehalfOfUserId }
       : release;
 
-  await fetchJSON(`${API_BASE}/releases/download`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  // Marked first: the status update announcing it can arrive before this reply does.
+  lastQueuedHereAt = Date.now();
+  try {
+    await fetchJSON(`${API_BASE}/releases/download`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    lastQueuedHereAt = 0;
+    throw error;
+  }
 };
 
 export const getStatus = async (): Promise<StatusData> => {

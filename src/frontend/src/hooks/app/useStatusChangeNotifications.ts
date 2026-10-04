@@ -1,13 +1,46 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 
+import { takeQueuedHere } from '../../services/api';
 import type { AppConfig, StatusData } from '../../types';
 import { withBasePath } from '../../utils/basePath';
+
+// How soon after queuing a download here its arrival may open its list.
+const QUEUED_HERE_WINDOW_MS = 30_000;
+
+const ACTIVE_BUCKETS = ['queued', 'resolving', 'locating', 'downloading'] as const;
+const ALL_BUCKETS: readonly (keyof StatusData)[] = [
+  ...ACTIVE_BUCKETS,
+  'complete',
+  'error',
+  'cancelled',
+];
+
+/** Every download listed in `status`, whatever its state. */
+const listedIds = (status: StatusData): Set<string> =>
+  new Set(ALL_BUCKETS.flatMap((bucket) => Object.keys(status[bucket] ?? {})));
+
+/**
+ * Where a download that is new since `prev` is listed: Queued while it waits to start,
+ * Downloads once under way. Null when none is new. A download that was already listed
+ * (moving back to the queue to wait for a slot, say) isn't new.
+ */
+export const newDownloadPage = (
+  prev: StatusData,
+  next: StatusData,
+): 'queued' | 'downloads' | null => {
+  const known = listedIds(prev);
+  const isNew = (bucket: (typeof ACTIVE_BUCKETS)[number]) =>
+    Object.keys(next[bucket] ?? {}).some((id) => !known.has(id));
+  if (isNew('queued')) return 'queued';
+  return ACTIVE_BUCKETS.slice(1).some(isNew) ? 'downloads' : null;
+};
 
 interface UseStatusChangeNotificationsOptions {
   currentStatus: StatusData;
   config: AppConfig | null;
   showToast: (message: string, type: 'info' | 'success' | 'error') => void;
-  showDownloadsPage: () => void;
+  // Opens the list a download just queued here is on (Activity > Queued or Downloads).
+  showDownloadsPage: (page: 'queued' | 'downloads') => void;
   bookToReleaseMap: Record<string, string[]>;
   markBookCompleted: (bookId: string) => void;
 }
@@ -32,20 +65,25 @@ export const useStatusChangeNotifications = ({
         return autoDownloadContentTypes.includes(contentTypeKey);
       };
 
-      const prevQueued = prevStatus.queued || {};
+      // Only a download that's new, not one moving back to the queue (to wait for a slot).
+      const known = listedIds(prevStatus);
       const currQueued = nextStatus.queued || {};
-      let shouldShowDownloads = false;
       Object.keys(currQueued).forEach((bookId) => {
-        if (!prevQueued[bookId]) {
+        if (!known.has(bookId)) {
           const book = currQueued[bookId];
           showToast(`${book.title || 'Book'} added to queue`, 'info');
-          if (config?.auto_open_downloads_sidebar !== false) {
-            shouldShowDownloads = true;
-          }
         }
       });
-      if (shouldShowDownloads) {
-        showDownloadsPage();
+      // The page moves only for a download queued from it, with the setting on: never
+      // for ones queued in the background (Saved, retries, other users), which would
+      // pull the reader away from whatever they were looking at.
+      const page = newDownloadPage(prevStatus, nextStatus);
+      if (
+        page &&
+        config?.auto_open_downloads_sidebar === true &&
+        takeQueuedHere(QUEUED_HERE_WINDOW_MS)
+      ) {
+        showDownloadsPage(page);
       }
 
       const prevDownloading = prevStatus.downloading || {};

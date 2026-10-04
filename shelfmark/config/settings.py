@@ -1660,7 +1660,10 @@ def download_settings() -> list[SettingsField]:
         CheckboxField(
             key="AUTO_OPEN_DOWNLOADS_SIDEBAR",
             label="Show Downloads When Queued",
-            description="Go to Activity > Downloads when a new download is queued.",
+            description=(
+                "When you start a download, go to the Activity page that lists it (Queued "
+                "or Downloads). Downloads queued in the background never move the page."
+            ),
             default=False,
         ),
         MultiSelectField(
