@@ -2893,7 +2893,8 @@ function App() {
             void handleOpenActivityDetails(item);
           }}
           onOpenInLibrary={
-            requestRoleIsAdmin
+            // Without login everyone is an admin, as the backend's admin check treats them.
+            requestRoleIsAdmin || !authRequired
               ? (item) => {
                   void handleOpenInLibrary(item);
                 }
