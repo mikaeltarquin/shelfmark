@@ -176,6 +176,36 @@ export const sourcePageName = (url: string): string => {
   }
 };
 
+/** A release's page at its source (the MAM torrent listing), opened in a new tab. */
+export const SourcePageLink = ({ url, size = 'md' }: { url: string; size?: 'sm' | 'md' }) => (
+  <Tooltip content={`Open on ${sourcePageName(url)}`} delay={0} position="bottom">
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open on ${sourcePageName(url)}`}
+      className={`inline-flex items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-sky-100 hover:text-sky-600 dark:hover:bg-sky-900/30 dark:hover:text-sky-400 ${
+        size === 'sm' ? 'h-5 w-5' : 'h-7 w-7'
+      }`}
+    >
+      <svg
+        className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M14 5h5v5M19 5l-8 8M10 5H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-4"
+        />
+      </svg>
+    </a>
+  </Tooltip>
+);
+
 /** The status badges, with a download's progress filling its badge. */
 export const ActivityStatusBadges = ({
   badges,
@@ -314,32 +344,7 @@ export const ActivityLinkButtons = ({
           </IconButton>
         </Tooltip>
       )}
-      {item.infoUrl && (
-        <Tooltip content={`Open on ${sourcePageName(item.infoUrl)}`} delay={0} position="bottom">
-          <a
-            href={item.infoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Open on ${sourcePageName(item.infoUrl)}`}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-sky-100 hover:text-sky-600 dark:hover:bg-sky-900/30 dark:hover:text-sky-400"
-          >
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14 5h5v5M19 5l-8 8M10 5H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-4"
-              />
-            </svg>
-          </a>
-        </Tooltip>
-      )}
+      {item.infoUrl && <SourcePageLink url={item.infoUrl} />}
       {canShowDownloadLink && item.downloadBookId && (
         <Tooltip content="Save file to this device" delay={0} position="bottom">
           <a

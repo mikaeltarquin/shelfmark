@@ -10,6 +10,7 @@ import {
   rowClassName,
   tableClassName,
 } from '../shared/DataTable';
+import { SourcePageLink } from './ActivityItemParts';
 import type { ActivityItem } from './activityTypes';
 import {
   DragHandle,
@@ -156,15 +157,18 @@ export const DownloadQueue = ({
                   {item.format ?? '—'}
                 </td>
                 <td className={`${cellClassName} w-0`}>
-                  {onCancel && bookId && (
-                    <button
-                      type="button"
-                      onClick={() => onCancel(bookId)}
-                      className="rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap opacity-70 transition-colors hover:bg-(--hover-surface) hover:opacity-100"
-                    >
-                      Remove
-                    </button>
-                  )}
+                  <div className="flex items-center justify-end gap-1">
+                    {item.infoUrl && <SourcePageLink url={item.infoUrl} />}
+                    {onCancel && bookId && (
+                      <button
+                        type="button"
+                        onClick={() => onCancel(bookId)}
+                        className="rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap opacity-70 transition-colors hover:bg-(--hover-surface) hover:opacity-100"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );

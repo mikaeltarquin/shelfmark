@@ -26,6 +26,7 @@ import {
   tableClassName,
   type SortState,
 } from '../shared/DataTable';
+import { SourcePageLink } from './ActivityItemParts';
 import {
   DragHandle,
   QueueMoveButtons,
@@ -110,13 +111,18 @@ const ReleaseLines = ({ item }: { item: SavedItem }) => {
   const full = savedPickLines(item, { full: true });
   return (
     <ul className="space-y-0.5 text-xs" title={full.join('\n')}>
-      {lines.map((line, index) => (
-        // Lines can repeat ("Audiobook" twice): the index tells them apart.
-        // eslint-disable-next-line react/no-array-index-key
-        <li key={index} className="whitespace-nowrap">
-          {line}
-        </li>
-      ))}
+      {lines.map((line, index) => {
+        // Lines line up with the picks; each links to its release's page at the source.
+        const url = item.releases[index]?.release.info_url;
+        return (
+          // Lines can repeat ("Audiobook" twice): the index tells them apart.
+          // eslint-disable-next-line react/no-array-index-key
+          <li key={index} className="flex items-center gap-1 whitespace-nowrap">
+            <span>{line}</span>
+            {url && <SourcePageLink url={url} size="sm" />}
+          </li>
+        );
+      })}
     </ul>
   );
 };
