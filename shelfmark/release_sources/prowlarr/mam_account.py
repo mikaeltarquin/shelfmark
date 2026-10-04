@@ -172,12 +172,20 @@ def _unsat_summary(data: dict[str, Any]) -> dict[str, Any]:
 
 def parse_stats(data: dict[str, Any]) -> MamStats:
     """Build MamStats from a jsonLoad.php reply, preferring its exact byte counts."""
-    uploaded = parse_size_bytes(data.get("uploaded_bytes"))
+    exact_uploaded = parse_size_bytes(data.get("uploaded_bytes"))
+    exact_downloaded = parse_size_bytes(data.get("downloaded_bytes"))
+    uploaded = exact_uploaded
     if uploaded is None:
         uploaded = parse_size_bytes(data.get("uploaded")) or 0
-    downloaded = parse_size_bytes(data.get("downloaded_bytes"))
+    downloaded = exact_downloaded
     if downloaded is None:
         downloaded = parse_size_bytes(data.get("downloaded")) or 0
+    # The reply's "ratio" text can be coarser than the site shows (1.3 for 1.33),
+    # so work it out from the exact byte counts when MAM sends them.
+    if exact_uploaded is not None and exact_downloaded:
+        ratio = exact_uploaded / exact_downloaded
+    else:
+        ratio = parse_number(data.get("ratio"))
     username = data.get("username")
     classname = data.get("classname")
     vip_until = data.get("vip_until")
@@ -187,7 +195,7 @@ def parse_stats(data: dict[str, Any]) -> MamStats:
         classname=str(classname) if classname else None,
         uploaded_bytes=uploaded,
         downloaded_bytes=downloaded,
-        ratio=parse_number(data.get("ratio")),
+        ratio=ratio,
         seedbonus=parse_number(data.get("seedbonus")) or 0.0,
         vip_until=str(vip_until) if vip_until else None,
         unsat_count=_whole(unsat.get("count")),
@@ -425,6 +433,14 @@ def _read_unsat_timing() -> dict[str, Any]:
     return summarize_unsat_timing(torrents, name)
 
 
+def _aged_timing(timing: dict[str, Any], age: float) -> dict[str, Any]:
+    """A cached timing as of now: the next slot is `age` seconds closer than when read."""
+    next_seconds = timing.get("next_seconds")
+    if not isinstance(next_seconds, (int, float)):
+        return timing
+    return {**timing, "next_seconds": max(0, int(next_seconds - age))}
+
+
 def unsat_timing(*, refresh: bool = False) -> dict[str, Any]:
     """When the next unsatisfied MAM torrent frees a slot, from the torrent client.
 
@@ -436,8 +452,10 @@ def unsat_timing(*, refresh: bool = False) -> dict[str, Any]:
         return {"available": False, "reason": "No MAM session ID is set"}
     with _timing_lock:
         cached = _timing_cache
-    if not refresh and cached and time.time() - cached[0] < _TIMING_TTL_SECONDS:
-        return cached[1]
+    if not refresh and cached:
+        age = time.time() - cached[0]
+        if age < _TIMING_TTL_SECONDS:
+            return _aged_timing(cached[1], age)
     timing = _read_unsat_timing()
     with _timing_lock:
         _timing_cache = (time.time(), timing)

@@ -2062,6 +2062,10 @@ function App() {
       onRemove={(item) => savedStore.remove(item)}
       onRefresh={savedStore.refresh}
       onAutoGet={savedStore.setAutoGet}
+      onOpenDetails={(item) => {
+        setDetailsNotice(null);
+        void showBookDetails(item.book, item.book.id);
+      }}
     />
   );
   const savedCounts: Record<SavedStage, number> = {

@@ -10,6 +10,7 @@ import {
   maxAffordableGb,
   uploadCreditCost,
   describeUnsatTiming,
+  formatCountdown,
   formatHoursMinutes,
   formatUnsat,
   mamProfileUrl,
@@ -170,5 +171,14 @@ describe('unsatisfied slot timing', () => {
     );
     expect(describeUnsatTiming({ available: false, reason: 'No torrent client' })).toBeNull();
     expect(describeUnsatTiming(null)).toBeNull();
+  });
+});
+
+describe('formatCountdown', () => {
+  it('shows hours, minutes and seconds, dropping the hours under an hour', () => {
+    expect(formatCountdown(2 * 3600 + 5 * 60 + 13)).toBe('2:05:13');
+    expect(formatCountdown(4 * 60 + 9)).toBe('4:09');
+    expect(formatCountdown(0.2)).toBe('0:01');
+    expect(formatCountdown(-5)).toBe('0:00');
   });
 });

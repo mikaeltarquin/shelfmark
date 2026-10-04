@@ -38,6 +38,17 @@ export interface MamBufferCheck {
   unsat_reserve: number;
 }
 
+/**
+ * Whether another MAM download would have to wait for a slot: the unsatisfied torrents
+ * plus Shelfmark's queued ones fill the limit, less the slots kept free.
+ */
+export const unsatSlotsFull = (snapshot: MamRatioSnapshot | null): boolean => {
+  if (!snapshot?.available) return false;
+  const { unsat_count: count, unsat_limit: limit } = snapshot;
+  if (typeof count !== 'number' || typeof limit !== 'number') return false;
+  return count + (snapshot.unsat_pending ?? 0) >= limit - (snapshot.unsat_reserve ?? 0);
+};
+
 const positive = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 
