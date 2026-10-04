@@ -47,6 +47,20 @@ DEFAULT_NARRATOR_SEPARATOR = "&"
 # Characters that are invalid in filenames on various filesystems
 INVALID_CHARS = re.compile(r'[\\/:*?"<>|]')
 
+# Longest folder or file name a template renders, in UTF-8 bytes. Filesystems
+# allow 255 per name; the rest leaves room for an extension (".kepub.epub") and
+# a collision suffix ("_12") added after rendering.
+MAX_SEGMENT_BYTES = 240
+
+# A narrator list shortened to fit MAX_SEGMENT_BYTES ends with this.
+NARRATOR_TRUNCATION_SUFFIX = " et al."
+
+# Splits a rendered narrator list into names and the separators between them.
+NARRATOR_LIST_SPLIT = re.compile(r"(\s*[,;&]\s*)")
+
+# Separators left dangling at the end of a shortened value, e.g. "Agnes Nutter, " -> "Agnes Nutter".
+VALUE_TRAILING_SEPARATORS = re.compile(r"[\s\-_.,;&]+$")
+
 # Runs of whitespace inside a single placeholder's rendered value, e.g. "Conan Doyle"
 # -- collapsed to the configured word separator (see `parse_naming_template`).
 WHITESPACE_RUN = re.compile(r"\s+")
@@ -221,6 +235,41 @@ def assign_part_numbers(
     ]
 
 
+def _cut_to_bytes(value: str, max_bytes: int) -> str:
+    """Cut `value` to at most `max_bytes` of UTF-8, at a word boundary when there is one."""
+    cut = value.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+    if len(cut) < len(value) and cut and cut[-1].isalnum() and value[len(cut)].isalnum():
+        boundary = re.match(r"^(.*\W)\w+$", cut)
+        if boundary and len(boundary.group(1)) > len(cut) // 2:
+            cut = boundary.group(1)
+    return VALUE_TRAILING_SEPARATORS.sub("", cut)
+
+
+def _shorten_value(placeholder_name: str, value: str, max_bytes: int) -> str:
+    """Shorten one rendered placeholder value to `max_bytes`.
+
+    A narrator list keeps whole names and ends with "et al." so a full-cast
+    recording still names its leads; anything else is cut at a word boundary.
+    """
+    if len(value.encode("utf-8")) <= max_bytes:
+        return value
+    if placeholder_name == "narrator":
+        parts = NARRATOR_LIST_SPLIT.split(value)
+        kept = parts[0]
+        for index in range(1, len(parts) - 1, 2):
+            extended = kept + parts[index] + parts[index + 1]
+            if len((extended + NARRATOR_TRUNCATION_SUFFIX).encode("utf-8")) > max_bytes:
+                break
+            kept = extended
+        if kept != value and len((kept + NARRATOR_TRUNCATION_SUFFIX).encode("utf-8")) <= max_bytes:
+            return kept + NARRATOR_TRUNCATION_SUFFIX
+    return _cut_to_bytes(value, max_bytes)
+
+
+def _byte_length(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
 def parse_naming_template(
     template: str,
     metadata: Mapping[str, str | int | float | None],
@@ -235,12 +284,65 @@ def parse_naming_template(
     touches literal characters typed into the template itself, so a template
     like "{Author}.-.{Title}" keeps its own dots regardless of this setting.
     The default (" ") leaves values untouched, matching prior behavior.
+
+    No folder or file name in the result exceeds `MAX_SEGMENT_BYTES`: a name
+    over it has its longest placeholder value shortened, so the template's own
+    literals (like the braces around `{{Narrator}}`) survive.
     """
     if not template:
         return ""
 
     # Normalize metadata keys to lowercase for case-insensitive matching
     normalized = {k.lower(): v for k, v in metadata.items()}
+    caps: dict[str, int] = {}
+
+    def render() -> tuple[str, dict[str, str]]:
+        return _render_naming_template(
+            template,
+            normalized,
+            caps,
+            allow_path_separators=allow_path_separators,
+            word_separator=word_separator,
+        )
+
+    result, values = render()
+    for _ in range(len(KNOWN_TOKENS)):
+        overlong = next(
+            (segment for segment in result.split("/") if _byte_length(segment) > MAX_SEGMENT_BYTES),
+            None,
+        )
+        if overlong is None:
+            return result
+        candidates = [
+            (_byte_length(value), name)
+            for name, value in values.items()
+            if value and value in overlong and caps.get(name, MAX_SEGMENT_BYTES + 1) > 1
+        ]
+        if not candidates:
+            break
+        length, name = max(candidates)
+        excess = _byte_length(overlong) - MAX_SEGMENT_BYTES
+        caps[name] = max(length - excess, 1)
+        result, values = render()
+
+    # Nothing left to shorten (or long literal text): cut the names themselves.
+    segments = (
+        SEGMENT_EDGE_SEPARATORS.sub("", _cut_to_bytes(segment, MAX_SEGMENT_BYTES))
+        for segment in result.split("/")
+    )
+    return "/".join(segment for segment in segments if segment)
+
+
+def _render_naming_template(
+    template: str,
+    normalized: Mapping[str, str | int | float | None],
+    caps: Mapping[str, int],
+    *,
+    allow_path_separators: bool,
+    word_separator: str,
+) -> tuple[str, dict[str, str]]:
+    """Render `template` once; also return each placeholder's rendered value."""
+    rendered_values: dict[str, str] = {}
 
     def find_placeholder(content: str) -> tuple[str | None, int]:
         content_lower = content.lower()
@@ -276,6 +378,9 @@ def parse_naming_template(
         if not allow_path_separators:
             value = value.replace("/", "_")
         value = sanitize_filename(value)
+        if placeholder_name in caps:
+            value = _shorten_value(placeholder_name, value, caps[placeholder_name])
+        rendered_values[placeholder_name] = value
         return f"{prefix}{value}{suffix}"
 
     # Process brace blocks in order so we can support conditional literal blocks like:
@@ -334,7 +439,7 @@ def parse_naming_template(
     # Trim each folder name too, not just the ends of the whole path, and drop
     # folders an empty token left blank.
     segments = (SEGMENT_EDGE_SEPARATORS.sub("", segment) for segment in result.split("/"))
-    return "/".join(segment for segment in segments if segment)
+    return "/".join(segment for segment in segments if segment), rendered_values
 
 
 def build_library_path(

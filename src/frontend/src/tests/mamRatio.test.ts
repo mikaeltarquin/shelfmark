@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Release } from '../types';
-import { projectRatio, releaseChargeBytes, type MamRatioSnapshot } from '../utils/mamRatio';
+import {
+  projectRatio,
+  releaseChargeBytes,
+  unsatSlotsFull,
+  type MamRatioSnapshot,
+} from '../utils/mamRatio';
 
 const GIB = 1024 ** 3;
 
@@ -91,5 +96,29 @@ describe('unsatisfied projection', () => {
 
   it('is left out when MAM reports no limit', () => {
     expect(projectRatio(snapshot, [release(1)])?.unsat).toBeNull();
+  });
+});
+
+const slotsSnapshot = (fields: Partial<MamRatioSnapshot>): MamRatioSnapshot => ({
+  available: true,
+  unsat_count: 8,
+  unsat_limit: 10,
+  unsat_pending: 0,
+  unsat_reserve: 0,
+  ...fields,
+});
+
+describe('unsatSlotsFull', () => {
+  it('is full once unsatisfied and queued torrents reach the limit less the kept slots', () => {
+    expect(unsatSlotsFull(slotsSnapshot({}))).toBe(false);
+    expect(unsatSlotsFull(slotsSnapshot({ unsat_count: 10 }))).toBe(true);
+    expect(unsatSlotsFull(slotsSnapshot({ unsat_pending: 2 }))).toBe(true);
+    expect(unsatSlotsFull(slotsSnapshot({ unsat_reserve: 2 }))).toBe(true);
+  });
+
+  it('is not full when the counts are unknown', () => {
+    expect(unsatSlotsFull(null)).toBe(false);
+    expect(unsatSlotsFull({ available: false })).toBe(false);
+    expect(unsatSlotsFull(slotsSnapshot({ unsat_limit: null }))).toBe(false);
   });
 });

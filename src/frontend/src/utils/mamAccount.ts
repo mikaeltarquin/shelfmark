@@ -173,6 +173,15 @@ export const formatHoursMinutes = (seconds: number): string => {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 };
 
+/** A live countdown: "2:05:13", or "4:09" under an hour. */
+export const formatCountdown = (seconds: number): string => {
+  const total = Math.max(0, Math.ceil(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+};
+
 /** "Next slot in 2:05 · 2 slots in the next 6 hours", or why there's nothing to wait for. */
 export const describeUnsatTiming = (timing: MamUnsatTiming | null): string | null => {
   if (!timing?.available) return null;

@@ -2062,6 +2062,10 @@ function App() {
       onRemove={(item) => savedStore.remove(item)}
       onRefresh={savedStore.refresh}
       onAutoGet={savedStore.setAutoGet}
+      onOpenDetails={(item) => {
+        setDetailsNotice(null);
+        void showBookDetails(item.book, item.book.id);
+      }}
     />
   );
   const savedCounts: Record<SavedStage, number> = {
@@ -2889,7 +2893,8 @@ function App() {
             void handleOpenActivityDetails(item);
           }}
           onOpenInLibrary={
-            requestRoleIsAdmin
+            // Without login everyone is an admin, as the backend's admin check treats them.
+            requestRoleIsAdmin || !authRequired
               ? (item) => {
                   void handleOpenInLibrary(item);
                 }

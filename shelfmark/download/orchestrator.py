@@ -786,6 +786,9 @@ def _format_download_exception_message(exc: BaseException) -> str:
         return "Destination misconfigured. Go to Settings → Downloads to update."
     if isinstance(exc, PermissionError):
         return f"Permission denied: {exc}"
+    if isinstance(exc, OSError) and exc.strerror:
+        # "OSError" alone gives no hint; the reason ("File name too long") does.
+        return f"Download failed: {exc.strerror}"
     return f"Download failed: {type(exc).__name__}"
 
 

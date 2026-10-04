@@ -33,6 +33,8 @@ interface SavedPanelProps {
   // Re-reads the list, for what the background checks found since.
   onRefresh: () => Promise<void>;
   onAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
+  // Opens the book's details, as clicking a book does on the other pages.
+  onOpenDetails?: (item: SavedItem) => void;
 }
 
 const AutoGetControls = ({
@@ -105,6 +107,7 @@ const SavedRow = ({
   onGet,
   onRemove,
   onAutoGet,
+  onOpenDetails,
 }: { item: SavedItem } & Omit<SavedPanelProps, 'items' | 'loaded' | 'onRefresh'>) => {
   const [busy, setBusy] = useState<'get' | 'remove' | null>(null);
   const run = async (action: 'get' | 'remove') => {
@@ -118,15 +121,26 @@ const SavedRow = ({
   const picks = describeSavedPick(item);
   const allPicks = describeSavedPick(item, { full: true });
   const saved = Date.parse(item.created_at);
+  const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
 
   return (
     <tr className={rowClassName}>
       <td className={`${cellClassName} w-12`}>
-        <RowCover src={coverUrl(item.book.preview)} title={item.title} />
+        <RowCover src={coverUrl(item.book.preview)} title={item.title} onClick={openDetails} />
       </td>
       <td className={`${cellClassName} max-w-[22rem] min-w-[12rem]`}>
         <p className="truncate font-medium" title={item.title}>
-          {item.title}
+          {openDetails ? (
+            <button
+              type="button"
+              onClick={openDetails}
+              className="text-left hover:underline focus-visible:underline"
+            >
+              {item.title}
+            </button>
+          ) : (
+            item.title
+          )}
         </p>
         {item.author && (
           <p className="truncate text-xs opacity-60" title={item.author}>
@@ -205,6 +219,7 @@ export const SavedPanel = ({
   onRemove,
   onRefresh,
   onAutoGet,
+  onOpenDetails,
 }: SavedPanelProps & { stage: SavedStage }) => {
   useMountEffect(() => {
     void onRefresh();
@@ -229,6 +244,7 @@ export const SavedPanel = ({
       onGet={onGet}
       onRemove={onRemove}
       onAutoGet={onAutoGet}
+      onOpenDetails={onOpenDetails}
     />
   );
 };
@@ -240,6 +256,7 @@ const SavedTable = ({
   onGet,
   onRemove,
   onAutoGet,
+  onOpenDetails,
 }: Omit<SavedPanelProps, 'loaded' | 'onRefresh'> & { stage: SavedStage }) => {
   const [sort, setSort] = useState<SortState<SavedSortKey>>({ key: 'saved', direction: 'desc' });
   return (
@@ -281,6 +298,7 @@ const SavedTable = ({
                 onGet={onGet}
                 onRemove={onRemove}
                 onAutoGet={onAutoGet}
+                onOpenDetails={onOpenDetails}
               />
             ))}
           </tbody>

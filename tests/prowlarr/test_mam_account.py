@@ -79,8 +79,18 @@ class TestParsing:
         stats = mam_account.parse_stats(USER)
         assert stats.uploaded_bytes == int(120.5 * GIB)
         assert stats.buffer_bytes == int(80.5 * GIB)
-        assert stats.ratio == pytest.approx(3.01)
+        assert stats.ratio == pytest.approx(120.5 / 40)
         assert stats.seedbonus == 61250
+
+    def test_ratio_from_byte_counts_is_finer_than_the_ratio_text(self):
+        stats = mam_account.parse_stats(
+            {**USER, "uploaded_bytes": 133 * GIB, "downloaded_bytes": 100 * GIB, "ratio": "1.3"}
+        )
+        assert stats.ratio == pytest.approx(1.33)
+
+    def test_ratio_text_when_nothing_downloaded(self):
+        stats = mam_account.parse_stats({**USER, "downloaded_bytes": 0, "ratio": "Inf."})
+        assert stats.ratio == float("inf")
 
     def test_stats_from_size_strings(self):
         stats = mam_account.parse_stats(

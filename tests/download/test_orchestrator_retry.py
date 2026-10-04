@@ -332,3 +332,19 @@ def test_get_book_path_reports_a_missing_file_rather_than_a_dead_path(monkeypatc
 
     assert path is None
     assert returned_task is task
+
+
+def test_os_error_message_names_the_reason():
+    import errno
+
+    import shelfmark.download.orchestrator as orchestrator
+
+    exc = OSError(errno.ENAMETOOLONG, "File name too long", "/data/media/books/x")
+    assert (
+        orchestrator._format_download_exception_message(exc)
+        == "Download failed: File name too long"
+    )
+    assert (
+        orchestrator._format_download_exception_message(RuntimeError("boom"))
+        == "Download failed: RuntimeError"
+    )

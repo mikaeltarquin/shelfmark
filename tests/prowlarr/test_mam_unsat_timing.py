@@ -58,6 +58,19 @@ def test_reads_the_configured_client(monkeypatch):
     assert timing["next_seconds"] == HOUR
 
 
+def test_cached_timing_counts_down(monkeypatch):
+    client = SimpleNamespace(
+        name="deluge", list_tracker_torrents=MagicMock(return_value=[_torrent(71)])
+    )
+    _use_client(monkeypatch, client)
+    clock = [1_000_000.0]
+    monkeypatch.setattr(mam_account.time, "time", lambda: clock[0])
+    assert mam_account.unsat_timing()["next_seconds"] == HOUR
+    clock[0] += 45
+    assert mam_account.unsat_timing()["next_seconds"] == HOUR - 45
+    client.list_tracker_torrents.assert_called_once()
+
+
 def test_a_client_without_seeding_time(monkeypatch):
     _use_client(monkeypatch, SimpleNamespace(name="rtorrent", list_tracker_torrents=lambda t: None))
     timing = mam_account.unsat_timing()
