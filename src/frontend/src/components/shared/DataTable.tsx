@@ -69,9 +69,13 @@ export const rowClassName =
   'border-b border-[color-mix(in_srgb,var(--border-muted)_60%,transparent)] align-middle transition-colors hover:bg-(--hover-row)';
 export const cellClassName = 'px-3 py-2';
 
-/** The table in its card, scrolling sideways on a narrow screen rather than squashing. */
+/**
+ * The table in its card, scrolling sideways on a narrow screen rather than squashing.
+ * `relative` keeps absolutely placed content (the screen-reader-only header labels)
+ * inside the scroll, rather than widening the whole page on a phone.
+ */
 export const TableFrame = ({ children }: { children: ReactNode }) => (
-  <div className="overflow-x-auto rounded-xl border border-(--border-muted) bg-(--bg-soft)">
+  <div className="relative overflow-x-auto rounded-xl border border-(--border-muted) bg-(--bg-soft)">
     {children}
   </div>
 );

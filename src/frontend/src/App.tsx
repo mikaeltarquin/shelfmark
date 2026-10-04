@@ -88,6 +88,7 @@ import {
   setBookTargetState,
   checkMamBuffer,
   getMamRatio,
+  reorderDownloadQueue,
   type DownloadReleasePayload,
   type DynamicFieldOption,
 } from './services/api';
@@ -112,7 +113,7 @@ import type {
 } from './types';
 import { isMetadataBook } from './types';
 import { formatActingAsUserName } from './utils/actingAsUser';
-import { getActivityBadgeState } from './utils/activityBadge';
+import { getActivityBadges } from './utils/activityBadge';
 import { findActivityBook, findLibraryLink } from './utils/activityBook';
 import { buildLoginRedirectPath, getReturnToFromSearch } from './utils/authRedirect';
 import { withBasePath } from './utils/basePath';
@@ -785,8 +786,9 @@ function App() {
         .length;
     };
 
+    // Waiting to start: listed on the Queued page, not under Downloads.
+    const queued = countVisibleDownloads(activitySidebarStatus.queued, { filterDismissed: false });
     const ongoing = [
-      activitySidebarStatus.queued,
       activitySidebarStatus.resolving,
       activitySidebarStatus.locating,
       activitySidebarStatus.downloading,
@@ -805,6 +807,7 @@ function App() {
     }).length;
 
     return {
+      queued,
       ongoing,
       completed,
       errored,
@@ -2052,6 +2055,15 @@ function App() {
   };
 
   // Saved items in two Activity tabs: queued to download on their own, and kept for later.
+  const handleReorderDownloads = async (ids: string[]) => {
+    try {
+      await reorderDownloadQueue(ids);
+    } catch (error) {
+      showToast(getErrorMessage(error, 'Could not reorder the queue'), 'error');
+      throw error;
+    }
+  };
+
   const savedPanelFor = (stage: SavedStage) => (
     <SavedPanel
       stage={stage}
@@ -2066,6 +2078,9 @@ function App() {
         setDetailsNotice(null);
         void showBookDetails(item.book, item.book.id);
       }}
+      // Queued: numbered on from the downloads up next, which go first.
+      onReorder={stage === 'queued' ? savedStore.reorder : undefined}
+      positionOffset={stage === 'queued' ? statusCounts.queued : 0}
     />
   );
   const savedCounts: Record<SavedStage, number> = {
@@ -2764,14 +2779,11 @@ function App() {
       : null;
   const settingsRoute = parseSettingsRoute(location.pathname);
   const activeSettingsCategory = resolveSettingsCategory(settingsRoute.category);
-  const activityBadge = getActivityBadgeState(statusCounts, requestRoleIsAdmin);
-  const downloadCount = statusCounts.ongoing + statusCounts.completed + statusCounts.errored;
-  let downloadBadgeClass = 'bg-green-500 text-white';
-  if (statusCounts.errored > 0) {
-    downloadBadgeClass = 'bg-red-500 text-white';
-  } else if (statusCounts.ongoing > 0) {
-    downloadBadgeClass = 'bg-blue-500 text-white';
-  }
+  const activityBadges = getActivityBadges(statusCounts, {
+    isAdmin: requestRoleIsAdmin,
+    savedQueued: savedCounts.queued,
+    requestsTab: pendingRequestCount,
+  });
   const navItems: NavItem[] = [
     { key: 'search', label: 'Search', icon: 'search', to: '/', active: section === 'search' },
     ...(libraryAvailable
@@ -2791,27 +2803,16 @@ function App() {
       icon: 'activity',
       to: '/activity/downloads',
       active: section === 'activity',
-      badge: activityBadge
-        ? {
-            count: activityBadge.total,
-            className: `${activityBadge.colorClass} text-white`,
-            title: activityBadge.title,
-          }
-        : null,
+      // Open, its pages show their own counts; this one would only repeat them.
+      badge: section === 'activity' ? null : activityBadges.activity,
       children: visibleActivityTabs.map((tab) => {
         let badge = null;
         if (tab === 'queued') {
-          badge = {
-            count: savedCounts.queued,
-            className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-          };
+          badge = activityBadges.queued;
         } else if (tab === 'downloads') {
-          badge = { count: downloadCount, className: downloadBadgeClass };
+          badge = activityBadges.downloads;
         } else if (tab === 'requests') {
-          badge = {
-            count: pendingRequestCount,
-            className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-          };
+          badge = activityBadges.requests;
         }
         return {
           key: tab,
@@ -2887,6 +2888,7 @@ function App() {
           key={activityTab}
           tab={activityTab}
           queuedPanel={savedPanelFor('queued')}
+          onReorderDownloads={handleReorderDownloads}
           status={activitySidebarStatus}
           isAdmin={requestRoleIsAdmin}
           onOpenDetails={(item) => {

@@ -35,6 +35,7 @@ export interface SavedItem {
   last_error: string | null;
   auto_status: string | null; // Why an automatic download is still waiting
   auto_checked_at: string | null;
+  queue_position: number | null; // Place in the download queue, as the user ordered it
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +78,21 @@ export type SavedStage = 'queued' | 'later';
 
 export const savedStage = (item: Pick<SavedItem, 'releases' | 'auto_get'>): SavedStage =>
   item.releases.length > 0 && item.auto_get ? 'queued' : 'later';
+
+/**
+ * Items queued to download on their own, in the order they get first claim on room:
+ * the ones the user placed, then the rest oldest first (as the server checks them).
+ */
+export const queueOrder = <T extends Pick<SavedItem, 'id' | 'queue_position' | 'created_at'>>(
+  items: readonly T[],
+): T[] =>
+  items.toSorted((a, b) => {
+    const aPos = a.queue_position ?? Number.POSITIVE_INFINITY;
+    const bPos = b.queue_position ?? Number.POSITIVE_INFINITY;
+    if (aPos !== bPos) return aPos - bPos;
+    if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+    return a.id - b.id;
+  });
 
 export const SAVED_STAGE_LABELS: Record<SavedStage, string> = {
   queued: 'Queued for download',

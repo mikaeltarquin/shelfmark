@@ -1060,7 +1060,11 @@ def set_book_priority(book_id: str, priority: int) -> bool:
 
 def reorder_queue(book_priorities: dict[str, int]) -> bool:
     """Bulk reorder queue by mapping book_id to new priority."""
-    return book_queue.reorder_queue(book_priorities)
+    result = book_queue.reorder_queue(book_priorities)
+    # Pages show the queue in priority order: let them see the new one.
+    if result and ws_manager and ws_manager.is_enabled():
+        ws_manager.broadcast_status_update(queue_status())
+    return result
 
 
 def get_queue_order() -> list[dict[str, Any]]:
@@ -1178,9 +1182,21 @@ def _hold_for_slot(task_id: str) -> bool:
 
 
 def held_for_slot() -> list[str]:
-    """Downloads waiting for an unsatisfied slot, longest waiting first."""
+    """Downloads waiting for an unsatisfied slot, in queue order.
+
+    The queue's own order (priority, as the user arranged it, then when added), with
+    the longest waiting first among equals.
+    """
+
+    def order(item: tuple[str, float]) -> tuple[int, float, float]:
+        task = book_queue.get_task(item[0])
+        if task is None:
+            return (0, 0.0, item[1])
+        return (task.priority, task.added_time, item[1])
+
     with _held_lock:
-        return [task_id for task_id, _ in sorted(_held_for_slot.items(), key=lambda kv: kv[1])]
+        waiting = list(_held_for_slot.items())
+    return [task_id for task_id, _ in sorted(waiting, key=order)]
 
 
 def release_held_downloads() -> list[str]:

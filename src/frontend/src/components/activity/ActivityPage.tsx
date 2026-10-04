@@ -7,6 +7,7 @@ import type { DownloadStatusKey } from './activityMappers';
 import { downloadToActivityItem } from './activityMappers';
 import { ActivityTable } from './ActivityTable';
 import type { ActivityItem } from './activityTypes';
+import { DownloadQueue, downloadQueueOrder } from './DownloadQueue';
 
 interface ActivityPageProps {
   tab: ActivityTabKey;
@@ -41,6 +42,8 @@ interface ActivityPageProps {
   onRequestDismiss?: (requestId: number) => void;
   // The saved items queued to download on their own, for the Queued page.
   queuedPanel?: ReactNode;
+  /** Puts the queued downloads in this order (download ids, first to start first). */
+  onReorderDownloads?: (ids: string[]) => Promise<void>;
 }
 
 export interface ActivityDismissTarget {
@@ -195,6 +198,10 @@ const getItemUsername = (item: ActivityItem): string | null => {
   return normalized || null;
 };
 
+// Downloads waiting to start are the front of the queue: on Queued, not Downloads.
+const isQueuedDownload = (item: ActivityItem) =>
+  item.kind === 'download' && item.visualStatus === 'queued';
+
 const EMPTY_KEYS: string[] = [];
 const EMPTY_ITEMS: ActivityItem[] = [];
 
@@ -222,6 +229,7 @@ export const ActivityPage = ({
   onRequestReject,
   onRequestDismiss,
   queuedPanel,
+  onReorderDownloads,
 }: ActivityPageProps) => {
   const [selectedUser, setSelectedUser] = useState(ALL_USERS_FILTER);
   const [rejectingRequest, setRejectingRequest] = useState<{ requestId: number } | null>(null);
@@ -336,7 +344,12 @@ export const ActivityPage = ({
     };
   }, [downloadItems, visibleRequestItems]);
 
-  let baseVisibleItems = mergedDownloadItems;
+  const queuedDownloadItems = useMemo(
+    () => downloadQueueOrder(mergedDownloadItems.filter(isQueuedDownload)),
+    [mergedDownloadItems],
+  );
+
+  let baseVisibleItems = mergedDownloadItems.filter((item) => !isQueuedDownload(item));
   if (effectiveActiveTab === 'requests') {
     baseVisibleItems = mergedRequestItems.filter((item) => {
       const requestStatus = item.requestRecord?.status;
@@ -553,7 +566,42 @@ export const ActivityPage = ({
       <div className={effectiveActiveTab === 'requests' ? 'max-w-4xl' : undefined}>
         {(() => {
           if (effectiveActiveTab === 'queued') {
-            return queuedPanel;
+            if (queuedDownloadItems.length === 0) {
+              return queuedPanel;
+            }
+            return (
+              <div className="space-y-6">
+                <section aria-labelledby="queue-up-next" className="space-y-2">
+                  <h2
+                    id="queue-up-next"
+                    className="text-[11px] font-semibold tracking-wide uppercase opacity-70"
+                  >
+                    Up next
+                  </h2>
+                  <p className="text-xs opacity-60">
+                    These start in this order as soon as there&apos;s room: a free download slot, or
+                    an unsatisfied slot on MyAnonamouse.
+                  </p>
+                  <DownloadQueue
+                    items={queuedDownloadItems}
+                    onReorder={onReorderDownloads}
+                    onCancel={onCancel}
+                    onOpenDetails={onOpenDetails}
+                  />
+                </section>
+                {queuedPanel && (
+                  <section aria-labelledby="queue-waiting" className="space-y-2">
+                    <h2
+                      id="queue-waiting"
+                      className="text-[11px] font-semibold tracking-wide uppercase opacity-70"
+                    >
+                      Waiting for room
+                    </h2>
+                    {queuedPanel}
+                  </section>
+                )}
+              </div>
+            );
           }
           if (visibleItems.length === 0) {
             return <p className="mt-8 text-center text-sm opacity-70">{emptyStateMessage}</p>;

@@ -42,6 +42,7 @@ export interface ActivityItem {
   downloadBookId?: string;
   downloadRetryAvailable?: boolean;
   downloadPath?: string;
+  queuePriority?: number; // A queued download's place in line, lower first
   bookKey?: string; // The metadata book it was downloaded for ("hardcover:42")
   contentType?: string;
   infoUrl?: string; // The release's page at its source (the MAM torrent page)

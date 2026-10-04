@@ -125,6 +125,22 @@ def register_saved_routes(
             on_auto_get()
         return jsonify(updated)
 
+    @app.route("/api/saved/reorder", methods=["POST"])
+    @login_required
+    def api_saved_reorder() -> Response | tuple[Response, int]:
+        """Set the order the queued items get first claim on room: {"ids": [...]}."""
+        owner = _owner(resolve_auth_mode)
+        if owner is None:
+            return _no_owner()
+        ids = (request.get_json(silent=True) or {}).get("ids")
+        if not isinstance(ids, list) or not all(
+            isinstance(i, int) and not isinstance(i, bool) for i in ids
+        ):
+            return jsonify({"error": "ids must be a list of item ids"}), 400
+        if not service.reorder(owner, ids):
+            return jsonify({"error": "ids must be your items queued for download"}), 400
+        return jsonify({"items": service.list_items(owner)})
+
     @app.route("/api/saved/<int:item_id>", methods=["DELETE"])
     @login_required
     def api_saved_delete(item_id: int) -> Response | tuple[Response, int]:

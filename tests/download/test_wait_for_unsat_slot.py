@@ -193,3 +193,13 @@ def test_a_failed_import_of_a_finished_torrent_fails_instead_of_waiting(
 
     assert queue.get_task_status("t1") == QueueStatus.ERROR
     assert orchestrator.held_for_slot() == []
+
+
+def test_waiting_downloads_go_in_queue_order(queue, slots, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", lambda _t, _f: None)
+    for task_id in ("a", "b", "c"):
+        orchestrator._process_single_download(task_id, _add(queue, task_id))
+    assert queue.reorder_queue({"c": -3, "a": -2, "b": -1})
+    assert orchestrator.held_for_slot() == ["c", "a", "b"]
+    slots["free"] = 1
+    assert orchestrator.release_held_downloads() == ["c"]

@@ -279,3 +279,58 @@ class TestAutoGetRoute:
         mismatched = client.patch(f"/api/saved/{item['id']}", json={"payloads": [{}, {}]})
         assert mismatched.status_code == 400
         assert client.patch("/api/saved/999", json={"auto_get": True}).status_code == 404
+
+
+class TestQueueOrder:
+    def _queued(self, service, owner, count):
+        ids = []
+        for index in range(count):
+            item = service.save(
+                owner,
+                book={**BOOK, "provider_id": str(index)},
+                content_type="ebook",
+                releases=[{"content_type": "ebook", "release": RELEASE}],
+                payloads=[{"source": "prowlarr", "source_id": "r1"}],
+            )
+            service.update(owner, item["id"], auto_get=True)
+            ids.append(item["id"])
+        return ids
+
+    def _order(self, service):
+        return [item["id"] for item in service.list_auto_items()]
+
+    def test_queued_oldest_first_until_reordered(self, service):
+        a, b, c = self._queued(service, "user:1", 3)
+        assert self._order(service) == [a, b, c]
+        assert service.reorder("user:1", [c, a])
+        assert self._order(service) == [c, a, b]
+        assert service.get_item("user:1", c)["queue_position"] == 1
+
+    def test_newly_queued_items_join_at_the_back(self, service):
+        a, b = self._queued(service, "user:1", 2)
+        service.reorder("user:1", [b, a])
+        (c,) = self._queued(service, "user:2", 1)
+        assert self._order(service) == [b, a, c]
+
+    def test_requeued_items_lose_their_place(self, service):
+        a, b = self._queued(service, "user:1", 2)
+        service.reorder("user:1", [b, a])
+        service.update("user:1", b, auto_get=False)
+        service.update("user:1", b, auto_get=True)
+        assert self._order(service) == [a, b]
+
+    def test_refuses_ids_that_are_not_the_owners_queued_items(self, service):
+        a, b = self._queued(service, "user:1", 2)
+        (other,) = self._queued(service, "user:2", 1)
+        assert not service.reorder("user:1", [a, other])
+        assert not service.reorder("user:1", [a, a])
+        assert self._order(service) == [a, b, other]
+
+    def test_route(self, service):
+        a, b = self._queued(service, NOAUTH_OWNER, 2)
+        client = _app(service, "none").test_client()
+        response = client.post("/api/saved/reorder", json={"ids": [b, a]})
+        assert response.status_code == 200
+        assert self._order(service) == [b, a]
+        assert client.post("/api/saved/reorder", json={"ids": "x"}).status_code == 400
+        assert client.post("/api/saved/reorder", json={"ids": [999]}).status_code == 400

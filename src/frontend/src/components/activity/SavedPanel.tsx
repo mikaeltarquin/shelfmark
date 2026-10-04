@@ -7,6 +7,7 @@ import {
   SAVED_STAGE_LABELS,
   describeSavedPick,
   hasMamPick,
+  queueOrder,
   savedStage,
   type SavedItem,
   type SavedStage,
@@ -22,6 +23,7 @@ import {
   tableClassName,
   type SortState,
 } from '../shared/DataTable';
+import { QueueMoveButtons, QueuePosition, moveInList } from './QueueControls';
 
 interface SavedPanelProps {
   items: SavedItem[];
@@ -35,6 +37,19 @@ interface SavedPanelProps {
   onAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
   // Opens the book's details, as clicking a book does on the other pages.
   onOpenDetails?: (item: SavedItem) => void;
+  // Queued only: put the items in this order (ids, first claim on room first).
+  onReorder?: (ids: number[]) => Promise<void>;
+  // Queued only: how many downloads are ahead of these, to number on from.
+  positionOffset?: number;
+}
+
+// A queued row's place in line and its move buttons.
+interface RowQueue {
+  position: number;
+  isFirst: boolean;
+  isLast: boolean;
+  disabled: boolean;
+  onMove?: (delta: number) => void;
 }
 
 const AutoGetControls = ({
@@ -108,7 +123,11 @@ const SavedRow = ({
   onRemove,
   onAutoGet,
   onOpenDetails,
-}: { item: SavedItem } & Omit<SavedPanelProps, 'items' | 'loaded' | 'onRefresh'>) => {
+  queue,
+}: { item: SavedItem; queue?: RowQueue } & Omit<
+  SavedPanelProps,
+  'items' | 'loaded' | 'onRefresh' | 'onReorder' | 'positionOffset'
+>) => {
   const [busy, setBusy] = useState<'get' | 'remove' | null>(null);
   const run = async (action: 'get' | 'remove') => {
     setBusy(action);
@@ -125,6 +144,22 @@ const SavedRow = ({
 
   return (
     <tr className={rowClassName}>
+      {queue && (
+        <td className={`${cellClassName} w-8`}>
+          <div className="flex items-center gap-1">
+            {queue.onMove && (
+              <QueueMoveButtons
+                title={item.title}
+                isFirst={queue.isFirst}
+                isLast={queue.isLast}
+                disabled={queue.disabled}
+                onMove={queue.onMove}
+              />
+            )}
+            <QueuePosition position={queue.position} />
+          </div>
+        </td>
+      )}
       <td className={`${cellClassName} w-12`}>
         <RowCover src={coverUrl(item.book.preview)} title={item.title} onClick={openDetails} />
       </td>
@@ -220,6 +255,8 @@ export const SavedPanel = ({
   onRefresh,
   onAutoGet,
   onOpenDetails,
+  onReorder,
+  positionOffset = 0,
 }: SavedPanelProps & { stage: SavedStage }) => {
   useMountEffect(() => {
     void onRefresh();
@@ -228,6 +265,9 @@ export const SavedPanel = ({
     return <p className="mt-8 text-center text-sm opacity-70">Loading…</p>;
   }
   const staged = items.filter((item) => savedStage(item) === stage);
+  if (staged.length === 0 && positionOffset > 0) {
+    return <p className="text-xs opacity-60">No saved picks are waiting for room.</p>;
+  }
   if (staged.length === 0) {
     return (
       <div className="mt-8 space-y-1 text-center text-sm opacity-70">
@@ -245,6 +285,8 @@ export const SavedPanel = ({
       onRemove={onRemove}
       onAutoGet={onAutoGet}
       onOpenDetails={onOpenDetails}
+      onReorder={onReorder}
+      positionOffset={positionOffset}
     />
   );
 };
@@ -257,43 +299,89 @@ const SavedTable = ({
   onRemove,
   onAutoGet,
   onOpenDetails,
+  onReorder,
+  positionOffset = 0,
 }: Omit<SavedPanelProps, 'loaded' | 'onRefresh'> & { stage: SavedStage }) => {
   const [sort, setSort] = useState<SortState<SavedSortKey>>({ key: 'saved', direction: 'desc' });
+  const [moving, setMoving] = useState(false);
+  // Queued items are in line: shown in the order they get room, not sortable.
+  const inLine = stage === 'queued';
+  const rows = inLine ? queueOrder(items) : sortRows(items, sort, savedSortValue);
+  const move = async (index: number, delta: number) => {
+    if (!onReorder) return;
+    setMoving(true);
+    try {
+      await onReorder(
+        moveInList(
+          rows.map((item) => item.id),
+          index,
+          delta,
+        ),
+      );
+    } finally {
+      setMoving(false);
+    }
+  };
   return (
     <section aria-label={SAVED_STAGE_LABELS[stage]} className="space-y-2">
       <p className="text-xs opacity-60">
         {stage === 'queued'
-          ? "Each downloads on its own once there's room."
+          ? "Each downloads on its own once there's room, checked in this order: one that doesn't fit yet doesn't hold up the ones after it."
           : 'Get one with + Get whenever you want it.'}
       </p>
       <TableFrame>
         <table className={tableClassName}>
           <thead>
             <tr className={headerRowClassName}>
+              {inLine && <HeaderCell label="#" className="w-8" />}
               <th scope="col" className={cellClassName}>
                 <span className="sr-only">Cover</span>
               </th>
-              <HeaderCell label="Title" sortKey="title" sort={sort} onSort={setSort} />
-              <HeaderCell label="Releases" sortKey="picks" sort={sort} onSort={setSort} />
+              {inLine ? (
+                <>
+                  <HeaderCell label="Title" />
+                  <HeaderCell label="Releases" />
+                </>
+              ) : (
+                <>
+                  <HeaderCell label="Title" sortKey="title" sort={sort} onSort={setSort} />
+                  <HeaderCell label="Releases" sortKey="picks" sort={sort} onSort={setSort} />
+                </>
+              )}
               {autoGetAvailable && <HeaderCell label="Automatic download" />}
-              <HeaderCell
-                label="Saved"
-                sortKey="saved"
-                sort={sort}
-                onSort={setSort}
-                initialDirection="desc"
-                className="hidden sm:table-cell"
-              />
+              {inLine ? (
+                <HeaderCell label="Saved" className="hidden sm:table-cell" />
+              ) : (
+                <HeaderCell
+                  label="Saved"
+                  sortKey="saved"
+                  sort={sort}
+                  onSort={setSort}
+                  initialDirection="desc"
+                  className="hidden sm:table-cell"
+                />
+              )}
               <th scope="col" className={cellClassName}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
-            {sortRows(items, sort, savedSortValue).map((item) => (
+            {rows.map((item, index) => (
               <SavedRow
                 key={item.id}
                 item={item}
+                queue={
+                  inLine
+                    ? {
+                        position: positionOffset + index + 1,
+                        isFirst: index === 0,
+                        isLast: index === rows.length - 1,
+                        disabled: moving,
+                        onMove: onReorder ? (delta) => void move(index, delta) : undefined,
+                      }
+                    : undefined
+                }
                 autoGetAvailable={autoGetAvailable}
                 onGet={onGet}
                 onRemove={onRemove}

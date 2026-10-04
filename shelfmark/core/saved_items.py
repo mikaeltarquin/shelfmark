@@ -54,7 +54,13 @@ _ADDED_COLUMNS = {
     # that was last checked.
     "auto_status": "TEXT",
     "auto_checked_at": "TEXT",
+    # Place among the items queued to download on their own, as the user ordered them.
+    # Unset (newly queued) items follow the ordered ones, oldest first.
+    "queue_position": "INTEGER",
 }
+
+# Items queued to download on their own, in the order they get first claim on room.
+_QUEUE_ORDER = "queue_position IS NULL, queue_position, created_at, id"
 
 
 def user_owner(user_id: int) -> str:
@@ -120,6 +126,7 @@ def _row_to_item(row: sqlite3.Row) -> dict[str, Any]:
         "last_error": row["last_error"],
         "auto_status": row["auto_status"],
         "auto_checked_at": row["auto_checked_at"],
+        "queue_position": row["queue_position"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -283,6 +290,8 @@ class SavedItemsService:
             values.append(1 if auto_get else 0)
             if auto_status is None:
                 sets.append("auto_status = NULL")
+            if not auto_get:
+                sets.append("queue_position = NULL")  # Queued again, it joins at the back
         if conditions is not None:
             sets.append("conditions = ?")
             values.append(json.dumps(normalize_conditions(conditions)))
@@ -316,11 +325,11 @@ class SavedItemsService:
                 conn.close()
 
     def list_auto_items(self) -> list[dict[str, Any]]:
-        """Every owner's items marked for automatic download, oldest first, with payloads."""
+        """Every owner's items marked for automatic download, in queue order, with payloads."""
         conn = self._connect()
         try:
             rows = conn.execute(
-                "SELECT * FROM saved_items WHERE auto_get = 1 ORDER BY created_at, id"
+                f"SELECT * FROM saved_items WHERE auto_get = 1 ORDER BY {_QUEUE_ORDER}"  # noqa: S608 - fixed SQL
             ).fetchall()
             return [
                 {
@@ -332,6 +341,44 @@ class SavedItemsService:
             ]
         finally:
             conn.close()
+
+    def reorder(self, owner: str, item_ids: list[int]) -> bool:
+        """Put an owner's queued items in the order of `item_ids`.
+
+        Items not listed keep their places after the listed ones. False when an id isn't
+        one of the owner's queued items.
+        """
+        with self._lock:
+            conn = self._connect()
+            try:
+                queued = {
+                    row["id"]
+                    for row in conn.execute(
+                        "SELECT id FROM saved_items WHERE owner = ? AND auto_get = 1", (owner,)
+                    )
+                }
+                listed = set(item_ids)
+                if len(listed) != len(item_ids) or not listed <= queued:
+                    return False
+                rest = [
+                    row["id"]
+                    for row in conn.execute(
+                        f"SELECT id FROM saved_items WHERE owner = ? AND auto_get = 1 ORDER BY {_QUEUE_ORDER}",  # noqa: S608 - fixed SQL
+                        (owner,),
+                    )
+                    if row["id"] not in listed
+                ]
+                conn.executemany(
+                    "UPDATE saved_items SET queue_position = ? WHERE owner = ? AND id = ?",
+                    [
+                        (index, owner, item_id)
+                        for index, item_id in enumerate([*item_ids, *rest], 1)
+                    ],
+                )
+                conn.commit()
+                return True
+            finally:
+                conn.close()
 
     def keep_picks(
         self,

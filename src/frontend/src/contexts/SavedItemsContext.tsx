@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 import { useMountEffect } from '../hooks/useMountEffect';
-import { deleteSavedItem, getSavedItems, saveForLater, updateSavedItem } from '../services/api';
+import {
+  deleteSavedItem,
+  getSavedItems,
+  reorderSavedQueue,
+  saveForLater,
+  updateSavedItem,
+} from '../services/api';
 import type { Book, ContentType, Release } from '../types';
 import {
   savedBookKey,
@@ -28,6 +34,8 @@ export interface SavedItemsContextValue {
   remove: (item: SavedItem, options?: { quiet?: boolean }) => Promise<void>;
   /** Turn automatic downloading on or off. */
   setAutoGet: (item: SavedItem, changes: { auto_get: boolean }) => Promise<void>;
+  /** Put the queued items in this order (ids, first claim on room first). */
+  reorder: (ids: number[]) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -152,6 +160,29 @@ export const useSavedItemsStore = ({
     [onShowToast, replaceItem],
   );
 
+  const reorder = useCallback(
+    async (ids: number[]) => {
+      // Show the new order at once; the server's answer replaces it.
+      const positions = new Map(ids.map((id, index) => [id, index + 1]));
+      setItems((current) =>
+        current.map((item) =>
+          positions.has(item.id)
+            ? { ...item, queue_position: positions.get(item.id) ?? null }
+            : item,
+        ),
+      );
+      try {
+        const next = await reorderSavedQueue(ids);
+        lastSeen.current = next;
+        setItems(next);
+      } catch (error) {
+        onShowToast?.(error instanceof Error ? error.message : 'Could not reorder', 'error');
+        await refresh();
+      }
+    },
+    [onShowToast, refresh],
+  );
+
   return useMemo<SavedItemsContextValue>(() => {
     const byKey = new Map(items.map((item) => [item.book_key, item]));
     return {
@@ -165,9 +196,10 @@ export const useSavedItemsStore = ({
       savePicks: store,
       remove,
       setAutoGet,
+      reorder,
       refresh,
     };
-  }, [contentType, items, loaded, refresh, remove, setAutoGet, store]);
+  }, [contentType, items, loaded, refresh, remove, reorder, setAutoGet, store]);
 };
 
 // Re-read now and then, so items got automatically leave the list (with a toast).
