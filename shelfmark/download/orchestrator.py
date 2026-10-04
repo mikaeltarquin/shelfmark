@@ -1122,6 +1122,47 @@ def _mam_free_slots(task_id: str, *, refresh: bool = False) -> int | None:
     return mam_account.unsat_free_slots(exclude={task_id}, refresh=refresh)
 
 
+def _torrent_in_client(task_id: str) -> bool:
+    """Whether the task's torrent is in the torrent client already.
+
+    MAM counts such a torrent already, so it needs no new unsatisfied slot: a retry
+    after a failed import, say, only has to pick up the files.
+    """
+    task = book_queue.get_task(task_id)
+    if task is None:
+        return False
+    if task.original_download_path and Path(task.original_download_path).exists():
+        return True  # It finished in the client on an earlier attempt
+    url = task.retry_download_url
+    if not url or (task.retry_download_protocol or "torrent") != "torrent":
+        return False
+
+    import requests
+
+    from shelfmark.download.clients import get_client
+
+    try:
+        client = get_client("torrent")
+        return client is not None and client.find_existing(url) is not None
+    except (
+        ImportError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        requests.exceptions.RequestException,
+    ) as exc:
+        logger.debug("Could not look for %s in the torrent client: %s", task_id, exc)
+        return False
+
+
+def _needs_slot(task_id: str, *, refresh: bool = False) -> bool:
+    """Whether a MAM download has to wait: no slot is free and MAM doesn't have it yet."""
+    free = _mam_free_slots(task_id, refresh=refresh)
+    return free is not None and free < 1 and not _torrent_in_client(task_id)
+
+
 def _hold_for_slot(task_id: str) -> bool:
     """Send a picked-up MAM download back to wait for an unsatisfied slot."""
     if not book_queue.hold(task_id, UNSAT_WAIT_MESSAGE):
@@ -1209,10 +1250,8 @@ def _process_single_download(task_id: str, cancel_flag: Event) -> None:
     is_mam = bool(task and task.mam_torrent_id)
     with _held_lock:
         _held_for_slot.pop(task_id, None)  # Picked up: released, or retried by hand
-    if is_mam and not cancel_flag.is_set():
-        free = _mam_free_slots(task_id)
-        if free is not None and free < 1 and _hold_for_slot(task_id):
-            return
+    if is_mam and not cancel_flag.is_set() and _needs_slot(task_id) and _hold_for_slot(task_id):
+        return
 
     # Status will be updated through callbacks during download process
     # (resolving -> downloading -> complete)
@@ -1233,10 +1272,8 @@ def _process_single_download(task_id: str, cancel_flag: Event) -> None:
         book_queue.update_status(task_id, QueueStatus.COMPLETE)
     else:
         # A refused grab at the unsatisfied limit waits for a slot instead of failing.
-        if is_mam:
-            free = _mam_free_slots(task_id, refresh=True)
-            if free is not None and free < 1 and _hold_for_slot(task_id):
-                return
+        if is_mam and _needs_slot(task_id, refresh=True) and _hold_for_slot(task_id):
+            return
         _finalize_download_failure(task_id)
 
     # Broadcast final status (completed or error)

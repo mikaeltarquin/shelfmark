@@ -31,10 +31,14 @@ def slots(monkeypatch):
     return state
 
 
-def _add(queue: BookQueue, task_id: str, *, mam: bool = True) -> Event:
+def _add(queue: BookQueue, task_id: str, *, mam: bool = True, **fields) -> Event:
     queue.add(
         DownloadTask(
-            task_id=task_id, source="prowlarr", title=task_id, mam_torrent_id=7 if mam else None
+            task_id=task_id,
+            source="prowlarr",
+            title=task_id,
+            mam_torrent_id=7 if mam else None,
+            **fields,
         )
     )
     picked = queue.get_next()
@@ -115,4 +119,77 @@ def test_a_cancelled_wait_is_dropped(queue, slots, monkeypatch):
     queue.cancel_download("a")
     slots["free"] = 5
     assert orchestrator.release_held_downloads() == []
+    assert orchestrator.held_for_slot() == []
+
+
+class _Client:
+    """A torrent client holding the torrents for `present` URLs."""
+
+    def __init__(self, present: set[str], error: Exception | None = None):
+        self.present = present
+        self.error = error
+        self.looked_up: list[str] = []
+
+    def find_existing(self, url, category=None):
+        self.looked_up.append(url)
+        if self.error:
+            raise self.error
+        return ("hash", object()) if url in self.present else None
+
+
+def _use_client(monkeypatch, client):
+    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _protocol: client)
+
+
+def test_a_retry_whose_torrent_is_in_the_client_goes_without_a_slot(queue, slots, monkeypatch):
+    grabbed: list[str] = []
+    monkeypatch.setattr(orchestrator, "_download_task", lambda tid, _f: grabbed.append(tid) or "/x")
+    client = _Client({"https://mam/t/1.torrent"})
+    _use_client(monkeypatch, client)
+    flag = _add(queue, "t1", retry_download_url="https://mam/t/1.torrent")
+
+    orchestrator._process_single_download("t1", flag)
+
+    assert grabbed == ["t1"]
+    assert client.looked_up == ["https://mam/t/1.torrent"]
+    assert orchestrator.held_for_slot() == []
+
+
+def test_a_new_torrent_still_waits(queue, slots, monkeypatch):
+    grabbed: list[str] = []
+    monkeypatch.setattr(orchestrator, "_download_task", lambda tid, _f: grabbed.append(tid))
+    _use_client(monkeypatch, _Client(set()))
+    flag = _add(queue, "t1", retry_download_url="https://mam/t/2.torrent")
+
+    orchestrator._process_single_download("t1", flag)
+
+    assert grabbed == []
+    assert orchestrator.held_for_slot() == ["t1"]
+
+
+def test_a_client_that_cannot_be_asked_still_waits(queue, slots, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", lambda _t, _f: None)
+    _use_client(monkeypatch, _Client(set(), error=RuntimeError("connection refused")))
+    flag = _add(queue, "t1", retry_download_url="https://mam/t/1.torrent")
+
+    orchestrator._process_single_download("t1", flag)
+
+    assert orchestrator.held_for_slot() == ["t1"]
+
+
+def test_a_failed_import_of_a_finished_torrent_fails_instead_of_waiting(
+    queue, slots, monkeypatch, tmp_path
+):
+    def finished_then_failed(task_id, _flag):
+        queue.get_task(task_id).original_download_path = str(tmp_path)
+        slots["free"] = 0  # Full by the time the import fails
+        return None
+
+    slots["free"] = 1
+    monkeypatch.setattr(orchestrator, "_download_task", finished_then_failed)
+    flag = _add(queue, "t1")
+
+    orchestrator._process_single_download("t1", flag)
+
+    assert queue.get_task_status("t1") == QueueStatus.ERROR
     assert orchestrator.held_for_slot() == []
