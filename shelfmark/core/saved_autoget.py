@@ -11,9 +11,9 @@ it once all of these hold:
 - the ratio stays healthy, by one rule for every item rather than per-item settings:
   freeleech torrents (checked live on MAM) never touch the ratio, so they go as soon as
   there is room; anything else goes when the ratio afterwards is still at the target
-  (``SAVED_AUTO_GET_TARGET_RATIO``), or when it is small enough to barely move the ratio
-  (an ebook, say). The rest waits until the ratio recovers or the torrent turns
-  freeleech, whichever comes first.
+  (``SAVED_AUTO_GET_TARGET_RATIO``), or when it is an ebook-sized download (up to
+  ``SMALL_DOWNLOAD_BYTES``) that barely moves the ratio. The rest waits until the ratio
+  recovers or the torrent turns freeleech, whichever comes first.
 
 Items wait in order of saving, so earlier ones get the free slots first. Every check
 records why an item is still waiting, shown in the Saved tab.
@@ -49,7 +49,11 @@ _MIN_INTERVAL_MINUTES = 5
 _STARTUP_DELAY_SECONDS = 90
 _SOON_DELAY_SECONDS = 5
 _DEFAULT_TARGET_RATIO = 2.0
-# A download that lowers the ratio by less than this goes even below the target.
+# A small download (an ebook) that lowers the ratio by less than SMALL_RATIO_DROP goes even
+# below the target. Measured by size too, not by the drop alone: at 92 GiB up and 73 GiB
+# down (1.26), a 539 MB audiobook lowers the ratio by only 0.009, so each one went, one
+# after another, while the ratio sank below the target.
+SMALL_DOWNLOAD_BYTES = 100 * 1024**2
 SMALL_RATIO_DROP = 0.01
 
 
@@ -132,7 +136,9 @@ def _ratio_wait(stats: mam_account.MamStats, charge: int) -> str | None:
     downloaded = stats.downloaded_bytes + mam_account.pending_charge_bytes()
     before = _ratio(stats.uploaded_bytes, downloaded)
     after = _ratio(stats.uploaded_bytes, downloaded + charge)
-    if after >= target or before - after < SMALL_RATIO_DROP:
+    if after >= target:
+        return None
+    if charge <= SMALL_DOWNLOAD_BYTES and before - after < SMALL_RATIO_DROP:
         return None
     return (
         f"Waiting for freeleech or ratio {target:.2f}: {_size(charge)} would take it "
