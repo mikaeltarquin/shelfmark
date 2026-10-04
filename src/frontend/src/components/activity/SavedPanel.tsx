@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useMountEffect } from '../../hooks/useMountEffect';
+import { useRowDrag } from '../../hooks/useRowDrag';
 import { withBasePath } from '../../utils/basePath';
 import { formatDateTime, isoTimeAgo } from '../../utils/relativeTime';
 import {
@@ -23,7 +24,14 @@ import {
   tableClassName,
   type SortState,
 } from '../shared/DataTable';
-import { QueueMoveButtons, QueuePosition, moveInList } from './QueueControls';
+import {
+  DragHandle,
+  QueueMoveButtons,
+  QueuePosition,
+  moveInList,
+  moveToIndex,
+  type DragHandleProps,
+} from './QueueControls';
 
 interface SavedPanelProps {
   items: SavedItem[];
@@ -50,6 +58,8 @@ interface RowQueue {
   isLast: boolean;
   disabled: boolean;
   onMove?: (delta: number) => void;
+  handle?: DragHandleProps; // Present when the row can be dragged
+  row?: ReturnType<ReturnType<typeof useRowDrag>['rowProps']>;
 }
 
 const AutoGetControls = ({
@@ -143,10 +153,14 @@ const SavedRow = ({
   const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
 
   return (
-    <tr className={rowClassName}>
+    <tr
+      {...queue?.row}
+      className={`${rowClassName} data-dragging:bg-(--bg-soft) data-dragging:shadow-lg`}
+    >
       {queue && (
         <td className={`${cellClassName} w-8`}>
           <div className="flex items-center gap-1">
+            {queue.handle && <DragHandle {...queue.handle} disabled={queue.disabled} />}
             {queue.onMove && (
               <QueueMoveButtons
                 title={item.title}
@@ -307,21 +321,21 @@ const SavedTable = ({
   // Queued items are in line: shown in the order they get room, not sortable.
   const inLine = stage === 'queued';
   const rows = inLine ? queueOrder(items) : sortRows(items, sort, savedSortValue);
-  const move = async (index: number, delta: number) => {
+  const reorder = async (ids: number[]) => {
     if (!onReorder) return;
     setMoving(true);
     try {
-      await onReorder(
-        moveInList(
-          rows.map((item) => item.id),
-          index,
-          delta,
-        ),
-      );
+      await onReorder(ids);
     } finally {
       setMoving(false);
     }
   };
+  const rowIds = rows.map((item) => item.id);
+  const { handleProps, rowProps, previewIndex, dragging } = useRowDrag({
+    count: inLine ? rows.length : 0,
+    disabled: moving || !onReorder,
+    onDrop: (from, to) => void reorder(moveToIndex(rowIds, from, to)),
+  });
   return (
     <section aria-label={SAVED_STAGE_LABELS[stage]} className="space-y-2">
       <p className="text-xs opacity-60">
@@ -374,11 +388,15 @@ const SavedTable = ({
                 queue={
                   inLine
                     ? {
-                        position: positionOffset + index + 1,
+                        position: positionOffset + previewIndex(index) + 1,
                         isFirst: index === 0,
                         isLast: index === rows.length - 1,
-                        disabled: moving,
-                        onMove: onReorder ? (delta) => void move(index, delta) : undefined,
+                        disabled: moving || dragging,
+                        onMove: onReorder
+                          ? (delta) => void reorder(moveInList(rowIds, index, delta))
+                          : undefined,
+                        handle: onReorder ? handleProps(index) : undefined,
+                        row: rowProps(index),
                       }
                     : undefined
                 }

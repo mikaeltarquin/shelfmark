@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useRowDrag } from '../../hooks/useRowDrag';
 import {
   HeaderCell,
   RowCover,
@@ -10,7 +11,13 @@ import {
   tableClassName,
 } from '../shared/DataTable';
 import type { ActivityItem } from './activityTypes';
-import { QueueMoveButtons, QueuePosition, moveInList } from './QueueControls';
+import {
+  DragHandle,
+  QueueMoveButtons,
+  QueuePosition,
+  moveInList,
+  moveToIndex,
+} from './QueueControls';
 
 /** Queued downloads in the order they start: their place in line, then when added. */
 export const downloadQueueOrder = (items: readonly ActivityItem[]): ActivityItem[] =>
@@ -57,13 +64,8 @@ export const DownloadQueue = ({
         })
       : items;
 
-  const move = async (index: number, delta: number) => {
+  const reorder = async (next: string[]) => {
     if (!onReorder) return;
-    const next = moveInList(
-      shown.map((item) => item.id),
-      index,
-      delta,
-    );
     setPending(next);
     setSaving(true);
     try {
@@ -74,6 +76,13 @@ export const DownloadQueue = ({
       setSaving(false);
     }
   };
+  const shownIds = shown.map((item) => item.id);
+  const move = (index: number, delta: number) => reorder(moveInList(shownIds, index, delta));
+  const { handleProps, rowProps, previewIndex, dragging } = useRowDrag({
+    count: shown.length,
+    disabled: saving || !onReorder,
+    onDrop: (from, to) => void reorder(moveToIndex(shownIds, from, to)),
+  });
 
   return (
     <TableFrame>
@@ -97,19 +106,24 @@ export const DownloadQueue = ({
             const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
             const bookId = item.downloadBookId;
             return (
-              <tr key={item.id} className={rowClassName}>
+              <tr
+                key={item.id}
+                {...rowProps(index)}
+                className={`${rowClassName} data-dragging:bg-(--bg-soft) data-dragging:shadow-lg`}
+              >
                 <td className={`${cellClassName} w-8`}>
                   <div className="flex items-center gap-1">
+                    {onReorder && <DragHandle {...handleProps(index)} disabled={saving} />}
                     {onReorder && (
                       <QueueMoveButtons
                         title={item.title}
                         isFirst={index === 0}
                         isLast={index === shown.length - 1}
-                        disabled={saving}
+                        disabled={saving || dragging}
                         onMove={(delta) => void move(index, delta)}
                       />
                     )}
-                    <QueuePosition position={index + 1} />
+                    <QueuePosition position={previewIndex(index) + 1} />
                   </div>
                 </td>
                 <td className={`${cellClassName} w-12`}>

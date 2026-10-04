@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ActivityItem } from '../components/activity/activityTypes';
 import { downloadQueueOrder } from '../components/activity/DownloadQueue';
-import { moveInList } from '../components/activity/QueueControls';
+import { moveInList, moveToIndex } from '../components/activity/QueueControls';
+import { dropIndex, shiftFor } from '../hooks/useRowDrag';
 import { queueOrder } from '../utils/savedItems';
 
 describe('moveInList', () => {
@@ -57,5 +58,34 @@ describe('downloadQueueOrder', () => {
       download('next', -1, 400),
     ]);
     expect(ordered.map((i) => i.id)).toEqual(['moved-up', 'next', 'early', 'late']);
+  });
+});
+
+describe('moveToIndex', () => {
+  it('moves an entry to an index', () => {
+    expect(moveToIndex(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveToIndex(['a', 'b', 'c', 'd'], 3, 0)).toEqual(['d', 'a', 'b', 'c']);
+  });
+});
+
+describe('row dragging', () => {
+  // Four rows 50px tall from y=0: centres at 25, 75, 125, 175.
+  const mids = [25, 75, 125, 175];
+
+  it('drops a row one place past each other row whose centre it passes', () => {
+    expect(dropIndex(mids, 0, 25)).toBe(0); // Not moved
+    expect(dropIndex(mids, 0, 70)).toBe(0); // Not past the next row's centre yet
+    expect(dropIndex(mids, 0, 80)).toBe(1);
+    expect(dropIndex(mids, 0, 400)).toBe(3); // Past the end
+    expect(dropIndex(mids, 3, 100)).toBe(2); // Between rows 1 and 2
+    expect(dropIndex(mids, 3, 50)).toBe(1); // Between rows 0 and 1
+    expect(dropIndex(mids, 3, -50)).toBe(0); // Past the top
+  });
+
+  it('slides the rows in between aside to open the gap', () => {
+    // Row 0 dragged down to 2: rows 1 and 2 move up a row.
+    expect([0, 1, 2, 3].map((i) => shiftFor(i, 0, 2, 50))).toEqual([0, -50, -50, 0]);
+    // Row 3 dragged up to 1: rows 1 and 2 move down a row.
+    expect([0, 1, 2, 3].map((i) => shiftFor(i, 3, 1, 50))).toEqual([0, 50, 50, 0]);
   });
 });
