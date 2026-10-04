@@ -198,6 +198,11 @@ class BookQueue:
         with self._lock:
             return [task for at, task in self._handoffs.values() if at >= since]
 
+    def handoff_times_since(self, since: float) -> list[tuple[float, DownloadTask]]:
+        """`handoffs_since`, with when each task was handed off."""
+        with self._lock:
+            return [(at, task) for at, task in self._handoffs.values() if at >= since]
+
     def forget_handoff(self, task_id: str) -> None:
         """Drop a task's handoff: it never reached the indexer (refused at grab)."""
         with self._lock:

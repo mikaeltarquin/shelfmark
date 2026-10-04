@@ -504,6 +504,12 @@ class SimpleTask:
         self.mam_torrent_id = mam_torrent_id
 
 
+@pytest.fixture(autouse=True)
+def no_unsat_readings(monkeypatch):
+    """Each test starts with no record of MAM's unsatisfied count."""
+    monkeypatch.setattr(mam_account, "_unsat_samples", [])
+
+
 class TestUnsatisfied:
     @pytest.mark.parametrize("nested", [True, False])
     def test_parsed_from_either_shape(self, nested):
@@ -556,7 +562,7 @@ class TestUnsatisfied:
         status[QueueStatus.RESOLVING] = {"c": task("c", 2)}
         status[QueueStatus.DOWNLOADING] = {"d": task("d", 3)}  # already in MAM's count
         monkeypatch.setattr(book_queue, "get_status", lambda: status)
-        monkeypatch.setattr(book_queue, "handoffs_since", lambda _since: [])
+        monkeypatch.setattr(book_queue, "handoff_times_since", lambda _since: [])
 
         assert mam_account.pending_unsat_count() == 2
 
@@ -592,7 +598,9 @@ class TestUnsatisfied:
             SimpleTask("asker", 2),
             SimpleTask("not-mam", None),
         ]
-        monkeypatch.setattr(book_queue, "handoffs_since", lambda _since: snatched)
+        monkeypatch.setattr(
+            book_queue, "handoff_times_since", lambda _since: [(time.time(), t) for t in snatched]
+        )
         # 100 - 3 kept free - 90 - "a" (the asker doesn't count against itself)
         assert mam_account.unsat_free_slots(exclude={"asker"}) == 6
         monkeypatch.setattr(mam_account, "unsat_check_enabled", lambda: False)
@@ -611,3 +619,36 @@ class TestUnsatisfied:
         assert resp.status_code == 200
         assert resp.get_json()["waiting_for_slot"] is True
         qr.assert_called_once()
+
+
+class TestRecentSnatchesAlreadyCounted:
+    """Recent snatches MAM's count already shows aren't counted twice."""
+
+    def _snatch(self, monkeypatch, count: int, *, at: float):
+        from shelfmark.core.queue import book_queue
+
+        tasks = [(at, SimpleTask(f"t{i}", i + 1)) for i in range(count)]
+        monkeypatch.setattr(book_queue, "handoff_times_since", lambda _since: tasks)
+
+    def test_counts_only_the_snatches_mam_does_not_show_yet(self, mam, monkeypatch):
+        monkeypatch.setattr(mam_account, "unsat_reserve_slots", lambda: 5)
+        mam.user = _unsat_user(119, 150)
+        before = mam_account.get_stats(refresh=True)  # Read before the snatches
+        self._snatch(monkeypatch, 13, at=before.fetched_at)
+
+        # MAM's count hasn't moved yet: all 13 take slots. 150 - 5 - 119 - 13.
+        assert mam_account.unsat_free_slots(refresh=True) == 13
+        # It shows 7 of them now: the other 6 still take slots.
+        mam.user = _unsat_user(126, 150)
+        assert mam_account.unsat_free_slots(refresh=True) == 150 - 5 - 126 - 6
+        # It shows all 13 (132 of 150): 13 slots free, not 0.
+        mam.user = _unsat_user(132, 150)
+        stats = mam_account.get_stats(refresh=True)
+        assert mam_account.unsat_free_slots() == 13
+        assert mam_account.pending_unsat_count(stats.fetched_at, stats.unsat_count) == 0
+
+    def test_without_an_earlier_reading_every_snatch_counts(self, mam, monkeypatch):
+        monkeypatch.setattr(mam_account, "unsat_reserve_slots", lambda: 5)
+        self._snatch(monkeypatch, 13, at=time.time() - 60)
+        mam.user = _unsat_user(132, 150)
+        assert mam_account.unsat_free_slots(refresh=True) == 0

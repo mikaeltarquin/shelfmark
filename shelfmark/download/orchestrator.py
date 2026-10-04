@@ -1113,8 +1113,11 @@ def _finalize_download_failure(task_id: str) -> None:
 # marked as waiting, and is released oldest first once a slot is free: checked before
 # each MAM grab, and after a grab fails while the account is at the limit.
 
-UNSAT_WAIT_MESSAGE = "Waiting for an unsatisfied slot on MyAnonamouse"
-_UNSAT_RECHECK_SECONDS = 5 * 60
+_UNSAT_RECHECK_SECONDS = 2 * 60
+UNSAT_WAIT_MESSAGE = (
+    "Waiting for an unsatisfied slot on MyAnonamouse (checked every "
+    f"{_UNSAT_RECHECK_SECONDS // 60} minutes)"
+)
 _held_lock = Lock()
 _held_for_slot: dict[str, float] = {}  # task id -> when it started waiting
 _slot_watcher: threading.Thread | None = None
