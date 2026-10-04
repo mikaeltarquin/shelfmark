@@ -1448,7 +1448,7 @@ def api_config() -> Response | tuple[Response, int]:
             "saved_auto_get_enabled": saved_auto_get_enabled(),
             # Whether the library browser has a library to show (admins only, like its API).
             "library_browser_available": _library_browser_available(),
-            "auto_open_downloads_sidebar": app_config.get("AUTO_OPEN_DOWNLOADS_SIDEBAR", True),
+            "auto_open_downloads_sidebar": app_config.get("AUTO_OPEN_DOWNLOADS_SIDEBAR", False),
             "hardcover_auto_remove_on_download": app_config.get(
                 "HARDCOVER_AUTO_REMOVE_ON_DOWNLOAD", True
             ),

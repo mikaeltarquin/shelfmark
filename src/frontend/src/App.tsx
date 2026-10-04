@@ -681,9 +681,12 @@ function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerObserverRef = useRef<ResizeObserver | null>(null);
-  const showDownloadsPage = useCallback(() => {
-    void navigate('/activity/downloads');
-  }, [navigate]);
+  const showDownloadsPage = useCallback(
+    (page: 'queued' | 'downloads') => {
+      void navigate(`/activity/${page}`);
+    },
+    [navigate],
+  );
   const headerRef = useCallback((el: HTMLDivElement | null) => {
     if (headerObserverRef.current) {
       headerObserverRef.current.disconnect();
