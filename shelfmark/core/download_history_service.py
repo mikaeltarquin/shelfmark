@@ -201,6 +201,7 @@ class DownloadHistoryService:
             "id": row.get("task_id"),
             "title": row.get("title"),
             "author": row.get("author"),
+            "narrators": DownloadHistoryService._narrators(row),
             "format": row.get("format"),
             "size": row.get("size"),
             "preview": row.get("preview"),
@@ -220,6 +221,15 @@ class DownloadHistoryService:
             "info_url": row.get("info_url") or DownloadHistoryService._mam_page(row),
             "retry_available": DownloadHistoryService.is_retry_available(row),
         }
+
+    @classmethod
+    def _narrators(cls, row: dict[str, Any]) -> list[str]:
+        """The release's narrators, as kept with the download for a retry."""
+        payload = cls._deserialize_retry_payload(row.get("retry_payload"))
+        narrators = payload.get("narrators") if payload else None
+        if not isinstance(narrators, list):
+            return []
+        return [str(name) for name in narrators if isinstance(name, str) and name.strip()]
 
     @classmethod
     def _mam_page(cls, row: dict[str, Any]) -> str | None:

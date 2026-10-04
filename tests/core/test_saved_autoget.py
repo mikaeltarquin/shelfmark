@@ -224,6 +224,25 @@ def test_a_small_download_goes_even_below_the_target_ratio(service, mam):
     assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [item_id]
 
 
+def test_an_audiobook_waits_below_the_target_though_it_barely_moves_the_ratio(service, mam):
+    # 92.27 GiB up / 73.35 GiB down (1.26): a 539 MB audiobook lowers that by only 0.009,
+    # but it isn't an ebook, so it waits for the ratio (or freeleech) like any other.
+    mam.stats = _stats(uploaded=int(92.27 * GIB), downloaded=int(73.35 * GIB))
+    recorder = Recorder()
+    item_id = _mark(service, [_payload("audiobook", size=539 * 1000**2)])
+    report = SavedAutoGetter(service, recorder.hooks()).run_check()
+    assert report.queued == []
+    assert report.waiting[item_id].startswith("Waiting for freeleech or ratio 2.00")
+    assert recorder.queued == []
+    # An ebook still goes: 5 MB moves it by well under 0.01.
+    ebook_id = _mark(
+        service,
+        [_payload("ebook", torrent_id=9, size=5 * 1024**2)],
+        book={**BOOK, "provider_id": "43", "title": "Ebook"},
+    )
+    assert SavedAutoGetter(service, recorder.hooks()).run_check().queued == [ebook_id]
+
+
 def test_a_large_download_waits_for_the_ratio_or_freeleech(service, mam):
     # 300 up / 100 down; a 60 GB download leaves 300 / 160 = 1.88.
     mam.stats = _stats(uploaded=300 * GIB, downloaded=100 * GIB)

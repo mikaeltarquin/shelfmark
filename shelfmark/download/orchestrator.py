@@ -737,6 +737,7 @@ def _task_to_dict(
         "id": task.task_id,
         "title": task.title,
         "author": task.author,
+        "narrators": list(task.narrators or []),
         "format": task.format,
         "size": task.size,
         "downloads": task.downloads,

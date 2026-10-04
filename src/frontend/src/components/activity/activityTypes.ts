@@ -21,6 +21,7 @@ export interface ActivityItem {
 
   title: string;
   author: string;
+  narrators?: string[]; // An audiobook's narrators, to tell editions apart
   preview?: string;
 
   metaLine: string;

@@ -19,6 +19,7 @@ import {
   ActivityActionButton,
   ActivityLinkButtons,
   ActivityStatusBadges,
+  NarratorLine,
   actionKey,
 } from './ActivityItemParts';
 import type { ActivityItem } from './activityTypes';
@@ -133,6 +134,7 @@ const ActivityRow = ({
             {item.author}
           </p>
         )}
+        <NarratorLine narrators={item.narrators} />
         {model.noteLine && (
           <p className="truncate text-xs italic opacity-60" title={model.noteLine}>
             {model.noteLine}

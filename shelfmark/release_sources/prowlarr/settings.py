@@ -350,7 +350,8 @@ def prowlarr_config_settings() -> list[SettingsField]:
             label="Keep Ratio At Least",
             description=(
                 "Non-freeleech downloads that would take the ratio below this wait, unless "
-                "they'd lower it by less than 0.01. 0 turns the ratio check off."
+                "they're ebook-sized (100 MB or less) and lower it by less than 0.01. "
+                "0 turns the ratio check off."
             ),
             default=2.0,
             min_value=0,

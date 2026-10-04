@@ -348,3 +348,12 @@ def test_os_error_message_names_the_reason():
         orchestrator._format_download_exception_message(RuntimeError("boom"))
         == "Download failed: RuntimeError"
     )
+
+
+def test_queue_status_names_the_narrators():
+    import shelfmark.download.orchestrator as orchestrator
+
+    task = DownloadTask(
+        task_id="n1", source="prowlarr", title="Good Omens", narrators=["Martin Jarvis"]
+    )
+    assert orchestrator._task_to_dict(task, QueueStatus.QUEUED)["narrators"] == ["Martin Jarvis"]

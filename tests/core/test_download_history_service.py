@@ -50,3 +50,15 @@ def test_record_download_stores_utc_iso_timestamps():
         assert row is not None
         assert "+00:00" in row["queued_at"]
         assert "+00:00" in row["terminal_at"]
+
+
+def test_history_rows_carry_the_narrators_kept_for_a_retry():
+    import json
+
+    row = {
+        "task_id": "t1",
+        "title": "Good Omens",
+        "retry_payload": json.dumps({"narrators": ["Martin Jarvis", " "]}),
+    }
+    assert DownloadHistoryService.to_download_payload(row)["narrators"] == ["Martin Jarvis"]
+    assert DownloadHistoryService.to_download_payload({"task_id": "t2"})["narrators"] == []

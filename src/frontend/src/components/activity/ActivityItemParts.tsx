@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { withBasePath } from '../../utils/basePath';
+import { shortNarrators } from '../../utils/narrators';
 import { LibraryAppIcon } from '../shared/LibraryAppIcon';
 import { Tooltip } from '../shared/Tooltip';
 import type { ActivityCardAction, ActivityCardBadge } from './activityCardModel';
@@ -175,6 +176,14 @@ export const sourcePageName = (url: string): string => {
     return 'its source';
   }
 };
+
+/** "Narrated by Tony Robinson +2" under an audiobook's author; nothing without narrators. */
+export const NarratorLine = ({ narrators }: { narrators?: readonly string[] }) =>
+  narrators && narrators.length > 0 ? (
+    <p className="truncate text-xs opacity-60" title={`Narrated by ${narrators.join(', ')}`}>
+      Narrated by {shortNarrators(narrators)}
+    </p>
+  ) : null;
 
 /** A release's page at its source (the MAM torrent listing), opened in a new tab. */
 export const SourcePageLink = ({ url, size = 'md' }: { url: string; size?: 'sm' | 'md' }) => (
