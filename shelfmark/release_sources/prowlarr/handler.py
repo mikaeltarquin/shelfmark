@@ -1,5 +1,6 @@
 """Prowlarr download handler - resolves releases and delegates lifecycle to shared clients."""
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -9,7 +10,7 @@ from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.naming import derive_primary_title
 from shelfmark.core.request_helpers import normalize_optional_text
-from shelfmark.core.search_plan import build_release_search_plan
+from shelfmark.core.search_plan import build_release_search_plan, pick_search_author
 from shelfmark.core.utils import normalize_http_url
 from shelfmark.download.clients import (
     DownloadClient,
@@ -88,6 +89,15 @@ def _coerce_positive_minutes(raw_minutes: object) -> int | None:
     if minutes is None:
         return None
     return minutes if minutes > 0 else None
+
+
+@dataclass(frozen=True)
+class _RefreshSearch:
+    """One Prowlarr search for re-finding an expired release."""
+
+    book: BookMetadata
+    query: str | None = None  # Searched as typed, like a manual search
+    expand: bool = False  # Without the content-type categories
 
 
 @register_handler("prowlarr")
@@ -309,12 +319,11 @@ class ProwlarrHandler(ExternalClientHandler):
     def _refresh_release(self, task: DownloadTask) -> dict[str, Any] | None:
         """Re-query Prowlarr and cache the exact original release if it still exists.
 
-        Searched the way the book's own release search does first: with the metadata
-        provider's record for the book (its looser search title and its ISBNs), then
-        widened. A search built only from the download's title can find nothing on an
-        indexer that ANDs its terms ("Good Omens: The Nice and Accurate Prophecies of
-        Agnes Nutter, Witch") although the release is still there, which left the user
-        to search again by hand for the same result.
+        Searched the way the user would find it again (see `_refresh_searches`). A
+        search built only from the download's title can miss a release that is still
+        there: an indexer that ANDs its terms finds nothing for a long title with its
+        subtitle, and a short title ("Eric") brings back so many other books that the
+        release isn't among the results. That left the user to search by hand.
         """
         title = normalize_optional_text(task.title)
         if title is None:
@@ -327,15 +336,16 @@ class ProwlarrHandler(ExternalClientHandler):
         content_type = task.content_type or "ebook"
 
         source = ProwlarrSource()
-        for book, expand_search in self._refresh_searches(task, title):
+        for search in self._refresh_searches(task, title):
             # No language default here on purpose: this re-finds one exact release by
             # its guid, and Prowlarr does not filter on plan.languages anyway.
             plan = build_release_search_plan(
-                book,
+                search.book,
+                manual_query=search.query,
                 indexers=[indexer] if indexer is not None else None,
             )
             results = source.search(
-                book, plan, expand_search=expand_search, content_type=content_type
+                search.book, plan, expand_search=search.expand, content_type=content_type
             )
             for release in results:
                 raw_release = get_release(release.source_id)
@@ -350,34 +360,44 @@ class ProwlarrHandler(ExternalClientHandler):
 
         return None
 
-    def _refresh_searches(self, task: DownloadTask, title: str) -> list[tuple[BookMetadata, bool]]:
-        """The searches that re-find a release, most like the user's own first.
+    def _refresh_searches(self, task: DownloadTask, title: str) -> list[_RefreshSearch]:
+        """The searches that re-find a release, in order, stopping at the first hit.
 
-        Each is (book, expand_search). The metadata provider's book when the download
-        recorded one, as the book's release search uses it, then widened; then a book
-        built from the download itself (its title without the subtitle).
+        With the metadata provider's record of the book (when the download noted it):
+        the book's own release search, then its title and author as one query (for a
+        title so common the release is lost among other books), then without the
+        content-type categories. Without it: the download's title without its
+        subtitle, then title and author.
         """
-        searches: list[tuple[BookMetadata, bool]] = []
         provider_book = self._provider_book(task)
         if provider_book is not None:
-            searches.extend([(provider_book, False), (provider_book, True)])
+            query = self._title_author_query(provider_book)
+            return [
+                _RefreshSearch(provider_book),
+                *([_RefreshSearch(provider_book, query=query)] if query else []),
+                _RefreshSearch(provider_book, expand=True),
+            ]
 
         authors = [a.strip() for a in (task.author or "").split(",") if a.strip()]
-        primary_title = derive_primary_title(title, task.subtitle) or title
-        searches.append(
-            (
-                BookMetadata(
-                    provider="shelfmark",
-                    provider_id=task.task_id,
-                    title=title,
-                    authors=authors,
-                    search_title=primary_title,
-                    search_author=authors[0] if authors else None,
-                ),
-                False,
-            )
+        book = BookMetadata(
+            provider="shelfmark",
+            provider_id=task.task_id,
+            title=title,
+            authors=authors,
+            search_title=derive_primary_title(title, task.subtitle) or title,
+            search_author=authors[0] if authors else None,
         )
-        return searches
+        query = self._title_author_query(book)
+        return [_RefreshSearch(book), *([_RefreshSearch(book, query=query)] if query else [])]
+
+    @staticmethod
+    def _title_author_query(book: BookMetadata) -> str | None:
+        """ "Eric Terry Pratchett": the search title and first author, or None without one."""
+        author = pick_search_author(book)
+        search_title = book.search_title or book.title
+        if not author or not search_title:
+            return None
+        return f"{search_title} {author}"
 
     @staticmethod
     def _provider_book(task: DownloadTask) -> BookMetadata | None:

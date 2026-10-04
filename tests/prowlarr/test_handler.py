@@ -1786,7 +1786,7 @@ class TestRefreshSearches:
         """A Prowlarr search that finds the release only on call number `found_on_call`."""
 
         def search(book, plan, *, expand_search=False, content_type="ebook"):
-            searched.append((book.provider, book.search_title, expand_search, content_type))
+            searched.append((book.provider, book.search_title, expand_search, plan.manual_query))
             if len(searched) != found_on_call:
                 return []
             raw = {"guid": "https://www.myanonamouse.net/t/168537", "indexerId": 12}
@@ -1823,7 +1823,7 @@ class TestRefreshSearches:
             with (
                 patch(
                     "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
-                    side_effect=self._search_finding_on(2, searched),
+                    side_effect=self._search_finding_on(3, searched),
                 ),
                 patch("shelfmark.metadata_providers.is_provider_registered", return_value=True),
                 patch("shelfmark.metadata_providers.get_provider_kwargs", return_value={}),
@@ -1838,10 +1838,12 @@ class TestRefreshSearches:
             remove_release(self.TASK_ID + ":fresh")
 
         assert raw is not None
-        # The provider's book as the release search uses it, then widened: found there.
+        # The provider's book as the release search uses it, then title and author,
+        # then without categories: found there.
         assert searched == [
-            ("hardcover", "Good Omens", False, "audiobook"),
-            ("hardcover", "Good Omens", True, "audiobook"),
+            ("hardcover", "Good Omens", False, None),
+            ("hardcover", "Good Omens", False, "Good Omens Neil Gaiman"),
+            ("hardcover", "Good Omens", True, None),
         ]
 
     def test_without_a_provider_book_searches_the_title_without_its_subtitle(self):
@@ -1857,7 +1859,33 @@ class TestRefreshSearches:
             remove_release(self.TASK_ID + ":fresh")
 
         assert raw is not None
-        assert searched == [("shelfmark", "Good Omens", False, "audiobook")]
+        assert searched == [("shelfmark", "Good Omens", False, None)]
+
+    def test_a_common_title_is_searched_with_its_author(self):
+        # "Eric" alone brings back other books ("Eric Brown - Helix") and not this one.
+        searched: list = []
+        task = DownloadTask(
+            task_id=self.TASK_ID,
+            source="prowlarr",
+            title="Eric",
+            author="Terry Pratchett",
+            content_type="audiobook",
+        )
+        try:
+            with patch(
+                "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
+                side_effect=self._search_finding_on(2, searched),
+            ):
+                raw = ProwlarrHandler()._refresh_release(task)
+        finally:
+            remove_release(self.TASK_ID)
+            remove_release(self.TASK_ID + ":fresh")
+
+        assert raw is not None
+        assert searched == [
+            ("shelfmark", "Eric", False, None),
+            ("shelfmark", "Eric", False, "Eric Terry Pratchett"),
+        ]
 
     def test_a_provider_that_fails_falls_back_to_the_download_title(self):
         provider = MagicMock()
@@ -1879,4 +1907,4 @@ class TestRefreshSearches:
             remove_release(self.TASK_ID + ":fresh")
 
         assert raw is not None
-        assert searched == [("shelfmark", "Good Omens", False, "audiobook")]
+        assert searched == [("shelfmark", "Good Omens", False, None)]
