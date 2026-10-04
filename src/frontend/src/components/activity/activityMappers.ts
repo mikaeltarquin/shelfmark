@@ -121,6 +121,7 @@ export const downloadToActivityItem = (book: Book, statusKey: DownloadStatusKey)
     downloadBookId: book.id,
     downloadRetryAvailable,
     downloadPath: toOptionalText(book.download_path),
+    queuePriority: typeof book.priority === 'number' ? book.priority : undefined,
     bookKey: toOptionalText(book.book_key),
     contentType: toOptionalText(book.content_type),
     infoUrl: toOptionalText(book.info_url),

@@ -100,6 +100,7 @@ const saved = (book_key: string, title = 'Example Book'): SavedItem => ({
   last_error: null,
   auto_status: null,
   auto_checked_at: null,
+  queue_position: null,
   created_at: '',
   updated_at: '',
 });

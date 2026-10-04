@@ -413,6 +413,12 @@ class BookQueue:
             for item in all_items:
                 self._queue.put(item)
 
+            # Queued tasks held out of the line (waiting for room) keep their place too.
+            for task_id, new_priority in task_priorities.items():
+                task = self._task_data.get(task_id)
+                if task is not None and self._status.get(task_id) == QueueStatus.QUEUED:
+                    task.priority = new_priority
+
             return True
 
     def get_active_downloads(self) -> list[str]:

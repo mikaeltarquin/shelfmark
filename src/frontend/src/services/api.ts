@@ -741,6 +741,27 @@ export const updateSavedItem = async (
     body: JSON.stringify(changes),
   });
 
+/** Set the order queued saved items get first claim on room; returns the new list. */
+export const reorderSavedQueue = async (ids: number[]): Promise<SavedItem[]> =>
+  (
+    await fetchJSON<{ items: SavedItem[] }>(`${API_BASE}/saved/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    })
+  ).items;
+
+/**
+ * Put queued downloads in the order of `ids`. They get priorities below 0, so
+ * downloads queued afterwards (priority 0) follow them.
+ */
+export const reorderDownloadQueue = async (ids: string[]): Promise<void> => {
+  const book_priorities = Object.fromEntries(ids.map((id, index) => [id, index - ids.length]));
+  await fetchJSON<{ status: string }>(`${API_BASE}/queue/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ book_priorities }),
+  });
+};
+
 export const deleteSavedItem = async (id: number): Promise<void> => {
   await fetchJSON<{ deleted: boolean }>(`${API_BASE}/saved/${id}`, { method: 'DELETE' });
 };
