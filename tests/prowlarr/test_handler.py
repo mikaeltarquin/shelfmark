@@ -1763,3 +1763,148 @@ class TestRawReleaseMatchesTaskEdgeCases:
         built = build_source_id(raw)
 
         assert ProwlarrHandler._raw_release_matches_task(raw, built)
+
+
+class TestRefreshSearches:
+    """An expired link is re-found the way the book's own release search finds it."""
+
+    TASK_ID = "12:https://www.myanonamouse.net/t/168537"
+
+    def _task(self, **fields):
+        return DownloadTask(
+            task_id=self.TASK_ID,
+            source="prowlarr",
+            title="Good Omens: The Nice and Accurate Prophecies of Agnes Nutter, Witch",
+            subtitle="The Nice and Accurate Prophecies of Agnes Nutter, Witch",
+            author="Neil Gaiman, Terry Pratchett",
+            content_type="audiobook",
+            retry_source_context={"indexer": "MyAnonamouse"},
+            **fields,
+        )
+
+    def _search_finding_on(self, found_on_call: int, searched: list):
+        """A Prowlarr search that finds the release only on call number `found_on_call`."""
+
+        def search(book, plan, *, expand_search=False, content_type="ebook"):
+            searched.append((book.provider, book.search_title, expand_search, plan.manual_query))
+            if len(searched) != found_on_call:
+                return []
+            raw = {"guid": "https://www.myanonamouse.net/t/168537", "indexerId": 12}
+            cache_release(self.TASK_ID + ":fresh", {**raw, "protocol": "torrent"})
+            return [
+                Release(
+                    source="prowlarr",
+                    source_id=self.TASK_ID + ":fresh",
+                    title="Good Omens",
+                    protocol=ReleaseProtocol.TORRENT,
+                )
+            ]
+
+        return search
+
+    def _provider(self, book):
+        provider = MagicMock()
+        provider.get_book.return_value = book
+        return provider
+
+    def test_searches_with_the_provider_book_first(self):
+        from shelfmark.metadata_providers import BookMetadata
+
+        provider_book = BookMetadata(
+            provider="hardcover",
+            provider_id="42",
+            title="Good Omens",
+            authors=["Neil Gaiman", "Terry Pratchett"],
+            search_title="Good Omens",
+        )
+        searched: list = []
+        remove_release(self.TASK_ID)
+        try:
+            with (
+                patch(
+                    "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
+                    side_effect=self._search_finding_on(3, searched),
+                ),
+                patch("shelfmark.metadata_providers.is_provider_registered", return_value=True),
+                patch("shelfmark.metadata_providers.get_provider_kwargs", return_value={}),
+                patch(
+                    "shelfmark.metadata_providers.get_provider",
+                    return_value=self._provider(provider_book),
+                ),
+            ):
+                raw = ProwlarrHandler()._refresh_release(self._task(book_key="hardcover:42"))
+        finally:
+            remove_release(self.TASK_ID)
+            remove_release(self.TASK_ID + ":fresh")
+
+        assert raw is not None
+        # The provider's book as the release search uses it, then title and author,
+        # then without categories: found there.
+        assert searched == [
+            ("hardcover", "Good Omens", False, None),
+            ("hardcover", "Good Omens", False, "Good Omens Neil Gaiman"),
+            ("hardcover", "Good Omens", True, None),
+        ]
+
+    def test_without_a_provider_book_searches_the_title_without_its_subtitle(self):
+        searched: list = []
+        try:
+            with patch(
+                "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
+                side_effect=self._search_finding_on(1, searched),
+            ):
+                raw = ProwlarrHandler()._refresh_release(self._task())
+        finally:
+            remove_release(self.TASK_ID)
+            remove_release(self.TASK_ID + ":fresh")
+
+        assert raw is not None
+        assert searched == [("shelfmark", "Good Omens", False, None)]
+
+    def test_a_common_title_is_searched_with_its_author(self):
+        # "Eric" alone brings back other books ("Eric Brown - Helix") and not this one.
+        searched: list = []
+        task = DownloadTask(
+            task_id=self.TASK_ID,
+            source="prowlarr",
+            title="Eric",
+            author="Terry Pratchett",
+            content_type="audiobook",
+        )
+        try:
+            with patch(
+                "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
+                side_effect=self._search_finding_on(2, searched),
+            ):
+                raw = ProwlarrHandler()._refresh_release(task)
+        finally:
+            remove_release(self.TASK_ID)
+            remove_release(self.TASK_ID + ":fresh")
+
+        assert raw is not None
+        assert searched == [
+            ("shelfmark", "Eric", False, None),
+            ("shelfmark", "Eric", False, "Eric Terry Pratchett"),
+        ]
+
+    def test_a_provider_that_fails_falls_back_to_the_download_title(self):
+        provider = MagicMock()
+        provider.get_book.side_effect = RuntimeError("Hardcover is down")
+        searched: list = []
+        try:
+            with (
+                patch(
+                    "shelfmark.release_sources.prowlarr.handler.ProwlarrSource.search",
+                    side_effect=self._search_finding_on(1, searched),
+                ),
+                patch("shelfmark.metadata_providers.is_provider_registered", return_value=True),
+                patch("shelfmark.metadata_providers.get_provider_kwargs", return_value={}),
+                patch("shelfmark.metadata_providers.get_provider", return_value=provider),
+            ):
+                raw = ProwlarrHandler()._refresh_release(self._task(book_key="hardcover:42"))
+        finally:
+            remove_release(self.TASK_ID)
+            remove_release(self.TASK_ID + ":fresh")
+
+        assert raw is not None
+        assert searched == [("shelfmark", "Good Omens", False, None)]

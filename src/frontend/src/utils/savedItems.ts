@@ -126,6 +126,37 @@ export const pickLabel = (pick: SavedPick, { full = false }: { full?: boolean } 
 };
 
 /**
+ * What a saved item will download, one line per release: "Ebook, EPUB", "Audiobook,
+ * Narrator Name +2"; `full` names every narrator. Empty for a book with none picked.
+ */
+export const savedPickLines = (
+  item: Pick<SavedItem, 'kind' | 'releases'>,
+  { full = false }: { full?: boolean } = {},
+): string[] => {
+  if (item.kind === 'book') return [];
+  return item.releases.map((pick) => {
+    if (pick.content_type === 'audiobook') {
+      const names = narratorsOf(pick.release);
+      if (names.length === 0) return 'Audiobook';
+      return `Audiobook, ${full ? names.join(', ') : shortNarrators(names)}`;
+    }
+    const format = formatLabel(pick.release);
+    return format ? `Ebook, ${format}` : 'Ebook';
+  });
+};
+
+/**
+ * What a queued item waits for, from the last automatic check's status: "2 unsatisfied
+ * slots", "Freeleech or ratio 2.00: …". Null before its first check.
+ */
+export const waitingFor = (item: Pick<SavedItem, 'auto_status'>): string | null => {
+  const status = item.auto_status?.trim();
+  if (!status) return null;
+  const reason = status.replace(/^waiting for\s+/i, '');
+  return reason.charAt(0).toUpperCase() + reason.slice(1);
+};
+
+/**
  * What a saved item will download: "Ebook EPUB + audiobook, Narrator Name +2", or "Book
  * only"; `full` names every narrator.
  */

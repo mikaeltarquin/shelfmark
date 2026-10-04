@@ -7,7 +7,9 @@ import {
   hasMamPick,
   savedBookKey,
   savedPayloads,
+  savedPickLines,
   savedStage,
+  waitingFor,
 } from '../utils/savedItems';
 
 const release = (extra: Partial<Release>): Release => ({
@@ -136,5 +138,46 @@ describe('savedStage', () => {
     expect(savedStage({ releases: pick, auto_get: true })).toBe('queued');
     expect(savedStage({ releases: pick, auto_get: false })).toBe('later');
     expect(savedStage({ releases: [], auto_get: false })).toBe('later');
+  });
+});
+
+describe('savedPickLines', () => {
+  it('puts each release on its own line', () => {
+    const narrated = (...names: string[]) => release({ extra: { narrators: names } });
+    expect(
+      savedPickLines({
+        kind: 'combined',
+        releases: [
+          { content_type: 'ebook', release: release({ format: 'epub' }) },
+          { content_type: 'audiobook', release: narrated('Tony Robinson') },
+          { content_type: 'audiobook', release: narrated('Bill Nighy', 'A', 'B') },
+          { content_type: 'audiobook', release: narrated('Nigel Planer') },
+        ],
+      }),
+    ).toEqual([
+      'Ebook, EPUB',
+      'Audiobook, Tony Robinson',
+      'Audiobook, Bill Nighy +2',
+      'Audiobook, Nigel Planer',
+    ]);
+  });
+
+  it('has no lines for a book with nothing picked', () => {
+    expect(savedPickLines({ kind: 'book', releases: [] })).toEqual([]);
+  });
+});
+
+describe('waitingFor', () => {
+  it('says what a queued item waits for, from the check status', () => {
+    expect(waitingFor({ auto_status: 'Waiting for 2 unsatisfied slots' })).toBe(
+      '2 unsatisfied slots',
+    );
+    expect(waitingFor({ auto_status: 'Waiting for buffer: 1.20 GB short' })).toBe(
+      'Buffer: 1.20 GB short',
+    );
+    expect(waitingFor({ auto_status: "Couldn't queue: no client" })).toBe(
+      "Couldn't queue: no client",
+    );
+    expect(waitingFor({ auto_status: null })).toBeNull();
   });
 });

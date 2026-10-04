@@ -1,5 +1,6 @@
 """Prowlarr download handler - resolves releases and delegates lifecycle to shared clients."""
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -7,8 +8,9 @@ import requests
 
 from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
+from shelfmark.core.naming import derive_primary_title
 from shelfmark.core.request_helpers import normalize_optional_text
-from shelfmark.core.search_plan import build_release_search_plan
+from shelfmark.core.search_plan import build_release_search_plan, pick_search_author
 from shelfmark.core.utils import normalize_http_url
 from shelfmark.download.clients import (
     DownloadClient,
@@ -87,6 +89,15 @@ def _coerce_positive_minutes(raw_minutes: object) -> int | None:
     if minutes is None:
         return None
     return minutes if minutes > 0 else None
+
+
+@dataclass(frozen=True)
+class _RefreshSearch:
+    """One Prowlarr search for re-finding an expired release."""
+
+    book: BookMetadata
+    query: str | None = None  # Searched as typed, like a manual search
+    expand: bool = False  # Without the content-type categories
 
 
 @register_handler("prowlarr")
@@ -306,7 +317,14 @@ class ProwlarrHandler(ExternalClientHandler):
         )
 
     def _refresh_release(self, task: DownloadTask) -> dict[str, Any] | None:
-        """Re-query Prowlarr and cache the exact original release if it still exists."""
+        """Re-query Prowlarr and cache the exact original release if it still exists.
+
+        Searched the way the user would find it again (see `_refresh_searches`). A
+        search built only from the download's title can miss a release that is still
+        there: an indexer that ANDs its terms finds nothing for a long title with its
+        subtitle, and a short title ("Eric") brings back so many other books that the
+        release isn't among the results. That left the user to search by hand.
+        """
         title = normalize_optional_text(task.title)
         if title is None:
             return None
@@ -314,37 +332,103 @@ class ProwlarrHandler(ExternalClientHandler):
         context = getattr(task, "retry_source_context", None)
         if not isinstance(context, dict):
             context = {}
-
         indexer = normalize_optional_text(context.get("indexer"))
+        content_type = task.content_type or "ebook"
+
+        source = ProwlarrSource()
+        for search in self._refresh_searches(task, title):
+            # No language default here on purpose: this re-finds one exact release by
+            # its guid, and Prowlarr does not filter on plan.languages anyway.
+            plan = build_release_search_plan(
+                search.book,
+                manual_query=search.query,
+                indexers=[indexer] if indexer is not None else None,
+            )
+            results = source.search(
+                search.book, plan, expand_search=search.expand, content_type=content_type
+            )
+            for release in results:
+                raw_release = get_release(release.source_id)
+                if raw_release is None:
+                    continue
+                if not self._raw_release_matches_task(raw_release, task.task_id):
+                    continue
+
+                cache_release(task.task_id, raw_release)
+                logger.info("Refreshed Prowlarr release: %s", task.task_id)
+                return raw_release
+
+        return None
+
+    def _refresh_searches(self, task: DownloadTask, title: str) -> list[_RefreshSearch]:
+        """The searches that re-find a release, in order, stopping at the first hit.
+
+        With the metadata provider's record of the book (when the download noted it):
+        the book's own release search, then its title and author as one query (for a
+        title so common the release is lost among other books), then without the
+        content-type categories. Without it: the download's title without its
+        subtitle, then title and author.
+        """
+        provider_book = self._provider_book(task)
+        if provider_book is not None:
+            query = self._title_author_query(provider_book)
+            return [
+                _RefreshSearch(provider_book),
+                *([_RefreshSearch(provider_book, query=query)] if query else []),
+                _RefreshSearch(provider_book, expand=True),
+            ]
+
+        authors = [a.strip() for a in (task.author or "").split(",") if a.strip()]
         book = BookMetadata(
             provider="shelfmark",
             provider_id=task.task_id,
             title=title,
-            authors=[task.author] if task.author else [],
-            search_title=title,
-            search_author=task.author,
+            authors=authors,
+            search_title=derive_primary_title(title, task.subtitle) or title,
+            search_author=authors[0] if authors else None,
         )
-        # No language default here on purpose: this re-finds one exact release by its
-        # guid, and Prowlarr does not filter on plan.languages anyway.
-        plan = build_release_search_plan(
-            book,
-            indexers=[indexer] if indexer is not None else None,
+        query = self._title_author_query(book)
+        return [_RefreshSearch(book), *([_RefreshSearch(book, query=query)] if query else [])]
+
+    @staticmethod
+    def _title_author_query(book: BookMetadata) -> str | None:
+        """ "Eric Terry Pratchett": the search title and first author, or None without one."""
+        author = pick_search_author(book)
+        search_title = book.search_title or book.title
+        if not author or not search_title:
+            return None
+        return f"{search_title} {author}"
+
+    @staticmethod
+    def _provider_book(task: DownloadTask) -> BookMetadata | None:
+        """The metadata provider's record of the book the download was for, if known."""
+        book_key = normalize_optional_text(getattr(task, "book_key", None))
+        if book_key is None or ":" not in book_key:
+            return None
+        provider, _, provider_id = book_key.partition(":")
+        if not provider or not provider_id or provider in {"manual", "id"}:
+            return None
+
+        from shelfmark.metadata_providers import (
+            get_provider,
+            get_provider_kwargs,
+            is_provider_registered,
         )
 
-        source = ProwlarrSource()
-        results = source.search(book, plan, content_type=task.content_type or "ebook")
-        for release in results:
-            raw_release = get_release(release.source_id)
-            if raw_release is None:
-                continue
-            if not self._raw_release_matches_task(raw_release, task.task_id):
-                continue
-
-            cache_release(task.task_id, raw_release)
-            logger.info("Refreshed Prowlarr release: %s", task.task_id)
-            return raw_release
-
-        return None
+        if not is_provider_registered(provider):
+            return None
+        try:
+            return get_provider(provider, **get_provider_kwargs(provider)).get_book(provider_id)
+        except (
+            OSError,
+            RuntimeError,
+            ValueError,
+            KeyError,
+            TypeError,
+            requests.exceptions.RequestException,
+        ) as exc:
+            logger.debug("Could not load %s to refresh %s: %s", book_key, task.task_id, exc)
+            return None
 
     @staticmethod
     def _raw_release_matches_task(raw_release: dict[str, Any], task_id: str) -> bool:

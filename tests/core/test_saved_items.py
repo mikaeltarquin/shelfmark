@@ -334,3 +334,18 @@ class TestQueueOrder:
         assert self._order(service) == [b, a]
         assert client.post("/api/saved/reorder", json={"ids": "x"}).status_code == 400
         assert client.post("/api/saved/reorder", json={"ids": [999]}).status_code == 400
+
+
+def test_the_list_says_when_the_next_check_is(service):
+    app = Flask(__name__)
+    app.secret_key = "test"
+    register_saved_routes(
+        app,
+        service,
+        lambda f: f,
+        lambda: "none",
+        next_check_at=lambda: 1_800_000_000.0,
+    )
+    body = app.test_client().get("/api/saved").get_json()
+    assert body["items"] == []
+    assert body["next_check_at"] == 1_800_000_000.0

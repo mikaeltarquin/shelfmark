@@ -2064,25 +2064,39 @@ function App() {
     }
   };
 
+  // Wanted: pick releases for the book; saving them there moves it into the queue.
+  const handleSavedChoose = async (item: SavedItem): Promise<void> => {
+    try {
+      if (effectiveSearchMode === 'universal') {
+        await handleGetReleases(item.book);
+      } else {
+        await handleDownload(item.book);
+      }
+    } catch (error) {
+      console.warn('Could not open releases for saved item:', error);
+    }
+  };
+
   const savedPanelFor = (stage: SavedStage) => (
     <SavedPanel
       stage={stage}
       items={savedStore.items}
       loaded={savedStore.loaded}
-      autoGetAvailable={Boolean(config?.saved_auto_get_enabled)}
       onGet={handleSavedGet}
       onRemove={(item) => savedStore.remove(item)}
       onRefresh={savedStore.refresh}
-      onAutoGet={savedStore.setAutoGet}
       onOpenDetails={(item) => {
         setDetailsNotice(null);
         void showBookDetails(item.book, item.book.id);
       }}
+      onChooseReleases={handleSavedChoose}
       // Queued: numbered on from the downloads up next, which go first.
       onReorder={stage === 'queued' ? savedStore.reorder : undefined}
       positionOffset={stage === 'queued' ? statusCounts.queued : 0}
+      nextCheckAt={stage === 'queued' ? savedStore.nextCheckAt : null}
     />
   );
+
   const savedCounts: Record<SavedStage, number> = {
     queued: savedStore.items.filter((item) => savedStage(item) === 'queued').length,
     later: savedStore.items.filter((item) => savedStage(item) === 'later').length,

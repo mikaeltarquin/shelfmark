@@ -316,3 +316,29 @@ def test_freeleech_flags(monkeypatch):
     client.item = None
     with pytest.raises(MamError):
         mam_account.torrent_is_freeleech(1, vip=True)
+
+
+def test_next_check_time(service, mam, monkeypatch):
+    import threading
+    import time as time_module
+
+    getter = SavedAutoGetter(service, Recorder().hooks())
+    assert getter.next_check_at() is None  # Not started
+
+    # A running schedule reports when it wakes next; a marked item brings that forward.
+    monkeypatch.setattr(getter, "_thread", threading.Thread(target=lambda: None))
+    monkeypatch.setattr(getter._thread, "is_alive", lambda: True)
+    getter._next_check_at = time_module.time() + 600
+    assert getter.next_check_at() == pytest.approx(time_module.time() + 600, abs=2)
+    monkeypatch.setattr(saved_autoget, "_SOON_DELAY_SECONDS", 3600)  # Keep the timer idle
+    getter._next_check_at = time_module.time() + 7200
+    getter.check_soon()
+    assert getter.next_check_at() == pytest.approx(time_module.time() + 3600, abs=2)
+    getter._soon.cancel()
+    # Once the quick check has run, the schedule's own time is next again.
+    monkeypatch.setattr(getter, "run_check", lambda: None)
+    getter._run_soon()
+    assert getter.next_check_at() == pytest.approx(time_module.time() + 7200, abs=2)
+
+    monkeypatch.setattr(saved_autoget, "enabled", lambda: False)
+    assert getter.next_check_at() is None
