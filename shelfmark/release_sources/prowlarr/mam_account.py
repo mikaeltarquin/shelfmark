@@ -45,6 +45,11 @@ _STATS_TTL_SECONDS = 60
 # How far behind MAM's unsatisfied count may be: snatches this long before the stats
 # were read are counted as Shelfmark's own too.
 _UNSAT_LAG_SECONDS = 15 * 60
+# MAM's unsatisfied count as read, (when, count), oldest first: to tell how many of
+# Shelfmark's recent snatches it already shows (see `_uncounted_snatches`).
+_UNSAT_SAMPLE_SECONDS = 2 * 3600
+_unsat_samples: list[tuple[float, int]] = []
+_unsat_lock = threading.Lock()
 _GIB = 1024**3
 _SIZE_RE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*([KMGTP]?i?B)?\s*$", re.IGNORECASE)
 _SIZE_UNITS = {"": _GIB, "B": 1, "K": 1024, "M": 1024**2, "G": _GIB, "T": 1024**4, "P": 1024**5}
@@ -234,10 +239,46 @@ def get_stats(*, refresh: bool = False) -> MamStats:
     stats = parse_stats(client.get_user_data())
     with _cache_lock:
         _cached = (mam_id, stats)
+    _record_unsat(stats)
     from shelfmark.release_sources.prowlarr import mam_points
 
     mam_points.record_sample(stats.seedbonus, at=stats.fetched_at)
     return stats
+
+
+def _record_unsat(stats: MamStats) -> None:
+    if stats.unsat_count is None:
+        return
+    with _unsat_lock:
+        _unsat_samples.append((stats.fetched_at, stats.unsat_count))
+        cutoff = stats.fetched_at - _UNSAT_SAMPLE_SECONDS
+        _unsat_samples[:] = [sample for sample in _unsat_samples if sample[0] >= cutoff]
+
+
+def _unsat_count_before(at: float) -> int | None:
+    """MAM's unsatisfied count as last read at or before `at`, if it was."""
+    with _unsat_lock:
+        earlier = [count for read_at, count in _unsat_samples if read_at <= at]
+    return earlier[-1] if earlier else None
+
+
+def _uncounted_snatches(handoffs: list[float], unsat_count: int | None) -> int:
+    """How many of Shelfmark's recent snatches (handed off at `handoffs`) MAM's
+    `unsat_count` doesn't show yet.
+
+    MAM's count lags its snatches, so recent ones are added to it, but once it has
+    caught up that counts them twice: a run that filled the slots then saw them full for
+    the whole lag allowance (15 minutes), with slots free. So: however far MAM's count
+    has risen since just before the first of them, that many are in it already. Counted
+    in full when there's no reading from before them (as after a restart). Torrents
+    leaving the count meanwhile (satisfied) only make this count more, never fewer.
+    """
+    if not handoffs:
+        return 0
+    baseline = _unsat_count_before(min(handoffs)) if unsat_count is not None else None
+    if unsat_count is None or baseline is None:
+        return len(handoffs)
+    return max(0, len(handoffs) - max(0, unsat_count - baseline))
 
 
 def invalidate_stats() -> None:
@@ -518,7 +559,9 @@ def pending_charge_bytes() -> int:
     return sum(task.mam_charge_bytes or 0 for _status, task in _active_mam_tasks())
 
 
-def pending_unsat_count(stats_fetched_at: float | None = None) -> int:
+def pending_unsat_count(
+    stats_fetched_at: float | None = None, unsat_count: int | None = None
+) -> int:
     """Shelfmark's MAM torrents that the account's unsatisfied count may not show yet.
 
     MAM counts a torrent as unsatisfied from when it is snatched, but the stats are read
@@ -538,8 +581,12 @@ def pending_unsat_count(stats_fetched_at: float | None = None) -> int:
         if task.mam_torrent_id and status in not_started
     }
     since = (stats_fetched_at if stats_fetched_at is not None else time.time()) - _UNSAT_LAG_SECONDS
-    counted |= {task.task_id for task in book_queue.handoffs_since(since) if task.mam_torrent_id}
-    return len(counted)
+    snatched = [
+        at
+        for at, task in book_queue.handoff_times_since(since)
+        if task.mam_torrent_id and task.task_id not in counted
+    ]
+    return len(counted) + _uncounted_snatches(snatched, unsat_count)
 
 
 def unsat_free_slots(
@@ -564,12 +611,13 @@ def unsat_free_slots(
     if stats.unsat_count is None or stats.unsat_limit is None:
         return None
     since = stats.fetched_at - _UNSAT_LAG_SECONDS
-    snatched = {
-        task.task_id
-        for task in book_queue.handoffs_since(since)
+    snatched = [
+        at
+        for at, task in book_queue.handoff_times_since(since)
         if task.mam_torrent_id and task.task_id not in exclude
-    }
-    return stats.unsat_limit - unsat_reserve_slots() - stats.unsat_count - len(snatched)
+    ]
+    uncounted = _uncounted_snatches(snatched, stats.unsat_count)
+    return stats.unsat_limit - unsat_reserve_slots() - stats.unsat_count - uncounted
 
 
 def recommended_purchase_gb(missing_bytes: int) -> int:
@@ -641,7 +689,7 @@ def check_buffer(releases: list[dict[str, Any]]) -> BufferCheck:
     missing = request_bytes + pending - stats.buffer_bytes if check_buffer_size else 0
     recommended = recommended_purchase_gb(missing) if missing > 0 else 0
 
-    unsat_pending = pending_unsat_count(stats.fetched_at)
+    unsat_pending = pending_unsat_count(stats.fetched_at, stats.unsat_count)
     reserve = unsat_reserve_slots()
     unsat_ok = True
     if check_unsat and stats.unsat_count is not None and stats.unsat_limit is not None:
@@ -722,6 +770,6 @@ def ratio_snapshot() -> dict[str, Any]:
         "warning_ratio": warning_ratio(),
         "unsat_count": stats.unsat_count,
         "unsat_limit": stats.unsat_limit,
-        "unsat_pending": pending_unsat_count(stats.fetched_at),
+        "unsat_pending": pending_unsat_count(stats.fetched_at, stats.unsat_count),
         "unsat_reserve": unsat_reserve_slots(),
     }
