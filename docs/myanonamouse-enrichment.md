@@ -45,10 +45,11 @@ After a failed request (a 403, a timeout, an unexpected reply), Shelfmark waits 
 
 ## Account panel
 
-With a MAM session ID set, admins get a **MyAnonamouse** button in the header, between
-Library and Activity. It shows the account's ratio and unsatisfied count at a glance (amber
-or red as they near their limits, refreshed every 5 minutes), and opens a panel with links
-to your MAM profile and the MAM store. The panel shows:
+With a MAM session ID set, admins get a **MyAnonamouse** button in the top bar. It shows the account's ratio (to two
+decimals, worked out from the exact bytes uploaded and downloaded rather than MAM's rounded
+figures) and unsatisfied count at a glance (amber or red as they near their limits,
+refreshed every 5 minutes), plus a countdown to the next unsatisfied slot freeing up, and
+opens a panel with links to your MAM profile and the MAM store. The panel shows:
 
 - **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class, VIP expiry and unsatisfied torrents against your class's limit (amber at 90%, red at the limit), from MAM's `jsonLoad.php?snatch_summary`. Refreshed at most once a minute unless you press **Refresh**.
 - **Points / hour:** MAM's API has no earning rate, so Shelfmark estimates it from its own readings of your balance (taken hourly, kept for two days) over the last 24 hours. Points Shelfmark spent on upload credit are added back; a period where points dropped for another reason (spending on MAM's site) or hit MAM's 99,999 cap is left out. It shows once a few hours of readings exist.
@@ -87,11 +88,11 @@ Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonu
 
 MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by class. With **Hold Back Downloads at the Unsatisfied Limit** (`MAM_BLOCK_ON_UNSAT_LIMIT`, on by default), MAM torrents are held back when they, plus Shelfmark's MAM downloads not yet handed to the torrent client, would leave fewer free slots than **Unsatisfied Slots to Keep Free** (`MAM_UNSAT_RESERVE_SLOTS`, 5). Every MAM torrent counts, freeleech too. Upload credit can't fix this, so none is offered: wait for torrents to finish seeding or pick fewer. The projected-ratio line also shows `unsatisfied 94 → 98 / 100`, red when the picks would be held back.
 
-A MAM download that's short only of unsatisfied slots doesn't have to be held back or fail. The hold-back prompt offers **Queue and wait for a slot**. A queued MAM download whose turn comes while the account is full, counting the slots kept free (or whose grab MAM refuses while at the limit), goes back to the queue as **Waiting for an unsatisfied slot on MyAnonamouse**. Waiting downloads are released, longest waiting first, once a slot is free (checked every 5 minutes). Shelfmark's own snatches since shortly before the account was read count too, since MAM's figure lags. Cancel it from Activity to drop it. Waiting downloads don't survive a restart; they show as interrupted, with Retry.
+A MAM download that's short only of unsatisfied slots doesn't have to be held back or fail. The hold-back prompt offers **Queue and wait for a slot**. A queued MAM download whose turn comes while the account is full, counting the slots kept free (or whose grab MAM refuses while at the limit), goes back to the queue as **Waiting for an unsatisfied slot on MyAnonamouse**. Waiting downloads are released, longest waiting first, once a slot is free (checked every 2 minutes), in their order on **Activity → Queued**. A torrent already in your torrent client (a retry after it was handed over) doesn't wait for a slot: it already has one. Shelfmark's own snatches that MAM's count doesn't show yet count too, since MAM's figure lags; once MAM's count has caught up they aren't counted a second time. Cancel it from Activity to drop it. Waiting downloads don't survive a restart; they show as interrupted, with Retry.
 
 ### When slots free up
 
-The account panel (and the header button's tooltip) also estimates when unsatisfied
+The account panel (and the top-bar button and its tooltip) also estimates when unsatisfied
 torrents free their slots: `Next slot in 2:05 · 3 slots in the next 6 hours`. MAM's API
 only reports how many torrents are unsatisfied, so the timing comes from your torrent
 client: each MyAnonamouse torrent it is seeding that hasn't reached 72 hours frees a slot

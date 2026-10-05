@@ -2,6 +2,85 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
+## v1.2.0
+
+### Added
+
+**A Sonarr/Radarr-style layout**
+- **Left navigation and a search bar that's always there**: Search, Library, Activity
+  (Queued, Downloads, Requests, History), Wanted, Settings and System, each a page with
+  its own address. The open section lists its pages, with counts. On a phone it's a menu.
+- **Tables for Activity, Wanted and the Library**, with sortable columns.
+- **Settings is a page**, its tabs grouped into sections (Indexers, Download Clients with
+  Torrent and Usenet tabs, Libraries, Notifications…). **System** has the version,
+  health and support links.
+- **A theme button** in the top bar: Light, Dark or Auto.
+- Links, images and install commands point at this fork.
+
+**The download queue**
+- **Activity → Queued is everything waiting, in order**: **Up next** (downloads waiting
+  to start, such as a MyAnonamouse torrent waiting for an unsatisfied slot) and then
+  **Waiting for room** (saved picks), numbered in the order they go. Drag a row, or use
+  its arrows, to reorder either list.
+- **Each saved pick shows** its releases (one per line, with the narrator and a link to
+  the release on MyAnonamouse), what it's **Waiting for**, when it was **Last checked**
+  and a countdown to the **Next check**.
+- **Each release goes on its own**: a freeleech torrent or a small ebook downloads as soon
+  as there's room, instead of waiting for a big audiobook picked with it. An ebook that
+  goes first is still filed with its audiobooks.
+- **Wanted** (formerly Later) has **Choose releases** on each book; once you pick, the book
+  moves to the queue.
+- **Titles and covers on Queued and Wanted open the book's details.**
+
+**Activity**
+- **Finished downloads go straight to History**, and History is kept (it can't be
+  cleared). Clear Completed is gone.
+- **Narrators** are listed under the author in Queued, Downloads and History, so two
+  recordings of a book can be told apart.
+- **Open in your library from History** (Audiobookshelf or Calibre-Web), with or
+  without login.
+- **Calmer badges**: counts beside Activity and its pages are soft tints, not red, and
+  queued downloads count on Queued, not twice.
+
+**MyAnonamouse**
+- **Next slot countdown** in the MyAnonamouse button.
+- **The ratio shows two decimals**, worked out from the exact bytes uploaded and
+  downloaded.
+
+**Library**
+- Books in several series are listed under each of them (*Rhythm of War* in both The
+  Cosmere and The Stormlight Archive).
+- **My Account → Library** sets the tab the Library opens on and each tab's sort.
+- Box sets, omnibuses and collections are left out of missing books (My Account can show
+  them), and so are missing books numbered like one you already hold in the series.
+- Narrator badges name the first narrator and a count ("Andrew Scott +9").
+
+### Changed
+- **Show Downloads When Queued** is off by default and only applies to downloads you
+  start. Background changes to the queue never move you to another page.
+- Downloads waiting for an unsatisfied slot are checked every 2 minutes (was 5).
+
+### Fixed
+- **"Download failed: OSError"**: an audiobook with a large cast made a narrator folder
+  name too long for the filesystem. Names are now kept to 240 bytes, ending a long
+  narrator list with "et al.", and errors say what went wrong ("File name too long").
+- **Non-freeleech audiobooks downloaded automatically below Keep Ratio At Least**: the
+  "barely moves the ratio" exception let through anything that lowered it by less than
+  0.01, which on a large account is a 500 MB audiobook. It now covers only ebook-sized
+  downloads (100 MB or less).
+- **Automatic downloads stopped short of the unsatisfied limit** (stalling at 132/150
+  with 5 slots kept free): recent snatches were counted again after MAM's own count
+  already included them.
+- **Retrying a MyAnonamouse download that was already in the torrent client** waited for
+  an unsatisfied slot it didn't need.
+- **Expired indexer links** are re-found more often: the refresh searches the way the
+  book search did, then by title and author, so short titles like *Eric* are found.
+
+### Upgrading
+Activity's Later tab is now **Wanted** in the navigation; update bookmarks to the old
+pages. Folders an earlier version left half-made after an "OSError" failure aren't cleaned
+up; delete them and retry the download.
+
 ## v1.1.0
 
 ### Added
