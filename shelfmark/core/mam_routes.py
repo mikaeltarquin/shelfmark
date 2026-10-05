@@ -14,7 +14,7 @@ from flask import jsonify, request, session
 from shelfmark.core.auth_modes import load_active_auth_mode
 from shelfmark.core.logger import setup_logger
 from shelfmark.core.route_guards import admin_only
-from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy, mam_points
+from shelfmark.release_sources.prowlarr import mam_account, mam_autobuy, mam_freeze, mam_points
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -78,6 +78,27 @@ def register_mam_routes(app: Flask, login_required: Callable[..., Any]) -> None:
     @login_required
     def api_mam_unsat_timing() -> Response:
         # Counts and times only, no torrent names: every user downloads on the account.
+        return jsonify(mam_account.unsat_timing())
+
+    @app.route("/api/mam/freeze", methods=["POST"])
+    @login_required
+    @admin_only
+    def api_mam_freeze_set() -> Response | tuple[Response, int]:
+        # MAM's "Time Till Download Allowed", as the site shows it ("1d 02:04:02").
+        data = request.get_json(silent=True) or {}
+        seconds = mam_freeze.parse_duration(str(data.get("remaining") or ""))
+        if not seconds:
+            return jsonify({"error": "Enter the time left as MAM shows it, e.g. 1d 02:04:02"}), 400
+        mam_freeze.set_freeze(seconds, source="manual")
+        logger.info("MAM download freeze entered by hand: %s s", seconds)
+        return jsonify(mam_account.unsat_timing())
+
+    @app.route("/api/mam/freeze", methods=["DELETE"])
+    @login_required
+    @admin_only
+    def api_mam_freeze_clear() -> Response:
+        mam_freeze.clear()
+        logger.info("MAM download freeze cleared by hand")
         return jsonify(mam_account.unsat_timing())
 
     @app.route("/api/mam/buffer-check", methods=["POST"])

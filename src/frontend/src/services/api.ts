@@ -795,6 +795,16 @@ export const deleteSavedItem = async (id: number): Promise<void> => {
 export const getMamUnsatTiming = async (): Promise<MamUnsatTiming> =>
   fetchJSON<MamUnsatTiming>(`${API_BASE}/mam/unsat-timing`);
 
+/** Hold MAM downloads for `remaining`, MAM's "Time Till Download Allowed" ("1d 02:04:02"). */
+export const setMamFreeze = async (remaining: string): Promise<MamUnsatTiming> =>
+  fetchJSON<MamUnsatTiming>(`${API_BASE}/mam/freeze`, {
+    method: 'POST',
+    body: JSON.stringify({ remaining }),
+  });
+
+export const clearMamFreeze = async (): Promise<MamUnsatTiming> =>
+  fetchJSON<MamUnsatTiming>(`${API_BASE}/mam/freeze`, { method: 'DELETE' });
+
 export const checkMamBuffer = async (releases: DownloadReleasePayload[]): Promise<MamBufferCheck> =>
   fetchJSON<MamBufferCheck>(`${API_BASE}/mam/buffer-check`, {
     method: 'POST',

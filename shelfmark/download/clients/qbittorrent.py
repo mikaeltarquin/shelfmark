@@ -44,6 +44,12 @@ logger = setup_logger(__name__)
 _HASH_LENGTH_40 = 40
 _HASH_LENGTH_ED2K = 32
 _HTTP_STATUS_FORBIDDEN = HTTPStatus.FORBIDDEN
+_TRACKER_NOT_WORKING = 4  # qBittorrent's tracker status
+# Paused or stopped: no announces, so no tracker is "working" and none has failed either.
+_IDLE_STATES = frozenset({"pausedUP", "pausedDL", "stoppedUP", "stoppedDL"})
+# (torrent hash, tracker) -> whether the torrent is on it; never changes, so asked once.
+_on_tracker: dict[tuple[str, str], bool] = {}
+_ON_TRACKER_MAX = 20_000
 _HTTP_STATUS_NOT_FOUND = HTTPStatus.NOT_FOUND
 _METADATA_DOWNLOAD_STATES = {"forcedMetaDL", "metaDL"}
 # How long add_download waits for magnet metadata before falling back to the info
@@ -296,15 +302,56 @@ class QBittorrentClient(DownloadClient):
         if error:
             raise RuntimeError(error)
         needle = tracker.lower()
-        return [
-            TrackerTorrent(
-                name=str(getattr(torrent, "name", "") or ""),
-                seeding_seconds=coerce_optional_int(getattr(torrent, "seeding_time", 0)) or 0,
-                complete=(coerce_optional_float(getattr(torrent, "progress", 0)) or 0) >= 1.0,
+        result: list[TrackerTorrent] = []
+        for torrent in torrents:
+            tracker_error: str | None = None
+            working = str(getattr(torrent, "tracker", "") or "")
+            if working:
+                if needle not in working.lower():
+                    continue
+            else:
+                # `tracker` is the first *working* tracker: empty when every announce
+                # fails, just when it matters, so ask which trackers the torrent has.
+                torrent_hash = str(getattr(torrent, "hash", "") or "")
+                key = (torrent_hash, needle)
+                known = _on_tracker.get(key)
+                if known is False:
+                    continue
+                idle = str(getattr(torrent, "state", "") or "") in _IDLE_STATES
+                if not (known and idle):  # An idle one has no announce to have failed
+                    on_it, tracker_error = self._failing_tracker(torrent_hash, needle)
+                    if len(_on_tracker) > _ON_TRACKER_MAX:
+                        _on_tracker.clear()
+                    _on_tracker[key] = on_it
+                    if not on_it:
+                        continue
+            result.append(
+                TrackerTorrent(
+                    name=str(getattr(torrent, "name", "") or ""),
+                    seeding_seconds=coerce_optional_int(getattr(torrent, "seeding_time", 0)) or 0,
+                    complete=(coerce_optional_float(getattr(torrent, "progress", 0)) or 0) >= 1.0,
+                    tracker_error=tracker_error,
+                )
             )
-            for torrent in torrents
-            if needle in str(getattr(torrent, "tracker", "") or "").lower()
-        ]
+        return result
+
+    def _failing_tracker(self, torrent_hash: str, needle: str) -> tuple[bool, str | None]:
+        """Whether a torrent with no working tracker is on `needle`'s, and its message."""
+        if not torrent_hash:
+            return False, None
+        self._ensure_authenticated()
+        response = self._client._session.get(
+            f"{self._base_url}/api/v2/torrents/trackers",
+            params={"hash": torrent_hash},
+            timeout=10,
+        )
+        response.raise_for_status()
+        for row in response.json():
+            if isinstance(row, dict) and needle in str(row.get("url") or "").lower():
+                # Status 4 is "not working"; the others are still contacting it.
+                failed = coerce_optional_int(row.get("status")) == _TRACKER_NOT_WORKING
+                return True, (str(row.get("msg") or "") or "announce failed") if failed else None
+        return False, None
 
     def _get_torrent_info(self, download_id: str) -> tuple[SimpleNamespace | None, str | None]:
         """Get one torrent by its current qBittorrent hash."""

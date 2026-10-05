@@ -5,21 +5,25 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 import { useMountEffect } from '../hooks/useMountEffect';
 import {
   buyMamUploadCredit,
+  clearMamFreeze,
   getMamAccount,
   getMamAutobuy,
   getMamStatus,
   getMamUnsatTiming,
   runMamAutobuy,
+  setMamFreeze,
 } from '../services/api';
 import {
   customAmountError,
   describeAutobuy,
+  describeMamHold,
   describeUnsatTiming,
   describeCheck,
   purchaseReasonLabel,
   DEFAULT_POINTS_PER_GB,
   DEFAULT_STEP_GB,
   formatGib,
+  formatHoursMinutes,
   formatPoints,
   formatRatio,
   formatUnsat,
@@ -44,6 +48,91 @@ interface MamAccountModalProps {
 }
 
 type Choice = number | 'max' | 'custom';
+
+/** MAM's download freeze: shown when in force, or entered by hand from the site. */
+const FreezeSection = ({
+  timing,
+  onChange,
+}: {
+  timing: MamUnsatTiming | null;
+  onChange: (timing: MamUnsatTiming) => void;
+}) => {
+  const [remaining, setRemaining] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const frozen = timing?.frozen_seconds ?? null;
+
+  const run = async (request: () => Promise<MamUnsatTiming>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      onChange(await request());
+      setRemaining('');
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section aria-label="Download pause">
+      <h4 className="text-sm font-semibold">Download pause</h4>
+      {frozen ? (
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <p className="text-sm text-red-700 dark:text-red-300">
+            MyAnonamouse has paused downloads: allowed again in {formatHoursMinutes(frozen)}. MAM
+            downloads wait until then
+            {timing?.frozen_source === 'manual' ? ' (entered by hand)' : ''}.
+          </p>
+          <button
+            type="button"
+            onClick={() => void run(clearMamFreeze)}
+            disabled={busy}
+            className="rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="mt-0.5 text-xs opacity-70">
+            If MAM shows &ldquo;Time Till Download Allowed&rdquo;, enter it so MAM downloads wait it
+            out. Shelfmark also reads it from a refused download.
+          </p>
+          <form
+            className="mt-2 flex flex-wrap items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void run(() => setMamFreeze(remaining.trim()));
+            }}
+          >
+            <input
+              type="text"
+              value={remaining}
+              placeholder="1d 02:04:02"
+              aria-label="Time till download allowed"
+              onChange={(event) => setRemaining(event.target.value)}
+              className="w-32 rounded-full border border-(--border-muted) bg-(--bg-soft) px-3 py-1.5 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={busy || !remaining.trim()}
+              className="rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-(--hover-surface) disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Hold downloads
+            </button>
+          </form>
+        </>
+      )}
+      {error && (
+        <p role="status" className="mt-2 text-sm text-red-700 dark:text-red-300">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+};
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : 'Request failed';
@@ -365,6 +454,11 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               <Stat label="Uploaded" value={stats ? formatGib(stats.uploaded_bytes) : '…'} />
               <Stat label="Downloaded" value={stats ? formatGib(stats.downloaded_bytes) : '…'} />
             </div>
+            {timing?.announce_problem && !timing.frozen_seconds && (
+              <p role="status" className="mt-2 text-sm text-red-700 dark:text-red-300">
+                {describeMamHold(timing)}
+              </p>
+            )}
             {timing && (
               <p className="mt-2 text-sm" title={timing.reason}>
                 <span className="font-medium">Unsatisfied slots: </span>
@@ -382,6 +476,8 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               </p>
             )}
           </section>
+
+          <FreezeSection timing={timing} onChange={setTiming} />
 
           <section aria-label="Connections">
             <h4 className="text-sm font-semibold">Connections</h4>

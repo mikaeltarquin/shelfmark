@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import importlib
 from contextlib import contextmanager, suppress
-from typing import TYPE_CHECKING, Protocol, TypeGuard
+from typing import TYPE_CHECKING, Any, Protocol, TypeGuard
 
 from shelfmark.core.config import config
 from shelfmark.core.logger import setup_logger
@@ -137,6 +137,18 @@ def _apply_transmission_ssl_verify(client: object, url: str) -> None:
         session.verify = get_ssl_verify(url)
     except (AttributeError, OSError, TypeError, ValueError) as e:
         logger.debug("Unable to apply Transmission TLS verify setting: %s", e)
+
+
+def _tracker_error(torrent: Any, needle: str) -> str | None:
+    """The tracker's reason when the last announce to it failed."""
+    for stats in getattr(torrent, "tracker_stats", None) or []:
+        if needle not in str(getattr(stats, "announce", "") or "").lower():
+            continue
+        if getattr(stats, "has_announced", False) and not getattr(
+            stats, "last_announce_succeeded", True
+        ):
+            return str(getattr(stats, "last_announce_result", "") or "") or "announce failed"
+    return None
 
 
 @register_client("torrent")
@@ -367,7 +379,7 @@ class TransmissionClient(DownloadClient):
     def list_tracker_torrents(self, tracker: str) -> list[TrackerTorrent] | None:
         """Every torrent on a tracker, with Transmission's seeding time."""
         torrents = self._client.get_torrents(
-            arguments=["name", "secondsSeeding", "percentDone", "trackers"]
+            arguments=["name", "secondsSeeding", "percentDone", "trackers", "trackerStats"]
         )
         needle = tracker.lower()
         result: list[TrackerTorrent] = []
@@ -380,6 +392,7 @@ class TransmissionClient(DownloadClient):
                     name=str(torrent.name or ""),
                     seeding_seconds=int(torrent.seconds_seeding or 0),
                     complete=float(torrent.percent_done or 0) >= 1.0,
+                    tracker_error=_tracker_error(torrent, needle),
                 )
             )
         return result

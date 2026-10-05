@@ -311,7 +311,8 @@ def prowlarr_config_settings() -> list[SettingsField]:
                 "hours) at once, by user class. Before queueing MAM torrents (freeleech too), "
                 "check that they, plus Shelfmark's MAM downloads not yet started, leave the "
                 "slots below free. Buying upload credit doesn't help here; wait for torrents "
-                "to finish seeding."
+                "to finish seeding. Queued MAM downloads also wait while MAM can't be read, "
+                "rejects the torrent client's announces, or has frozen downloads."
             ),
             default=True,
             show_when={"field": "PROWLARR_ENABLED", "value": True},

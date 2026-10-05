@@ -24,9 +24,15 @@ def queue(monkeypatch):
 
 @pytest.fixture
 def slots(monkeypatch):
-    """Free unsatisfied slots MAM reports; None means unknown."""
-    state = {"free": 0, "enabled": True}
-    monkeypatch.setattr(mam_account, "unsat_free_slots", lambda **_kw: state["free"])
+    """Free unsatisfied slots MAM reports (None: no limit), and why grabs must wait."""
+    state = {"free": 0, "enabled": True, "hold": None}
+
+    def allowance(**_kw):
+        if not state["enabled"]:
+            return mam_account.GrabAllowance(None)
+        return mam_account.GrabAllowance(state["free"], state["hold"])
+
+    monkeypatch.setattr(mam_account, "grab_allowance", allowance)
     monkeypatch.setattr(mam_account, "unsat_check_enabled", lambda: state["enabled"])
     return state
 
@@ -107,10 +113,39 @@ def test_keeps_waiting_when_mam_cannot_be_read_and_goes_when_the_check_is_off(
 ):
     monkeypatch.setattr(orchestrator, "_download_task", lambda _t, _f: None)
     orchestrator._process_single_download("a", _add(queue, "a"))
-    slots["free"] = None
+    slots["free"], slots["hold"] = 5, "Waiting: couldn't read the MyAnonamouse account"
+    assert orchestrator.release_held_downloads() == []
+    assert queue.get_task("a").status_message == slots["hold"]
+    slots["free"], slots["hold"] = None, None  # No limit reported: can't judge
     assert orchestrator.release_held_downloads() == []
     slots["enabled"] = False
     assert orchestrator.release_held_downloads() == ["a"]
+
+
+def test_waits_out_a_freeze_or_rejected_announces_with_free_slots(queue, slots, monkeypatch):
+    grabbed: list[str] = []
+    monkeypatch.setattr(orchestrator, "_download_task", lambda tid, _f: grabbed.append(tid))
+    slots["free"], slots["hold"] = 20, "MyAnonamouse has paused downloads on the account"
+    orchestrator._process_single_download("t1", _add(queue, "t1"))
+
+    assert grabbed == []
+    assert queue.get_task("t1").status_message == slots["hold"]
+    assert orchestrator.release_held_downloads() == []
+    slots["hold"] = None  # Lifted
+    assert orchestrator.release_held_downloads() == ["t1"]
+
+
+def test_a_grab_refused_into_a_freeze_waits(queue, slots, monkeypatch):
+    def refused(_task_id, _flag):
+        slots["hold"] = "MyAnonamouse has paused downloads on the account"
+        return None
+
+    slots["free"] = 3
+    monkeypatch.setattr(orchestrator, "_download_task", refused)
+    orchestrator._process_single_download("t1", _add(queue, "t1"))
+
+    assert queue.get_task_status("t1") == QueueStatus.QUEUED
+    assert queue.get_task("t1").status_message == slots["hold"]
 
 
 def test_a_cancelled_wait_is_dropped(queue, slots, monkeypatch):

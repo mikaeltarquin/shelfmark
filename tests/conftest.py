@@ -26,6 +26,8 @@ os.makedirs(os.path.join(_temp_base, "tmp"), exist_ok=True)
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import time
+
 import pytest
 
 
@@ -37,6 +39,22 @@ def _clear_torrent_fetch_cache():
     clear_torrent_fetch_cache()
     yield
     clear_torrent_fetch_cache()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_mam_state(monkeypatch, tmp_path):
+    """No torrent client read or MAM download freeze carries over between tests."""
+    from shelfmark.release_sources.prowlarr import mam_account, mam_freeze
+
+    monkeypatch.setattr(mam_account, "_client_cache", None)
+    # The test config can name a torrent client that isn't there: read none unless a
+    # test supplies one (see tests/prowlarr/test_mam_unsat_timing.py).
+    monkeypatch.setattr(
+        mam_account,
+        "_read_client",
+        lambda: mam_account._ClientRead(time.time(), None, None, "No torrent client in tests"),
+    )
+    monkeypatch.setattr(mam_freeze, "_path", lambda: tmp_path / "mam_freeze.json")
 
 
 @pytest.fixture

@@ -285,6 +285,8 @@ class TestRoutes:
             ("get", "/api/mam/account"),
             ("get", "/api/mam/status"),
             ("post", "/api/mam/upload-credit"),
+            ("post", "/api/mam/freeze"),
+            ("delete", "/api/mam/freeze"),
         ],
     )
     def test_admin_only(self, main_module, mam, auth_required, method, path):
@@ -292,6 +294,19 @@ class TestRoutes:
         resp = getattr(client, method)(path, json={"amount": 50})
         assert resp.status_code == 403
         assert mam.buys == []
+
+    def test_freeze_entered_and_cleared_by_hand(self, main_module, mam, monkeypatch):
+        from shelfmark.release_sources.prowlarr import mam_freeze
+
+        client = _client(main_module, is_admin=True)
+        assert client.post("/api/mam/freeze", json={"remaining": "soon"}).status_code == 400
+        resp = client.post("/api/mam/freeze", json={"remaining": "1d 02:04:02"})
+        assert resp.status_code == 200
+        assert resp.get_json()["frozen_source"] == "manual"
+        assert mam_freeze.remaining_seconds() > 26 * 3600
+        resp = client.delete("/api/mam/freeze")
+        assert resp.get_json()["frozen_seconds"] is None
+        assert mam_freeze.current() is None
 
 
 def _mam_release(gib: float, *, freeleech: bool = False, torrent_id: int | None = 123) -> dict:

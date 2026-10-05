@@ -165,6 +165,10 @@ export interface MamUnsatTiming {
   window_hours?: number;
   seeding?: number; // MAM torrents seeding but not yet at 72 hours
   downloading?: number; // Still downloading: their 72 hours haven't started
+  // Until MAM allows downloads again, after a grab past the unsatisfied limit froze them
+  frozen_seconds?: number | null;
+  frozen_source?: 'detected' | 'manual' | null; // Read from MAM's refusal, or entered by hand
+  announce_problem?: string | null; // MAM is rejecting the client's announces
 }
 
 /** Seconds as h:mm ("2:05"), rounded up so a slot is never promised early. */
@@ -194,6 +198,16 @@ export const describeUnsatTiming = (timing: MamUnsatTiming | null): string | nul
   const count = timing.within_window ?? 0;
   const slots = `${count} slot${count === 1 ? '' : 's'} in the next ${hours} hours`;
   return `Next slot in ${formatHoursMinutes(timing.next_seconds)} · ${slots}`;
+};
+
+/** Why MAM downloads are on hold whatever the free slots, or null. */
+export const describeMamHold = (timing: MamUnsatTiming | null): string | null => {
+  if (timing?.frozen_seconds) {
+    return `MyAnonamouse has paused downloads (unsatisfied limit) · allowed again in ${formatHoursMinutes(
+      timing.frozen_seconds,
+    )}`;
+  }
+  return timing?.announce_problem ?? null;
 };
 
 /** Red at or past the unsatisfied limit, amber within 10% of it. */

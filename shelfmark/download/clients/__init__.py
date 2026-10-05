@@ -182,6 +182,9 @@ class TrackerTorrent:
     name: str
     seeding_seconds: int  # Time spent seeding since it completed
     complete: bool  # Finished downloading (the seeding clock runs only after)
+    # The tracker's reply when its last announce failed ("Unrecognized host/PassKey"):
+    # MAM isn't counting or crediting the torrent meanwhile.
+    tracker_error: str | None = None
 
 
 class DownloadClient(ABC):
