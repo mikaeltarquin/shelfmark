@@ -16,6 +16,13 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   lifts, with a countdown in the top bar.
 - qBittorrent's MyAnonamouse torrents with no working tracker are no longer left out of
   the slot timing.
+- **A torrent with no progress for 5 minutes waits in the torrent client instead of being
+  cancelled.** It was left downloading there with nothing to pick up the files, and shown
+  as Cancelled. Now it waits on **Activity → Queued** ("Waiting in Deluge: no progress…")
+  and carries on once the client shows it moving or finished.
+- **A retry finds its torrent in the client by its hash**, without downloading the
+  .torrent again, so it works while MyAnonamouse has frozen downloads. The hash is kept
+  from when the torrent was handed to the client.
 
 ## v1.2.0
 

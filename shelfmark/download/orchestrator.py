@@ -1144,10 +1144,18 @@ def _torrent_in_client(task_id: str) -> bool:
     import requests
 
     from shelfmark.download.clients import get_client
+    from shelfmark.download.clients.base_handler import find_existing_download
 
     try:
         client = get_client("torrent")
-        return client is not None and client.find_existing(url) is not None
+        # By hash when known: finding it by URL means downloading the .torrent again,
+        # which MAM refuses while it has frozen downloads.
+        info_hash = task.torrent_client_hash or task.retry_expected_hash
+        return (
+            client is not None
+            and find_existing_download(client, url, protocol="torrent", info_hash=info_hash)
+            is not None
+        )
     except (
         ImportError,
         OSError,
@@ -1283,12 +1291,162 @@ def _ensure_slot_watcher() -> None:
         _slot_watcher.start()
 
 
+# --- Waiting in the torrent client ----------------------------------------------------
+#
+# A torrent that makes no progress for the stall timeout is usually waiting on the
+# torrent client (no peers yet, the client's own queue, a tracker refusing it for now),
+# not stuck in Shelfmark, and it goes on downloading there. Cancelling it would leave
+# it downloading with nothing to pick up the files, so instead it gives up its worker
+# and waits in the queue, and goes back to the workers once the client shows it
+# progressing (or finished). Cancel it from Activity to drop it.
+
+_CLIENT_RECHECK_SECONDS = 2 * 60
+CLIENT_WAIT_MESSAGE = (
+    f"Waiting in {{client}}: no progress for {STALL_TIMEOUT // 60} minutes (no peers yet, "
+    f"or queued there). Picks up when it moves (checked every "
+    f"{_CLIENT_RECHECK_SECONDS // 60} minutes)"
+)
+_parking: set[str] = set()  # Stalled torrents handing their worker back
+_waiting_in_client: dict[str, float] = {}  # task id -> its progress when it stopped
+_client_watcher: threading.Thread | None = None
+
+
+def _park_stalled_torrent(task_id: str, cancel_flag: Event) -> bool:
+    """Send a stalled download that's in the torrent client back to wait there."""
+    task = book_queue.get_task(task_id)
+    if (
+        task is None
+        or not task.torrent_client_hash
+        or book_queue.get_task_status(task_id) != QueueStatus.DOWNLOADING
+    ):
+        return False
+    with _held_lock:
+        _parking.add(task_id)
+    logger.info("Download %s stalled in the torrent client; it waits there", task_id)
+    cancel_flag.set()  # The worker stops polling and leaves the torrent in the client
+    return True
+
+
+def _settle_parked(task_id: str) -> bool:
+    """Once its worker has stopped, put a parked download in the queue to wait."""
+    with _held_lock:
+        if task_id not in _parking:
+            return False
+        _parking.discard(task_id)
+    task = book_queue.get_task(task_id)
+    if task is None:
+        return False
+    progress = task.progress or 0.0
+    if not book_queue.hold(task_id, CLIENT_WAIT_MESSAGE.format(client=_client_name())):
+        return False
+    with _held_lock:
+        _waiting_in_client[task_id] = progress
+    _ensure_client_watcher()
+    if ws_manager:
+        ws_manager.broadcast_status_update(queue_status())
+    return True
+
+
+def waiting_in_client() -> list[str]:
+    """Downloads waiting for the torrent client to move them."""
+    with _held_lock:
+        return list(_waiting_in_client)
+
+
+def release_moving_torrents() -> list[str]:
+    """Queue the waiting downloads whose torrents have moved; fail ones that are gone."""
+    with _held_lock:
+        waiting = dict(_waiting_in_client)
+    if not waiting:
+        return []
+
+    from shelfmark.download.clients import DownloadState, client_label, get_client
+
+    try:
+        client = get_client("torrent")
+    except Exception as exc:  # noqa: BLE001 - each client library raises its own errors
+        logger.debug("Could not reach the torrent client: %s", exc)
+        return []
+    released: list[str] = []
+    failed = False
+    for task_id, progress in waiting.items():
+        task = book_queue.get_task(task_id)
+        if task is None or book_queue.get_task_status(task_id) != QueueStatus.QUEUED:
+            with _held_lock:  # Cancelled, or retried by hand
+                _waiting_in_client.pop(task_id, None)
+            continue
+        if client is None or not task.torrent_client_hash:
+            continue
+        try:
+            status = client.get_status(task.torrent_client_hash)
+        except Exception as exc:  # noqa: BLE001 - try again next round
+            logger.debug("Could not read %s from the torrent client: %s", task_id, exc)
+            continue
+        if status.state == DownloadState.ERROR and "not found" in (status.message or "").lower():
+            with _held_lock:
+                _waiting_in_client.pop(task_id, None)
+            book_queue.update_status_message(
+                task_id, f"The torrent is no longer in {client_label(client) or 'the client'}"
+            )
+            book_queue.update_status(task_id, QueueStatus.ERROR)
+            failed = True
+            continue
+        if status.state == DownloadState.ERROR:
+            continue  # Can't tell; try again next round
+        if not status.complete and (status.progress or 0.0) <= progress:
+            continue
+        with _held_lock:
+            _waiting_in_client.pop(task_id, None)
+        if book_queue.enqueue_existing(task_id):
+            book_queue.update_status_message(task_id, "Moving again in the torrent client")
+            released.append(task_id)
+    if released:
+        logger.info("Torrents moving again in the client: %s", released)
+    if (released or failed) and ws_manager:
+        ws_manager.broadcast_status_update(queue_status())
+    return released
+
+
+def _client_name() -> str:
+    """The torrent client's name, for messages."""
+    from shelfmark.download.clients import client_label, get_client
+
+    try:
+        return client_label(get_client("torrent")) or "the torrent client"
+    except Exception:  # noqa: BLE001 - only a name for a message
+        return "the torrent client"
+
+
+def _client_watch_loop() -> None:
+    while True:
+        time.sleep(_CLIENT_RECHECK_SECONDS)
+        try:
+            release_moving_torrents()
+        except Exception:  # the watcher must outlive any one check
+            logger.exception("Checking downloads waiting in the torrent client failed")
+        with _held_lock:
+            if not _waiting_in_client:
+                return
+
+
+def _ensure_client_watcher() -> None:
+    global _client_watcher
+    with _held_lock:
+        if _client_watcher is not None and _client_watcher.is_alive():
+            return
+        _client_watcher = threading.Thread(
+            target=_client_watch_loop, name="torrent-client-watcher", daemon=True
+        )
+        _client_watcher.start()
+
+
 def _process_single_download(task_id: str, cancel_flag: Event) -> None:
     """Process a single download job."""
     task = book_queue.get_task(task_id)
     is_mam = bool(task and task.mam_torrent_id)
     with _held_lock:
         _held_for_slot.pop(task_id, None)  # Picked up: released, or retried by hand
+        _waiting_in_client.pop(task_id, None)
     if is_mam and not cancel_flag.is_set():
         wait = _slot_wait(task_id)
         if wait is not None and _hold_for_slot(task_id, wait):
@@ -1302,6 +1460,8 @@ def _process_single_download(task_id: str, cancel_flag: Event) -> None:
     _cleanup_progress_tracking(task_id)
 
     if cancel_flag.is_set():
+        if _settle_parked(task_id):
+            return
         book_queue.update_status(task_id, QueueStatus.CANCELLED)
         # Broadcast cancellation
         if ws_manager:
@@ -1404,7 +1564,9 @@ def concurrent_download_loop() -> None:
                     stalled_tasks.discard(task_id)
                     if future.cancelled():
                         _cleanup_progress_tracking(task_id)
-                        if cancel_flag.is_set():
+                        if cancel_flag.is_set() and _settle_parked(task_id):
+                            pass
+                        elif cancel_flag.is_set():
                             logger.info("Download cancelled: %s", task_id)
                             book_queue.update_status(task_id, QueueStatus.CANCELLED)
                         else:
@@ -1426,7 +1588,9 @@ def concurrent_download_loop() -> None:
                         continue
 
                     _cleanup_progress_tracking(task_id)
-                    if cancel_flag.is_set():
+                    if cancel_flag.is_set() and _settle_parked(task_id):
+                        pass
+                    elif cancel_flag.is_set():
                         logger.info("Download cancelled: %s", task_id)
                         book_queue.update_status(task_id, QueueStatus.CANCELLED)
                     else:
@@ -1449,8 +1613,10 @@ def concurrent_download_loop() -> None:
                     for _future, (task_id, _cancel_flag) in list(active_futures.items())
                     if task_id not in stalled_tasks
                 ]
+                flags = dict(active_futures.values())
                 for task_id in _find_stalled_tasks(candidates, current_time):
-                    _cancel_stalled_task(task_id)
+                    if not _park_stalled_torrent(task_id, flags[task_id]):
+                        _cancel_stalled_task(task_id)
                     stalled_tasks.add(task_id)
 
                 # Start new downloads if we have capacity

@@ -107,6 +107,9 @@ class DownloadTask:
     )
     retry_release_name: str | None = None  # Display name to send back to external download clients
     retry_expected_hash: str | None = None  # Optional torrent hash used to match client downloads
+    # The info hash the torrent client holds the download by, once handed to one that keeps
+    # it (Deluge, qBittorrent, Transmission, rTorrent): a stalled one waits there for peers.
+    torrent_client_hash: str | None = None
     retry_ratio_limit: float | None = None  # Optional post-download seeding ratio
     retry_seeding_time_limit_minutes: int | None = None  # Optional post-download seeding time limit
     retry_source_context: dict[str, Any] = field(
