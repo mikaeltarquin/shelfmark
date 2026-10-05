@@ -536,7 +536,7 @@ Audiobooks only. AudiobookBay lists it for most releases. In Prowlarr results it
 | `EBOOKS_WITH_AUDIOBOOKS` | Audiobookshelf shows an ebook and an audiobook as one item when they share a folder. Also place each downloaded ebook in the folder of every audiobook of the same book (one per narrator), and copy an existing ebook into a newly downloaded audiobook's folder. Ebooks with no audiobook yet go to the audiobook path without a narrator and move in when the first audiobook arrives. Uses the audiobook Path Template, so include {Narrator} to keep narrations apart. | boolean | `false` |
 | `WRITE_AUDIOBOOKSHELF_OPF` | Save a metadata.opf with Shelfmark's title, authors, narrators, year and series into each audiobook folder (and the ebooks kept with them) before the files arrive. Audiobookshelf prefers it over the release's own tags, so every book of a series imports with the same series name and number. Edits made in Audiobookshelf still take precedence. Folders that already have an .opf are left alone. | boolean | `false` |
 | `HARDLINK_TORRENTS_AUDIOBOOK` | Create hardlinks instead of copying. Preserves seeding but archives won't be extracted. Don't use if destination is a library ingest folder. | boolean | `true` |
-| `AUTO_OPEN_DOWNLOADS_SIDEBAR` | Go to Activity > Downloads when a new download is queued. | boolean | `false` |
+| `AUTO_OPEN_DOWNLOADS_SIDEBAR` | When you start a download, go to the Activity page that lists it (Queued or Downloads). Downloads queued in the background never move the page. | boolean | `false` |
 | `DOWNLOAD_TO_BROWSER_CONTENT_TYPES` | Automatically download completed files to your browser for the selected content types. | string (comma-separated) | _empty list_ |
 | `MAX_CONCURRENT_DOWNLOADS` | Maximum number of simultaneous downloads. | number | `3` |
 | `STATUS_TIMEOUT` | How long to keep completed/failed downloads in the queue display. | number | `3600` |
@@ -852,7 +852,7 @@ Create hardlinks instead of copying. Preserves seeding but archives won't be ext
 
 **Show Downloads When Queued**
 
-Go to Activity > Downloads when a new download is queued.
+When you start a download, go to the Activity page that lists it (Queued or Downloads). Downloads queued in the background never move the page.
 
 - **Type:** boolean
 - **Default:** `false`
@@ -1357,6 +1357,9 @@ How long to cache individual book details. Default: 600 (10 minutes). Max: 60480
 | `MAM_BLOCK_ON_LOW_BUFFER` | Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead. | boolean | `true` |
 | `MAM_BLOCK_ON_UNSAT_LIMIT` | MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding. | boolean | `true` |
 | `MAM_UNSAT_RESERVE_SLOTS` | Hold back downloads that would leave fewer free unsatisfied slots than this. | number | `5` |
+| `SAVED_AUTO_GET_ENABLED` | Turn off to pause every automatic download; items stay marked. | boolean | `true` |
+| `SAVED_AUTO_GET_TARGET_RATIO` | Non-freeleech downloads that would take the ratio below this wait, unless they're ebook-sized (100 MB or less) and lower it by less than 0.01. 0 turns the ratio check off. | number | `2.0` |
+| `SAVED_AUTO_GET_INTERVAL_MINUTES` | How often to check the marked items. At least 5. | number | `10` |
 | `MAM_AUTOBUY_RATIO_ENABLED` | Buy once per check while the ratio is below the threshold. | boolean | `false` |
 | `MAM_AUTOBUY_RATIO_THRESHOLD` | Buy when the ratio is below this. 2.0 is MAM's minimum for renewing VIP; 1.0 is the site minimum. | number | `2.0` |
 | `MAM_AUTOBUY_RATIO_AMOUNT` | How much to buy each time, in multiples of 50 GB. | number | `50` |
@@ -1483,6 +1486,35 @@ Hold back downloads that would leave fewer free unsatisfied slots than this.
 - **Type:** number
 - **Default:** `5`
 - **Constraints:** min: 0
+
+#### `SAVED_AUTO_GET_ENABLED`
+
+**Get Saved Books Automatically**
+
+Turn off to pause every automatic download; items stay marked.
+
+- **Type:** boolean
+- **Default:** `true`
+
+#### `SAVED_AUTO_GET_TARGET_RATIO`
+
+**Keep Ratio At Least**
+
+Non-freeleech downloads that would take the ratio below this wait, unless they're ebook-sized (100 MB or less) and lower it by less than 0.01. 0 turns the ratio check off.
+
+- **Type:** number
+- **Default:** `2.0`
+- **Constraints:** min: 0
+
+#### `SAVED_AUTO_GET_INTERVAL_MINUTES`
+
+**Check Every (Minutes)**
+
+How often to check the marked items. At least 5.
+
+- **Type:** number
+- **Default:** `10`
+- **Constraints:** min: 5
 
 #### `MAM_AUTOBUY_RATIO_ENABLED`
 

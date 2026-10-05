@@ -20,6 +20,8 @@ Audiobook templates can use `{Narrator}`. Narrators come from [MyAnonamouse Enri
 
 Several narrators are joined with **Narrator Separator** (`NARRATOR_SEPARATOR`): `&` (default) gives `Narrator Two & Narrator Three`, `,` gives `Narrator Two, Narrator Three`.
 
+Folder and file names are kept to 240 bytes, under the 255-byte limit of most filesystems. A full-cast recording with a dozen narrators would go over it, so its list is cut after the last whole name that fits and ends with `et al.` (`Book Title {Martin Jarvis & Peter Serafinowicz & … et al.}`). Any other value that's too long (a very long title, say) is cut at a word.
+
 Braces nested inside a template block are kept as text, so `{{Narrator}}` renders `{Narrator One}` and disappears entirely when there is no narrator (the space before it is trimmed too). The recommended audiobook **Path Template** is:
 
 ```
