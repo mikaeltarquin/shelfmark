@@ -90,6 +90,12 @@ MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hour
 
 A MAM download that's short only of unsatisfied slots doesn't have to be held back or fail. The hold-back prompt offers **Queue and wait for a slot**. A queued MAM download whose turn comes while the account is full, counting the slots kept free (or whose grab MAM refuses while at the limit), goes back to the queue as **Waiting for an unsatisfied slot on MyAnonamouse**. Waiting downloads are released, longest waiting first, once a slot is free (checked every 2 minutes), in their order on **Activity → Queued**. A torrent already in your torrent client (a retry after it was handed over) doesn't wait for a slot: it already has one. Shelfmark's own snatches that MAM's count doesn't show yet count too, since MAM's figure lags; once MAM's count has caught up they aren't counted a second time. Cancel it from Activity to drop it. Waiting downloads don't survive a restart; they show as interrupted, with Retry.
 
+MAM's count only moves when its tracker hears from your torrent client, so Shelfmark doesn't trust it alone. Before each grab it also counts the MyAnonamouse torrents in your torrent client (Deluge, qBittorrent or Transmission) still downloading or short of 72 hours' seeding, and goes by whichever count is higher. And MAM downloads wait (saying why on **Activity → Queued**) while:
+
+- **MAM is rejecting the client's announces** ("Unrecognized host/PassKey", say, when the client's IP isn't registered: mousehole failing, a VPN changing address). MAM counts none of the new torrents meanwhile, so its figure is short of the truth. Downloads go again once a re-announce succeeds; force one from the client to hurry it.
+- **MAM can't be read** (an expired or locked session ID, a network error). Unlike the check when you queue, this one waits rather than going ahead.
+- **MAM has frozen downloads.** A grab past the unsatisfied limit gets every download refused for about a day ("Attempted to Download Past Unsatisfied limit … Time Till Download Allowed: 1d 02:04:02"). Shelfmark reads that from a refused download, or you can enter it under **Download pause** in the account panel, with **Clear** if it lifts early. The top-bar button counts down to when it lifts, in red. It's kept across restarts.
+
 ### When slots free up
 
 The account panel (and the top-bar button and its tooltip) also estimates when unsatisfied
@@ -105,3 +111,5 @@ after 72 hours minus the time it has already seeded.
 - Torrents still downloading haven't started their 72 hours. Torrents MAM counts but that
   are no longer in your client can't be timed, and don't free a slot by seeding.
 - Only counts and times are shown, no torrent names, so every user can see it.
+- Torrents whose announces MAM rejected weren't seeding as far as MAM is concerned, so
+  those slots free later than shown.

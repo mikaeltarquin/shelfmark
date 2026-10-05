@@ -29,6 +29,9 @@ _BTIH_PREFIX_BYTE = 0x12
 _BTIH_DIGEST_LENGTH = 32
 _BTIH_HASH_LENGTH_40 = 40
 _BTIH_HASH_LENGTH_32 = 32
+_HTTP_ERROR_MIN = 400
+# A refusal page is small; anything bigger isn't one.
+_REFUSAL_MAX_BYTES = 512 * 1024
 _TORRENT_FETCH_ERRORS = (
     requests.exceptions.RequestException,
     OSError,
@@ -225,6 +228,19 @@ def clear_torrent_fetch_cache() -> None:
         _torrent_fetch_cache.clear()
 
 
+def _note_tracker_refusal(body: bytes | None) -> None:
+    """Show a reply that isn't a torrent to MAM's freeze detection.
+
+    MAM refuses a grab past the unsatisfied limit with a page saying so, and then
+    refuses every grab for a day: held downloads must wait that out.
+    """
+    if not isinstance(body, bytes) or not body or len(body) > _REFUSAL_MAX_BYTES:
+        return
+    from shelfmark.release_sources.prowlarr import mam_freeze
+
+    mam_freeze.note_refusal(body.decode("utf-8", errors="ignore"))
+
+
 def _fetch_torrent_info(url: str) -> TorrentInfo:
     """Fetch a .torrent URL and parse out the info_hash and raw torrent data.
 
@@ -297,6 +313,8 @@ def _fetch_torrent_info(url: str) -> TorrentInfo:
             logger.debug("Following redirect to: %s...", _safe_url(redirect_url))
             current_url = redirect_url
 
+        if isinstance(resp.status_code, int) and resp.status_code >= _HTTP_ERROR_MIN:
+            _note_tracker_refusal(resp.content)
         resp.raise_for_status()
         torrent_data = resp.content
 
@@ -318,6 +336,7 @@ def _fetch_torrent_info(url: str) -> TorrentInfo:
             logger.debug("Extracted hash from torrent file: %s", info_hash)
         else:
             logger.warning("Could not extract hash from torrent file")
+            _note_tracker_refusal(torrent_data)
         return TorrentInfo(info_hash=info_hash, torrent_data=torrent_data, is_magnet=False)
     except _TORRENT_FETCH_ERRORS as e:
         # Exception messages can repeat the source or redirect URL, including its

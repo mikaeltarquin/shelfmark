@@ -2,6 +2,21 @@
 
 Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `:latest`.
 
+## Unreleased
+
+### Fixed
+
+- **MyAnonamouse downloads no longer run past the unsatisfied limit when MAM's count
+  lags.** MAM only counts a torrent once its tracker hears from the client, so while it
+  rejected the client's announces (an unregistered IP, say) Shelfmark went on grabbing.
+  Now each grab also counts the MAM torrents in the torrent client, and MAM downloads wait
+  while MAM rejects the client's announces or can't be read.
+- **MAM's day-long download freeze is respected.** Read from a refused download (or
+  entered under **Download pause** in the account panel), it holds MAM downloads until it
+  lifts, with a countdown in the top bar.
+- qBittorrent's MyAnonamouse torrents with no working tracker are no longer left out of
+  the slot timing.
+
 ## v1.2.0
 
 ### Added

@@ -28,6 +28,15 @@ It's listed under **Activity → Queued → Up next**, with the countdown to the
 the MyAnonamouse button. See
 [Unsatisfied limit](myanonamouse-enrichment.md#unsatisfied-limit).
 
+## "MyAnonamouse is rejecting …'s announces" or "MyAnonamouse has paused downloads"
+
+MAM downloads are on hold, whatever the free slots. **Rejected announces**: MAM doesn't
+recognise the torrent client's IP or passkey, so it isn't counting new torrents; fix the
+IP registration (mousehole, VPN) and the downloads go once a re-announce succeeds.
+**Paused downloads**: a grab went past the unsatisfied limit and MAM refuses downloads
+until the time shown. See
+[Unsatisfied limit](myanonamouse-enrichment.md#unsatisfied-limit).
+
 ## A queued book doesn't download
 
 **Activity → Queued** says what each saved pick is waiting for (unsatisfied slots, buffer,

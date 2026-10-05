@@ -71,6 +71,14 @@ def _get_error_message(error: object) -> tuple[str, int | None]:
     return str(error), None
 
 
+def _tracker_error(tracker_status: object) -> str | None:
+    """The tracker's reason from Deluge's "Error: <reason>" status, if the announce failed."""
+    text = str(tracker_status or "").strip()
+    if not text.lower().startswith("error"):
+        return None
+    return text.partition(":")[2].strip() or text
+
+
 def _raise_runtime_error(message: str) -> NoReturn:
     raise RuntimeError(message)
 
@@ -415,7 +423,7 @@ class DelugeClient(DownloadClient):
         statuses = self._rpc_call(
             "core.get_torrents_status",
             {},
-            ["name", "tracker_host", "seeding_time", "is_finished"],
+            ["name", "tracker_host", "seeding_time", "is_finished", "tracker_status"],
         )
         if not isinstance(statuses, dict):
             return []
@@ -425,6 +433,7 @@ class DelugeClient(DownloadClient):
                 name=str(status.get("name") or ""),
                 seeding_seconds=coerce_optional_int(status.get("seeding_time")) or 0,
                 complete=bool(status.get("is_finished")),
+                tracker_error=_tracker_error(status.get("tracker_status")),
             )
             for status in statuses.values()
             if isinstance(status, dict) and needle in str(status.get("tracker_host") or "").lower()

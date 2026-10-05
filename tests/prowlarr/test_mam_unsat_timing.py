@@ -41,9 +41,12 @@ def test_nothing_waiting():
     assert timing["within_window"] == 0
 
 
+_READ_CLIENT = mam_account._read_client  # The real one; tests read no client by default
+
+
 def _use_client(monkeypatch, client):
     monkeypatch.setattr(mam_account, "is_configured", lambda: True)
-    monkeypatch.setattr(mam_account, "_timing_cache", None)
+    monkeypatch.setattr(mam_account, "_read_client", _READ_CLIENT)
     monkeypatch.setattr("shelfmark.download.clients.get_client", lambda protocol: client)
 
 

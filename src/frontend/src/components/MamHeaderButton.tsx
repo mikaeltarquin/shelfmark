@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useDependencyEffect } from '../hooks/useMountEffect';
 import { getMamRatio, getMamUnsatTiming } from '../services/api';
 import {
+  describeMamHold,
   describeUnsatTiming,
   formatCountdown,
   formatRatio,
@@ -18,7 +19,15 @@ import { MouseIcon } from './MouseIcon';
 const REFRESH_MS = 5 * 60 * 1000;
 
 /** Ticks once a second toward `target` (ms since epoch), then calls `onDone` once. */
-const SlotCountdown = ({ target, onDone }: { target: number; onDone: () => void }) => {
+const SlotCountdown = ({
+  target,
+  onDone,
+  tone,
+}: {
+  target: number;
+  onDone: () => void;
+  tone?: string;
+}) => {
   const [now, setNow] = useState(() => Date.now());
   useDependencyEffect(() => {
     const timer = window.setInterval(() => {
@@ -32,7 +41,9 @@ const SlotCountdown = ({ target, onDone }: { target: number; onDone: () => void 
     return () => window.clearInterval(timer);
   }, [target]);
   return (
-    <span className="flex items-center gap-1 text-[10px] leading-none font-normal opacity-60">
+    <span
+      className={`flex items-center gap-1 text-[10px] leading-none font-normal ${tone ?? 'opacity-60'}`}
+    >
       <svg
         className="h-2.5 w-2.5"
         viewBox="0 0 24 24"
@@ -60,6 +71,8 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
   const [timing, setTiming] = useState<MamUnsatTiming | null>(null);
   // When the next unsatisfied torrent frees a slot, on this browser's clock.
   const [slotAt, setSlotAt] = useState<number | null>(null);
+  // When MAM lifts its download freeze, on this browser's clock.
+  const [thawAt, setThawAt] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useDependencyEffect(() => {
@@ -81,11 +94,14 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
           setSlotAt(
             typeof seconds === 'number' && seconds > 0 ? Date.now() + seconds * 1000 : null,
           );
+          const frozen = next.frozen_seconds;
+          setThawAt(typeof frozen === 'number' && frozen > 0 ? Date.now() + frozen * 1000 : null);
         })
         .catch(() => {
           if (cancelled) return;
           setTiming(null);
           setSlotAt(null);
+          setThawAt(null);
         });
     };
     load();
@@ -100,9 +116,12 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
   const unsatCount = stats?.available ? (stats.unsat_count ?? null) : null;
   const unsatLimit = stats?.available ? (stats.unsat_limit ?? null) : null;
   const hasStats = Boolean(stats?.available);
-  // Out of slots: count down to the next one, if a seeding torrent will free it.
-  const countdownTo = hasStats && unsatSlotsFull(stats) ? slotAt : null;
-  const slots = describeUnsatTiming(timing);
+  // MAM has frozen downloads: count down to when it lifts. Otherwise, out of slots:
+  // count down to the next one, if a seeding torrent will free it.
+  const countdownTo = thawAt ?? (hasStats && unsatSlotsFull(stats) ? slotAt : null);
+  const hold = describeMamHold(timing);
+  const holdTone = hold ? 'text-red-600 dark:text-red-400' : undefined;
+  const slots = hold ?? describeUnsatTiming(timing);
   const summary = hasStats
     ? `Ratio ${formatRatio(ratio)}, unsatisfied ${formatUnsat(unsatCount, unsatLimit)}${
         slots ? `. ${slots}` : ''
@@ -127,12 +146,16 @@ export const MamHeaderButton = ({ onClick }: MamHeaderButtonProps) => {
             <span className={ratioTone(ratio)}>{formatRatio(ratio)}</span>
             <span className="opacity-40">·</span>
             <span className="hidden opacity-60 md:inline">Unsat</span>
-            <span className={unsatTone(unsatCount, unsatLimit)}>
+            <span className={holdTone ?? unsatTone(unsatCount, unsatLimit)}>
               {formatUnsat(unsatCount, unsatLimit)}
             </span>
           </span>
           {countdownTo !== null && (
-            <SlotCountdown target={countdownTo} onDone={() => setReloadKey((key) => key + 1)} />
+            <SlotCountdown
+              target={countdownTo}
+              tone={thawAt !== null ? holdTone : undefined}
+              onDone={() => setReloadKey((key) => key + 1)}
+            />
           )}
         </span>
       ) : (

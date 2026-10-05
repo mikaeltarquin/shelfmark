@@ -9,6 +9,7 @@ import {
   formatRatio,
   maxAffordableGb,
   uploadCreditCost,
+  describeMamHold,
   describeUnsatTiming,
   formatCountdown,
   formatHoursMinutes,
@@ -180,5 +181,28 @@ describe('formatCountdown', () => {
     expect(formatCountdown(4 * 60 + 9)).toBe('4:09');
     expect(formatCountdown(0.2)).toBe('0:01');
     expect(formatCountdown(-5)).toBe('0:00');
+  });
+});
+
+describe('describeMamHold', () => {
+  it('counts down a freeze, ahead of anything else', () => {
+    expect(
+      describeMamHold({
+        available: true,
+        frozen_seconds: 26 * 3600 + 4 * 60,
+        announce_problem: 'MyAnonamouse is rejecting announces',
+      }),
+    ).toBe('MyAnonamouse has paused downloads (unsatisfied limit) · allowed again in 26:04');
+  });
+
+  it('says when announces are rejected, even without a client timing', () => {
+    expect(
+      describeMamHold({ available: false, announce_problem: 'MyAnonamouse is rejecting' }),
+    ).toBe('MyAnonamouse is rejecting');
+  });
+
+  it('is null when nothing holds downloads', () => {
+    expect(describeMamHold({ available: true, frozen_seconds: null })).toBeNull();
+    expect(describeMamHold(null)).toBeNull();
   });
 });

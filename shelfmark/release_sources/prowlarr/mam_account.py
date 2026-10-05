@@ -415,9 +415,28 @@ def _torrent_client_status() -> dict[str, Any]:
 UNSAT_SEED_SECONDS = 72 * 3600
 # "Slots freeing up soon" looks this far ahead.
 UNSAT_WINDOW_SECONDS = 6 * 3600
-_TIMING_TTL_SECONDS = 60
-_timing_lock = threading.Lock()
-_timing_cache: tuple[float, dict[str, Any]] | None = None
+_CLIENT_TTL_SECONDS = 60
+# Snatches handed off this long before the client was read may be missing from it.
+_CLIENT_LAG_SECONDS = 30
+# Tracker replies that mean MAM is refusing the client itself (its IP or passkey), not
+# one torrent: "Unrecognized host/PassKey". MAM counts none of its snatches meanwhile.
+_ANNOUNCE_REJECTED_RE = re.compile(
+    r"passkey|unrecognized\s+host|not\s+authori[sz]ed|unauthori[sz]ed", re.IGNORECASE
+)
+_client_lock = threading.Lock()
+
+
+@dataclass(frozen=True)
+class _ClientRead:
+    """The torrent client's MAM torrents, as read at `read_at`."""
+
+    read_at: float
+    name: str | None
+    torrents: list[Any] | None  # None when it couldn't be read; `reason` says why
+    reason: str | None = None
+
+
+_client_cache: _ClientRead | None = None
 
 
 def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict[str, Any]:
@@ -442,36 +461,39 @@ def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict
     }
 
 
-def _read_unsat_timing() -> dict[str, Any]:
+def _read_client() -> _ClientRead:
     from shelfmark.download.clients import get_client
 
+    now = time.time()
     try:
         client = get_client("torrent")
-    except (ImportError, RuntimeError, ValueError) as exc:
-        return {"available": False, "reason": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - each client library raises its own errors
+        return _ClientRead(now, None, None, str(exc))
     if client is None:
-        return {"available": False, "reason": "No torrent client is configured"}
+        return _ClientRead(now, None, None, "No torrent client is configured")
     raw_name = str(getattr(client, "name", "") or "")
     name = _CLIENT_LABELS.get(raw_name, raw_name.title() or None)
     try:
         torrents = client.list_tracker_torrents("myanonamouse")
-    except (
-        OSError,
-        RuntimeError,
-        ValueError,
-        KeyError,
-        TypeError,
-        requests.exceptions.RequestException,
-    ) as exc:
+    except Exception as exc:  # noqa: BLE001 - read before every MAM grab: never break one
         logger.warning("Could not read MAM torrents from %s: %s", name, exc)
-        return {"available": False, "client": name, "reason": f"Couldn't read {name}: {exc}"}
+        return _ClientRead(now, name, None, f"Couldn't read {name}: {exc}")
     if torrents is None:
-        return {
-            "available": False,
-            "client": name,
-            "reason": f"{name} doesn't report seeding time",
-        }
-    return summarize_unsat_timing(torrents, name)
+        return _ClientRead(now, name, None, f"{name} doesn't report seeding time")
+    return _ClientRead(now, name, list(torrents))
+
+
+def _client_torrents(*, refresh: bool = False) -> _ClientRead:
+    """The client's MAM torrents, read at most once a minute unless `refresh` is set."""
+    global _client_cache
+    with _client_lock:
+        cached = _client_cache
+    if not refresh and cached and time.time() - cached.read_at < _CLIENT_TTL_SECONDS:
+        return cached
+    read = _read_client()
+    with _client_lock:
+        _client_cache = read
+    return read
 
 
 def _aged_timing(timing: dict[str, Any], age: float) -> dict[str, Any]:
@@ -479,28 +501,87 @@ def _aged_timing(timing: dict[str, Any], age: float) -> dict[str, Any]:
     next_seconds = timing.get("next_seconds")
     if not isinstance(next_seconds, (int, float)):
         return timing
-    return {**timing, "next_seconds": max(0, int(next_seconds - age))}
+    # Rounded up, so a slot is never promised early.
+    return {**timing, "next_seconds": max(0, math.ceil(next_seconds - age))}
+
+
+def client_unsat_count(
+    *, exclude: set[str] | frozenset[str] = frozenset(), refresh: bool = False
+) -> int | None:
+    """The unsatisfied torrents MAM will count once it sees what's in the client.
+
+    Every MAM torrent there still downloading or short of 72 hours' seeding, plus
+    Shelfmark's snatches handed off since (or just before) the client was read, but
+    not those in `exclude`. MAM's own count only moves when the tracker hears from
+    the client, so it misses every snatch whose announces are refused; this doesn't.
+    None when the client can't say.
+    """
+    from shelfmark.core.queue import book_queue
+
+    read = _client_torrents(refresh=refresh)
+    if read.torrents is None:
+        return None
+    unsat = sum(
+        1 for t in read.torrents if not t.complete or t.seeding_seconds < UNSAT_SEED_SECONDS
+    )
+    later = [
+        task
+        for _at, task in book_queue.handoff_times_since(read.read_at - _CLIENT_LAG_SECONDS)
+        if task.mam_torrent_id and task.task_id not in exclude
+    ]
+    return unsat + len(later)
+
+
+def announce_problem(*, refresh: bool = False) -> str | None:
+    """Why MAM isn't hearing from the torrent client, if it's refusing its announces.
+
+    While it is, MAM counts none of the new snatches (and credits no seeding), so its
+    unsatisfied count can't be trusted: downloads then wait.
+    """
+    read = _client_torrents(refresh=refresh)
+    rejected = [
+        t.tracker_error
+        for t in read.torrents or []
+        if getattr(t, "tracker_error", None) and _ANNOUNCE_REJECTED_RE.search(t.tracker_error)
+    ]
+    if not rejected:
+        return None
+    count = len(rejected)
+    return (
+        f"MyAnonamouse is rejecting {read.name or 'the torrent client'}'s announces "
+        f'({count} torrent{"" if count == 1 else "s"}: "{rejected[0]}"). Check the '
+        "client's IP is registered with MAM (mousehole, say); downloads wait until a "
+        "re-announce succeeds"
+    )
 
 
 def unsat_timing(*, refresh: bool = False) -> dict[str, Any]:
     """When the next unsatisfied MAM torrent frees a slot, from the torrent client.
 
     An estimate: MAM keeps its own clock, so time spent paused or offline pushes the
-    real moment later. Cached for a minute.
+    real moment later. Read at most once a minute. Also says when MAM has frozen
+    downloads, and when it's refusing the client's announces: either one comes first.
     """
-    global _timing_cache
+    from shelfmark.release_sources.prowlarr import mam_freeze
+
     if not is_configured():
         return {"available": False, "reason": "No MAM session ID is set"}
-    with _timing_lock:
-        cached = _timing_cache
-    if not refresh and cached:
-        age = time.time() - cached[0]
-        if age < _TIMING_TTL_SECONDS:
-            return _aged_timing(cached[1], age)
-    timing = _read_unsat_timing()
-    with _timing_lock:
-        _timing_cache = (time.time(), timing)
-    return timing
+    read = _client_torrents(refresh=refresh)
+    if read.torrents is None:
+        timing: dict[str, Any] = {"available": False, "reason": read.reason}
+        if read.name:
+            timing["client"] = read.name
+    else:
+        timing = _aged_timing(
+            summarize_unsat_timing(read.torrents, read.name), time.time() - read.read_at
+        )
+    freeze = mam_freeze.current()
+    return {
+        **timing,
+        "frozen_seconds": mam_freeze.remaining_seconds(),
+        "frozen_source": freeze["source"] if freeze else None,
+        "announce_problem": announce_problem(),
+    }
 
 
 def connection_status() -> dict[str, Any]:
@@ -586,7 +667,13 @@ def pending_unsat_count(
         for at, task in book_queue.handoff_times_since(since)
         if task.mam_torrent_id and task.task_id not in counted
     ]
-    return len(counted) + _uncounted_snatches(snatched, unsat_count)
+    pending = len(counted) + _uncounted_snatches(snatched, unsat_count)
+    if unsat_count is not None:
+        # The client can show more than MAM counts yet (see `client_unsat_count`).
+        in_client = client_unsat_count(exclude=counted)
+        if in_client is not None:
+            pending = max(pending, len(counted) + in_client - unsat_count)
+    return pending
 
 
 def unsat_free_slots(
@@ -596,7 +683,8 @@ def unsat_free_slots(
 
     For a queued download about to be grabbed (or waiting for room). Counts what MAM
     reports plus Shelfmark's torrents snatched since shortly before the stats were read
-    (see `pending_unsat_count`), leaving out the tasks in `exclude` (the ones asking).
+    (see `pending_unsat_count`), or what's in the torrent client if that's more (see
+    `client_unsat_count`), leaving out the tasks in `exclude` (the ones asking).
     None when the check is off, MAM isn't set up or can't be read, or reports no limit.
     """
     from shelfmark.core.queue import book_queue
@@ -616,8 +704,58 @@ def unsat_free_slots(
         for at, task in book_queue.handoff_times_since(since)
         if task.mam_torrent_id and task.task_id not in exclude
     ]
-    uncounted = _uncounted_snatches(snatched, stats.unsat_count)
-    return stats.unsat_limit - unsat_reserve_slots() - stats.unsat_count - uncounted
+    used = stats.unsat_count + _uncounted_snatches(snatched, stats.unsat_count)
+    in_client = client_unsat_count(exclude=exclude, refresh=refresh)
+    if in_client is not None and in_client > used:
+        logger.debug("The torrent client has %d unsatisfied, MAM shows %d", in_client, used)
+        used = in_client
+    return stats.unsat_limit - unsat_reserve_slots() - used
+
+
+@dataclass(frozen=True)
+class GrabAllowance:
+    """How many MAM torrents may be grabbed now.
+
+    `free` is None when there's no limit to keep to (the check is off, or MAM reports
+    none). `hold` says why none may be, when it's more than the slots being full.
+    """
+
+    free: int | None
+    hold: str | None = None
+
+
+def grab_allowance(
+    *, exclude: set[str] | frozenset[str] = frozenset(), refresh: bool = False
+) -> GrabAllowance:
+    """Whether MAM torrents may be grabbed now, and how many.
+
+    Unlike the buffer check before a download is queued, this errs towards waiting:
+    a grab MAM refuses at the limit freezes the account's downloads for a day. So
+    nothing goes while MAM has frozen downloads, while it can't be read, or while
+    it's refusing the client's announces (its count is short of the truth then).
+    """
+    from shelfmark.release_sources.prowlarr import mam_freeze
+
+    if not unsat_check_enabled():
+        return GrabAllowance(None)
+    frozen = mam_freeze.remaining_seconds()
+    if frozen is not None:
+        hours, minutes = frozen // 3600, frozen % 3600 // 60
+        return GrabAllowance(
+            0,
+            "MyAnonamouse has paused downloads on the account (a grab went past the "
+            f"unsatisfied limit): waiting {hours} h {minutes:02d} m until it lifts",
+        )
+    try:
+        get_stats(refresh=refresh)
+    except MAM_ERRORS as exc:
+        return GrabAllowance(
+            0, f"Waiting: couldn't read the MyAnonamouse account ({describe_error(exc)})"
+        )
+    problem = announce_problem(refresh=refresh)
+    if problem:
+        return GrabAllowance(0, f"Waiting: {problem}")
+    return GrabAllowance(unsat_free_slots(exclude=exclude))
 
 
 def recommended_purchase_gb(missing_bytes: int) -> int:
