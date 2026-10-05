@@ -37,6 +37,16 @@ IP registration (mousehole, VPN) and the downloads go once a re-announce succeed
 until the time shown. See
 [Unsatisfied limit](myanonamouse-enrichment.md#unsatisfied-limit).
 
+## "Waiting in Deluge: no progress for 5 minutes"
+
+Not an error: the torrent is in your torrent client but hasn't moved for 5 minutes (no
+peers yet, queued in the client, or the tracker refusing it for now). It goes on
+downloading there, and Shelfmark picks it up again once the client shows it moving or
+finished (checked every 2 minutes), so it doesn't hold up other downloads meanwhile. If
+the torrent is removed from the client, the download fails saying so. Cancel it from
+Activity to stop waiting. Like other waiting downloads it doesn't survive a restart: use
+Retry, which finds the torrent in the client.
+
 ## A queued book doesn't download
 
 **Activity → Queued** says what each saved pick is waiting for (unsatisfied slots, buffer,

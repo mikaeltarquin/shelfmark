@@ -376,20 +376,8 @@ def purchase_upload_credit(amount: int | str, *, reason: str = "manual") -> Purc
     return result
 
 
-_CLIENT_LABELS = {
-    "qbittorrent": "qBittorrent",
-    "transmission": "Transmission",
-    "deluge": "Deluge",
-    "rtorrent": "rTorrent",
-    "blackhole": "Blackhole folder",
-    "realdebrid": "Real-Debrid",
-    "alldebrid": "AllDebrid",
-    "torbox": "TorBox",
-}
-
-
 def _torrent_client_status() -> dict[str, Any]:
-    from shelfmark.download.clients import get_client
+    from shelfmark.download.clients import client_label, get_client
 
     try:
         client = get_client("torrent")
@@ -402,8 +390,7 @@ def _torrent_client_status() -> dict[str, Any]:
             "name": None,
             "message": "No torrent client is configured",
         }
-    raw_name = str(getattr(client, "name", "") or "")
-    name = _CLIENT_LABELS.get(raw_name, raw_name.title() or None)
+    name = client_label(client)
     try:
         ok, message = client.test_connection()
     except (OSError, RuntimeError, ValueError, requests.exceptions.RequestException) as exc:
@@ -462,7 +449,7 @@ def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict
 
 
 def _read_client() -> _ClientRead:
-    from shelfmark.download.clients import get_client
+    from shelfmark.download.clients import client_label, get_client
 
     now = time.time()
     try:
@@ -471,8 +458,7 @@ def _read_client() -> _ClientRead:
         return _ClientRead(now, None, None, str(exc))
     if client is None:
         return _ClientRead(now, None, None, "No torrent client is configured")
-    raw_name = str(getattr(client, "name", "") or "")
-    name = _CLIENT_LABELS.get(raw_name, raw_name.title() or None)
+    name = client_label(client)
     try:
         torrents = client.list_tracker_torrents("myanonamouse")
     except Exception as exc:  # noqa: BLE001 - read before every MAM grab: never break one

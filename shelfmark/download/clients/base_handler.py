@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import math
+import re
 import shutil
 import time
 from abc import ABC, abstractmethod
@@ -33,6 +34,49 @@ if TYPE_CHECKING:
     from shelfmark.core.models import DownloadTask
 
 logger = setup_logger(__name__)
+# Torrent clients that keep a torrent by its info hash once it's added, so a download
+# can be found again by hash alone, and a stalled one can wait there.
+HASH_KEYED_TORRENT_CLIENTS = frozenset({"deluge", "qbittorrent", "transmission", "rtorrent"})
+_INFO_HASH_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+
+
+def find_existing_download(
+    client: DownloadClient,
+    url: str,
+    *,
+    protocol: str,
+    info_hash: str | None,
+    category: str | None = None,
+) -> tuple[str, DownloadStatus] | None:
+    """The client's download for a release, if it has it.
+
+    By the torrent's info hash first, when known: that needs no .torrent download,
+    which MyAnonamouse refuses while it has frozen the account's downloads.
+    """
+    if protocol == "torrent" and info_hash:
+        existing = client.find_existing(f"magnet:?xt=urn:btih:{info_hash}", category=category)
+        if existing:
+            return existing
+    return client.find_existing(url, category=category)
+
+
+def _remember_client_hash(
+    task: DownloadTask, client: DownloadClient, protocol: str, download_id: str
+) -> None:
+    """Note the hash a torrent client holds the task's download by.
+
+    Kept as the retry hash too (when the release had none), so a retry, even after a
+    restart, finds the torrent without downloading it again.
+    """
+    if protocol != "torrent" or client.name not in HASH_KEYED_TORRENT_CLIENTS:
+        return
+    if not _INFO_HASH_RE.match(download_id or ""):
+        return
+    task.torrent_client_hash = download_id
+    if not task.retry_expected_hash:
+        task.retry_expected_hash = download_id.lower()
+
+
 _CLIENT_CLEANUP_ERRORS = (AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError)
 
 
@@ -788,11 +832,18 @@ class ExternalClientHandler(DownloadHandler, ABC):
             # Check if this download already exists in the client
             status_callback("resolving", f"Checking {client.name}")
             category = self._get_category_for_task(client, task)
-            existing = client.find_existing(request.url, category=category)
+            existing = find_existing_download(
+                client,
+                request.url,
+                protocol=request.protocol,
+                info_hash=request.expected_hash,
+                category=category,
+            )
 
             if existing:
                 download_id, existing_status = existing
                 logger.info("Found existing download in %s: %s", client.name, download_id)
+                _remember_client_hash(task, client, request.protocol, download_id)
 
                 # If already complete, skip straight to file handling
                 if existing_status.complete:
@@ -871,6 +922,7 @@ class ExternalClientHandler(DownloadHandler, ABC):
                 logger.info(
                     "Added to %s: %s for '%s'", client.name, download_id, request.release_name
                 )
+                _remember_client_hash(task, client, request.protocol, download_id)
                 if getattr(client, "handoff_only", False) is True:
                     if cancel_flag.is_set():
                         # The file is published and unpublishing it would race a watcher

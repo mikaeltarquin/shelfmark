@@ -447,6 +447,24 @@ def register_client(
     return decorator
 
 
+_CLIENT_LABELS = {
+    "qbittorrent": "qBittorrent",
+    "transmission": "Transmission",
+    "deluge": "Deluge",
+    "rtorrent": "rTorrent",
+    "blackhole": "Blackhole folder",
+    "realdebrid": "Real-Debrid",
+    "alldebrid": "AllDebrid",
+    "torbox": "TorBox",
+}
+
+
+def client_label(client: object) -> str | None:
+    """A client's name as people know it ("qBittorrent"), or None without one."""
+    raw_name = str(getattr(client, "name", "") or "")
+    return _CLIENT_LABELS.get(raw_name, raw_name.title() or None)
+
+
 def get_client(protocol: str) -> DownloadClient | None:
     """Get a configured client instance for the given protocol.
 
