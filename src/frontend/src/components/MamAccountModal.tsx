@@ -17,6 +17,7 @@ import {
   customAmountError,
   describeAutobuy,
   describeMamHold,
+  describeRoom,
   describeUnsatTiming,
   describeCheck,
   purchaseReasonLabel,
@@ -263,6 +264,9 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
 
   const stats = account?.stats ?? null;
   const pointsRate = account?.points_per_hour ?? null;
+  const keepRatio = account?.keep_ratio ?? 1;
+  let roomBytes: number | null = null;
+  if (stats) roomBytes = account?.room_bytes ?? stats.buffer_bytes;
   const pointsPerGb = account?.points_per_gb ?? DEFAULT_POINTS_PER_GB;
   const stepGb = account?.step_gb ?? DEFAULT_STEP_GB;
   const maxGb = stats ? maxAffordableGb(stats.seedbonus, pointsPerGb, stepGb) : 0;
@@ -426,10 +430,15 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
                 tone={stats ? ratioTone(stats.ratio) : undefined}
               />
               <Stat
-                label="Buffer"
-                value={stats ? formatGib(stats.buffer_bytes) : '…'}
+                label={`Room to ${formatRatio(keepRatio)}`}
+                value={roomBytes === null ? '…' : formatGib(roomBytes)}
                 tone={
-                  stats && stats.buffer_bytes < 0 ? 'text-red-600 dark:text-red-400' : undefined
+                  roomBytes !== null && roomBytes < 0 ? 'text-red-600 dark:text-red-400' : undefined
+                }
+                title={
+                  stats
+                    ? describeRoom(keepRatio, stats.buffer_bytes, account?.pending_bytes ?? 0)
+                    : undefined
                 }
               />
               <Stat label="Bonus points" value={stats ? formatPoints(stats.seedbonus) : '…'} />
@@ -623,7 +632,8 @@ export const MamAccountModal = ({ onClose }: MamAccountModalProps) => {
               </ul>
             ) : (
               <p className="mt-1 text-xs opacity-70">
-                Off. Turn modes on under Settings › Prowlarr › Upload Credit Auto-Buy.
+                Off. Turn modes on under Settings › Indexers › MyAnonamouse › Upload Credit
+                Auto-Buy.
               </p>
             )}
             {autobuy?.last_check && (

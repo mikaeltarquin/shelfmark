@@ -411,7 +411,7 @@ def _record_failure(mam_id: str, error: Exception) -> None:
     if count >= _MAX_CONSECUTIVE_FAILURES:
         logger.warning(
             "MAM enrichment stopped after %s consecutive failures (last: %s). "
-            "Test the MAM session in the Prowlarr settings to turn it back on.",
+            "Test the MAM session in the MyAnonamouse settings to turn it back on.",
             count,
             error,
         )

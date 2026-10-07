@@ -31,11 +31,19 @@ def _account_payload(*, refresh: bool) -> dict[str, Any]:
         stats = mam_account.get_stats(refresh=refresh)
     except mam_account.MAM_ERRORS as exc:
         return {"configured": True, "stats": None, "error": mam_account.describe_error(exc)}
+    pending = mam_account.pending_charge_bytes()
+    keep = mam_account.keep_ratio()
     return {
         "configured": True,
         "stats": stats.to_dict(),
         "error": None,
         "points_per_hour": mam_points.estimate_rate(),
+        "pending_bytes": pending,
+        "keep_ratio": keep,
+        # Room before the ratio drops below Keep Ratio At Least, after active MAM downloads
+        "room_bytes": mam_account.ratio_room_bytes(
+            stats.uploaded_bytes, stats.downloaded_bytes + pending, keep
+        ),
     }
 
 

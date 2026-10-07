@@ -33,16 +33,39 @@ A saved item is one of two things, marked on books everywhere they show:
 
 ## The Queued and Wanted pages
 
-**Activity → Queued** is everything waiting to download, in the order it goes:
+**Activity → Queued** is everything waiting to download, in the order it goes. At the
+top, its total size, and with MyAnonamouse set up: how much of the saved picks counts
+against your ratio (freeleech doesn't), the room left before the ratio drops below **Keep
+Ratio At Least**, and the upload credit it would take for all of it to download without
+going under (with, for admins, the bonus points that costs and roughly how long earning
+them takes at your points-per-hour rate), and when the last of it can start.
 
 - **Up next**: downloads already handed to Shelfmark that haven't started, such as a
   MyAnonamouse torrent waiting for an unsatisfied slot. They're numbered in the order they
   start; drag a row by its handle (or use the arrows) to change it.
 - **Waiting for room**: saved picks, numbered after them, each showing its **Releases** (one line per
   release, with the format, narrator and a link to its page at the source, the torrent on
-  MyAnonamouse for example), what it's **Waiting for**, when it was **Last checked** and a
-  countdown to the **Next check**. Drag these to reorder them too: earlier ones get free
+  MyAnonamouse for example), what it's **Waiting for**, its **ETA** (with MyAnonamouse
+  set up), when it was **Last checked** and a countdown to the **Next check**. Drag these to reorder them too: earlier ones get free
   room first. **+ Get** downloads one now without waiting; **Remove** drops it.
+
+The **ETA** is when an item can start, as the automatic check would get to it: once both
+the ratio and an unsatisfied slot allow.
+
+- **Ratio:** a pick that fits now goes; once the room runs out, a pick waits for the
+  upload credit that makes room for it (counting the picks ahead of it, in queue order)
+  and the bonus points to buy it at your points-per-hour rate. **Buy credit** means you
+  have the points already. Picks that fit go ahead of earlier ones that don't.
+- **Slots:** MAM picks (freeleech too) take the free slots first (after **Up next** and the
+  slots kept free), then each slot as a torrent seeding in your client reaches 72 hours,
+  then the slots the queue's own torrents free 72 hours after they start. Without the
+  client's seeding times, a pick past the free slots shows **For a slot**, time unknown.
+  MAM's download pause holds everything until it lifts.
+
+It doesn't know when a torrent turns freeleech, counts seeding time as the client reports
+it (MAM keeps its own clock, so pausing or going offline pushes slots later), and upload
+credit for automatic downloads is only bought by you or auto-buy. A wait on bonus points
+needs an admin: other users see the credit needed.
 
 **Wanted** lists books saved without picks. **Choose releases** opens the release list;
 pick and save, and the book moves to Queued. Rows with picks that couldn't be queued
@@ -94,7 +117,7 @@ Queuing something doesn't take you away from the page you're on. **Show Download
 Queued** (off by default) goes to Activity → Downloads when you start a download
 yourself; background downloads never move the page.
 
-**Settings → Indexers → Prowlarr → Saved for Later** has the global switch (**Get Saved
+**Settings → Indexers → MyAnonamouse → Saved for Later** has the global switch (**Get Saved
 Books Automatically**, on by default; turning it off pauses every item without unmarking
 it), **Keep Ratio At Least** (0 turns the ratio check off) and the check interval (at
 least 5 minutes).

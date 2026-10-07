@@ -252,6 +252,17 @@ def prowlarr_config_settings() -> list[SettingsField]:
             description="Apply per-indexer seed time and ratio preferences from Prowlarr when sending torrents to the download client",
             show_when={"field": "PROWLARR_ENABLED", "value": True},
         ),
+        # Starts the MyAnonamouse tab the Settings page splits off this one; everything
+        # on it needs Prowlarr, so it says so rather than showing an empty page.
+        HeadingField(
+            key="prowlarr_mam_tab_notice",
+            title="MyAnonamouse",
+            description=(
+                "MyAnonamouse is searched through Prowlarr. Turn on the Prowlarr source on "
+                "the Prowlarr tab to set it up."
+            ),
+            show_when={"field": "PROWLARR_ENABLED", "value": False},
+        ),
         HeadingField(
             key="prowlarr_mam_heading",
             title="MyAnonamouse Enrichment",

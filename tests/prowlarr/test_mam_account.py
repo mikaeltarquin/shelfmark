@@ -255,6 +255,9 @@ class TestRoutes:
         assert body["stats"]["username"] == "mouse"
         assert body["stats"]["buffer_bytes"] == int(80.5 * GIB)
         assert (body["points_per_gb"], body["step_gb"]) == (500, 50)
+        # Room before the ratio drops below Keep Ratio At Least (2.0): 120.5 / 2 - 40
+        assert body["keep_ratio"] == 2.0
+        assert body["room_bytes"] == int(20.25 * GIB)
 
     def test_account_error_is_shown(self, main_module, mam):
         mam.user = MamAuthError("rejected (403)")
@@ -667,3 +670,18 @@ class TestRecentSnatchesAlreadyCounted:
         self._snatch(monkeypatch, 13, at=time.time() - 60)
         mam.user = _unsat_user(132, 150)
         assert mam_account.unsat_free_slots(refresh=True) == 0
+
+
+class TestRatioRoom:
+    def test_room_to_ratio(self):
+        assert mam_account.ratio_room_bytes(100 * GIB, 30 * GIB, 2.0) == 20 * GIB
+        assert mam_account.ratio_room_bytes(100 * GIB, 30 * GIB, 1.0) == 70 * GIB
+
+    def test_negative_once_below(self):
+        assert mam_account.ratio_room_bytes(100 * GIB, 60 * GIB, 2.0) == -10 * GIB
+
+    def test_keep_ratio_falls_back_to_the_buffer_when_off(self):
+        with patch("shelfmark.core.saved_autoget.target_ratio", return_value=0.0):
+            assert mam_account.keep_ratio() == 1.0
+        with patch("shelfmark.core.saved_autoget.target_ratio", return_value=2.5):
+            assert mam_account.keep_ratio() == 2.5

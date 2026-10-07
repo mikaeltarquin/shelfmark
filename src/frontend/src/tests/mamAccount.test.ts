@@ -13,6 +13,7 @@ import {
   describeUnsatTiming,
   formatCountdown,
   formatHoursMinutes,
+  formatWait,
   formatUnsat,
   mamProfileUrl,
   ratioTone,
@@ -204,5 +205,16 @@ describe('describeMamHold', () => {
   it('is null when nothing holds downloads', () => {
     expect(describeMamHold({ available: true, frozen_seconds: null })).toBeNull();
     expect(describeMamHold(null)).toBeNull();
+  });
+});
+
+describe('formatWait', () => {
+  it('rounds a wait to hours, days or weeks', () => {
+    expect(formatWait(0.4)).toBe('under 1 h');
+    expect(formatWait(13.2)).toBe('14 h');
+    expect(formatWait(71.5)).toBe('3 d');
+    expect(formatWait(76)).toBe('3 d 4 h');
+    expect(formatWait(24 * 10)).toBe('10 d');
+    expect(formatWait(24 * 35)).toBe('5 weeks');
   });
 });

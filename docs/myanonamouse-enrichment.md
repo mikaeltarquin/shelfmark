@@ -17,7 +17,7 @@ Only MyAnonamouse results are enriched. Other Prowlarr indexers fill the bitrate
 ## Setup
 
 1. On MyAnonamouse, open **Preferences > Security** and create a session for Shelfmark. Lock it to the public IP (or ASN) Shelfmark connects from.
-2. In Shelfmark, open **Settings > Prowlarr > MyAnonamouse Enrichment**, paste the `mam_id` value into **MAM Session ID** (or set `PROWLARR_MAM_ID`), and click **Test MAM Session**.
+2. In Shelfmark, open **Settings > Indexers > MyAnonamouse**, paste the `mam_id` value into **MAM Session ID** (or set `PROWLARR_MAM_ID`), and click **Test MAM Session**.
 3. Choose which columns appear under **Settings > Search Mode > Release List Columns** (`SHOW_SERIES_COLUMN`, `SHOW_NARRATOR_COLUMN`, `SHOW_BITRATE_COLUMN`). Users can override these for their own account.
 
 ## Use a session made for Shelfmark
@@ -51,7 +51,7 @@ figures) and unsatisfied count at a glance (amber or red as they near their limi
 refreshed every 5 minutes), plus a countdown to the next unsatisfied slot freeing up, and
 opens a panel with links to your MAM profile and the MAM store. The panel shows:
 
-- **Account:** ratio, buffer (uploaded − downloaded), bonus points, uploaded, downloaded, class, VIP expiry and unsatisfied torrents against your class's limit (amber at 90%, red at the limit), from MAM's `jsonLoad.php?snatch_summary`. Refreshed at most once a minute unless you press **Refresh**.
+- **Account:** ratio, **Room to** your ratio (how much more can be downloaded, not counting freeleech, before the ratio drops below **Keep Ratio At Least**, or 1.0 when that's off; it counts Shelfmark's active MAM downloads, and its tooltip shows the plain buffer, uploaded − downloaded), bonus points, uploaded, downloaded, class, VIP expiry and unsatisfied torrents against your class's limit (amber at 90%, red at the limit), from MAM's `jsonLoad.php?snatch_summary`. Refreshed at most once a minute unless you press **Refresh**.
 - **Points / hour:** MAM's API has no earning rate, so Shelfmark estimates it from its own readings of your balance (taken hourly, kept for two days) over the last 24 hours. Points Shelfmark spent on upload credit are added back; a period where points dropped for another reason (spending on MAM's site) or hit MAM's 99,999 cap is left out. It shows once a few hours of readings exist.
 - **Connections:** whether MAM accepts the session, and whether Shelfmark can reach its torrent client, each with the error when it can't.
 - **Buy upload credit:** spends bonus points in MAM's store (500 points per GB). Pick 50, 100, 250 or 500 GB, a custom amount in multiples of 50 GB, or **Max affordable**. Nothing is bought until you confirm. Larger amounts are bought as 100 GB and 50 GB purchases, and a purchase stops at the first one MAM declines, reporting what was already added.
@@ -69,7 +69,7 @@ Active downloads are counted at their full size, because MAM's figures only incl
 
 ## Upload credit auto-buy
 
-Under **Settings > Prowlarr > Upload Credit Auto-Buy**, Shelfmark can spend bonus points on upload credit by itself. Each mode is off until you turn it on:
+Under **Settings > Indexers > MyAnonamouse > Upload Credit Auto-Buy**, Shelfmark can spend bonus points on upload credit by itself. Each mode is off until you turn it on:
 
 | Mode | Buys when | Default threshold | Default amount |
 |------|-----------|-------------------|----------------|

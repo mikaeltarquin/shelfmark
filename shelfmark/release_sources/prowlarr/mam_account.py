@@ -441,6 +441,8 @@ def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict
         "available": True,
         "client": client_name,
         "next_seconds": remaining[0] if remaining else None,
+        # When each one frees its slot, soonest first: the Queued page's slot ETAs
+        "free_seconds": remaining,
         "within_window": sum(1 for r in remaining if r <= UNSAT_WINDOW_SECONDS),
         "window_hours": UNSAT_WINDOW_SECONDS // 3600,
         "seeding": len(remaining),
@@ -483,12 +485,13 @@ def _client_torrents(*, refresh: bool = False) -> _ClientRead:
 
 
 def _aged_timing(timing: dict[str, Any], age: float) -> dict[str, Any]:
-    """A cached timing as of now: the next slot is `age` seconds closer than when read."""
+    """A cached timing as of now: each slot is `age` seconds closer than when read."""
+    # Rounded up, so a slot is never promised early.
+    aged = [max(0, math.ceil(seconds - age)) for seconds in timing.get("free_seconds", [])]
     next_seconds = timing.get("next_seconds")
     if not isinstance(next_seconds, (int, float)):
-        return timing
-    # Rounded up, so a slot is never promised early.
-    return {**timing, "next_seconds": max(0, math.ceil(next_seconds - age))}
+        return {**timing, "free_seconds": aged}
+    return {**timing, "next_seconds": max(0, math.ceil(next_seconds - age)), "free_seconds": aged}
 
 
 def client_unsat_count(
@@ -876,6 +879,22 @@ def warning_ratio() -> float:
     return value if value is not None and math.isfinite(value) else RATIO_WARNING
 
 
+def keep_ratio() -> float:
+    """The ratio to stay at or above: Keep Ratio At Least, or 1.0 (the buffer) when it's off."""
+    from shelfmark.core import saved_autoget
+
+    target = saved_autoget.target_ratio()
+    return target if target > 0 else 1.0
+
+
+def ratio_room_bytes(uploaded: int, downloaded: int, ratio: float) -> int:
+    """How much more can be downloaded before uploaded / downloaded drops below `ratio`.
+
+    Negative once it already has: then it's how far the downloaded total is over.
+    """
+    return int(uploaded / ratio) - downloaded if ratio > 0 else uploaded - downloaded
+
+
 def ratio_snapshot() -> dict[str, Any]:
     """What the projected-ratio line needs; no username or bonus points (all users see it)."""
     if not is_configured():
@@ -884,16 +903,24 @@ def ratio_snapshot() -> dict[str, Any]:
         stats = get_stats()
     except MAM_ERRORS as exc:
         return {"available": False, "error": describe_error(exc)}
+    pending = pending_charge_bytes()
+    keep = keep_ratio()
     return {
         "available": True,
         "uploaded_bytes": stats.uploaded_bytes,
         "downloaded_bytes": stats.downloaded_bytes,
         "ratio": stats.ratio,
         "buffer_bytes": stats.buffer_bytes,
-        "pending_bytes": pending_charge_bytes(),
+        "pending_bytes": pending,
         "warning_ratio": warning_ratio(),
+        "keep_ratio": keep,
+        # Room left after Shelfmark's active MAM downloads
+        "room_bytes": ratio_room_bytes(
+            stats.uploaded_bytes, stats.downloaded_bytes + pending, keep
+        ),
         "unsat_count": stats.unsat_count,
         "unsat_limit": stats.unsat_limit,
         "unsat_pending": pending_unsat_count(stats.fetched_at, stats.unsat_count),
         "unsat_reserve": unsat_reserve_slots(),
+        "unsat_check": unsat_check_enabled(),
     }

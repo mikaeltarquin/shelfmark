@@ -768,7 +768,7 @@ def search_mode_settings() -> list[SettingsField]:
             description=(
                 "Series name and number, for books and audiobooks. Filled in for "
                 "MyAnonamouse results from Prowlarr when a MAM session ID is set in the "
-                "Prowlarr settings."
+                "MyAnonamouse settings."
             ),
             default=True,
             show_when={"field": "SEARCH_MODE", "value": "universal"},
@@ -779,7 +779,7 @@ def search_mode_settings() -> list[SettingsField]:
             label="Show Narrator Column",
             description=(
                 "Audiobooks only. Filled in for MyAnonamouse results from Prowlarr when a "
-                "MAM session ID is set in the Prowlarr settings."
+                "MAM session ID is set in the MyAnonamouse settings."
             ),
             default=True,
             show_when={"field": "SEARCH_MODE", "value": "universal"},
