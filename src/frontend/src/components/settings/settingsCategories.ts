@@ -45,6 +45,11 @@ export const resolveSettingsCategory = (key: string | null): string => {
  * one's. All of them still load and save as the one backend tab.
  */
 const SPLIT_TABS: Record<string, Array<{ id: string; label: string; startsAt?: string }>> = {
+  // The first part keeps the backend tab's name, so links to it still land there.
+  prowlarr_config: [
+    { id: 'prowlarr_config', label: 'Prowlarr' },
+    { id: 'myanonamouse', label: 'MyAnonamouse', startsAt: 'prowlarr_mam_tab_notice' },
+  ],
   prowlarr_clients: [
     { id: 'torrent', label: 'Torrent' },
     { id: 'usenet', label: 'Usenet', startsAt: 'usenet_heading' },

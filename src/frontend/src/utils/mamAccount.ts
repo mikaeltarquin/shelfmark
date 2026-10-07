@@ -23,6 +23,10 @@ export interface MamAccountResponse {
   step_gb?: number;
   // Estimated from Shelfmark's own balance readings; MAM's API has no rate.
   points_per_hour?: { per_hour: number; hours: number } | null;
+  pending_bytes?: number; // Shelfmark's MAM downloads still active
+  keep_ratio?: number; // Keep Ratio At Least, or 1.0 when that's off
+  // Downloadable before the ratio drops below keep_ratio, after the active downloads
+  room_bytes?: number;
 }
 
 export interface MamConnection {
@@ -142,6 +146,24 @@ export const formatGib = (bytes: number): string => {
   return `${sign}${gib.toFixed(gib >= 100 ? 0 : 1)} GiB`;
 };
 
+/** The Room stat's tooltip: what it measures, and the plain buffer behind it. */
+export const describeRoom = (
+  keepRatio: number,
+  bufferBytes: number,
+  pendingBytes: number,
+): string => {
+  const lines = [
+    keepRatio > 1
+      ? `How much more can be downloaded (not freeleech) before the ratio drops below ${formatRatio(keepRatio)}, your Keep Ratio At Least setting.`
+      : 'How much more can be downloaded (not freeleech) before the ratio drops below 1.00. Set Keep Ratio At Least to measure to a higher ratio.',
+  ];
+  if (pendingBytes > 0) {
+    lines.push(`Counts the ${formatGib(pendingBytes)} Shelfmark's active MAM downloads will add.`);
+  }
+  lines.push(`Buffer (uploaded minus downloaded): ${formatGib(bufferBytes)}`);
+  return lines.join('\n');
+};
+
 export const formatRatio = (ratio: number | null): string => {
   if (ratio === null) return '—';
   if (!Number.isFinite(ratio)) return '∞';
@@ -175,6 +197,18 @@ export interface MamUnsatTiming {
 export const formatHoursMinutes = (seconds: number): string => {
   const minutes = Math.max(0, Math.ceil(seconds / 60));
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+};
+
+/** A wait in hours, roughly: "under 1 h", "14 h", "3 d 4 h", "5 weeks". */
+export const formatWait = (hours: number): string => {
+  if (hours < 1) return 'under 1 h';
+  const total = Math.ceil(hours);
+  if (total < 48) return `${total} h`;
+  const days = Math.floor(total / 24);
+  const rest = total % 24;
+  if (days >= 28) return `${Math.round(total / 168)} weeks`;
+  if (days >= 7) return `${Math.round(total / 24)} d`;
+  return rest > 0 ? `${days} d ${rest} h` : `${days} d`;
 };
 
 /** A live countdown: "2:05:13", or "4:09" under an hour. */

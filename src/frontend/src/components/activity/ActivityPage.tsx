@@ -42,6 +42,8 @@ interface ActivityPageProps {
   onRequestDismiss?: (requestId: number) => void;
   // The saved items queued to download on their own, for the Queued page.
   queuedPanel?: ReactNode;
+  // The Queued page's totals, over everything waiting (see QueueSummary).
+  queueSummary?: ReactNode;
   /** Puts the queued downloads in this order (download ids, first to start first). */
   onReorderDownloads?: (ids: string[]) => Promise<void>;
 }
@@ -229,6 +231,7 @@ export const ActivityPage = ({
   onRequestReject,
   onRequestDismiss,
   queuedPanel,
+  queueSummary,
   onReorderDownloads,
 }: ActivityPageProps) => {
   const [selectedUser, setSelectedUser] = useState(ALL_USERS_FILTER);
@@ -567,10 +570,16 @@ export const ActivityPage = ({
         {(() => {
           if (effectiveActiveTab === 'queued') {
             if (queuedDownloadItems.length === 0) {
-              return queuedPanel;
+              return (
+                <div className="space-y-4">
+                  {queueSummary}
+                  {queuedPanel}
+                </div>
+              );
             }
             return (
               <div className="space-y-6">
+                {queueSummary}
                 <section aria-labelledby="queue-up-next" className="space-y-2">
                   <h2
                     id="queue-up-next"

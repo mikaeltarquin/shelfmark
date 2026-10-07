@@ -4,6 +4,21 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ## Unreleased
 
+### Added
+
+- **The Queued page shows the size of the queue and when each item fits your ratio.**
+  At the top: the total size, how much counts against your MyAnonamouse ratio, the room
+  left before it drops below **Keep Ratio At Least**, and the upload credit the whole
+  queue needs. Each saved item gets an **ETA**: fits now, freeleech, or the upload credit
+  it needs and, for admins, roughly how long the bonus points for it take to earn.
+- **MyAnonamouse has its own settings tab**, under **Settings → Indexers**, after Prowlarr.
+
+### Changed
+
+- **The MyAnonamouse panel's Buffer is now Room to your ratio**: how much more can be
+  downloaded before the ratio drops below **Keep Ratio At Least**, counting Shelfmark's
+  active MAM downloads. The plain buffer is in its tooltip.
+
 ### Fixed
 
 - **MyAnonamouse downloads no longer run past the unsatisfied limit when MAM's count

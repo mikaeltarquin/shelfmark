@@ -8,6 +8,7 @@ import {
   type ActivityItem,
   type ActivityTabKey,
 } from './components/activity';
+import { QueueSummary } from './components/activity/QueueSummary';
 import { SavedPanel } from './components/activity/SavedPanel';
 import { AdvancedFilters } from './components/AdvancedFilters';
 import { ConfigSetupBanner } from './components/ConfigSetupBanner';
@@ -32,6 +33,7 @@ import {
   resolveSettingsCategory,
   settingsPath,
 } from './components/settings';
+import { parseSize } from './components/shared/DataTable';
 import { SystemPage } from './components/system/SystemPage';
 import { ToastContainer } from './components/ToastContainer';
 import { UrlSearchBootstrapMount } from './components/UrlSearchBootstrapMount';
@@ -61,6 +63,7 @@ import { useActivity } from './hooks/useActivity';
 import { useAuth } from './hooks/useAuth';
 import { useDownloadTracking } from './hooks/useDownloadTracking';
 import { useLatestCallback } from './hooks/useLatestCallback';
+import { useMamQueue } from './hooks/useMamQueue';
 import { useMountEffect } from './hooks/useMountEffect';
 import { useRealtimeStatus } from './hooks/useRealtimeStatus';
 import { useRequestPolicy } from './hooks/useRequestPolicy';
@@ -124,7 +127,12 @@ import { isPartRelease, releaseNarrators } from './utils/combinedSelection';
 import { wasDownloadQueuedAfterResponseError } from './utils/downloadRecovery';
 import { getDynamicOptionGroup } from './utils/dynamicFieldOptions';
 import { resolveDefaultLanguageCodes } from './utils/languageFilters';
-import type { MamBufferCheck, MamRatioSnapshot } from './utils/mamRatio';
+import {
+  estimateQueue,
+  releaseChargeBytes,
+  type MamBufferCheck,
+  type MamRatioSnapshot,
+} from './utils/mamRatio';
 import { getConfiguredMetadataProviderForContentType } from './utils/metadataProviders';
 import { getEffectiveMetadataSort } from './utils/metadataSort';
 import { isRecord } from './utils/objectHelpers';
@@ -154,6 +162,7 @@ import {
 } from './utils/requestPolicyUi';
 import {
   combinedPicks,
+  queueOrder,
   savedStage,
   type SavedItem,
   type SavedPick,
@@ -954,6 +963,34 @@ function App() {
     autoGetAvailable: Boolean(config?.saved_auto_get_enabled),
     onShowToast: showToast,
   });
+  // The Queued page's totals and ETAs: the saved picks waiting, against the MAM ratio.
+  const savedQueue = useMemo(
+    () => queueOrder(savedStore.items.filter((item) => savedStage(item) === 'queued')),
+    [savedStore.items],
+  );
+  const mamQueue = useMamQueue(
+    section === 'activity' &&
+      location.pathname.split('/')[2] === 'queued' &&
+      Boolean(config?.mam_account_available),
+    requestRoleIsAdmin || !authRequired,
+    `${savedQueue.map((item) => `${item.id}:${item.auto_checked_at}`).join(',')}|${statusCounts.queued}`,
+  );
+  const queueEstimate = useMemo(
+    () =>
+      mamQueue.snapshot
+        ? estimateQueue(
+            mamQueue.snapshot,
+            savedQueue.map((item) =>
+              item.releases.map((pick) => ({
+                sizeBytes: pick.release.size_bytes ?? 0,
+                chargeBytes: releaseChargeBytes(pick.release),
+              })),
+            ),
+            mamQueue.points,
+          )
+        : null,
+    [mamQueue, savedQueue],
+  );
   // Marks books already saved or downloaded, wherever they show.
   const bookActivity = useBookActivityStore({
     status: currentStatus,
@@ -2097,6 +2134,35 @@ function App() {
       onReorder={stage === 'queued' ? savedStore.reorder : undefined}
       positionOffset={stage === 'queued' ? statusCounts.queued : 0}
       nextCheckAt={stage === 'queued' ? savedStore.nextCheckAt : null}
+      etas={
+        stage === 'queued' && queueEstimate
+          ? {
+              byId: new Map(savedQueue.map((item, index) => [item.id, queueEstimate.etas[index]])),
+              keepRatio: queueEstimate.keepRatio,
+              points: mamQueue.points,
+            }
+          : null
+      }
+    />
+  );
+
+  const upNextBytes = Object.values(currentStatus.queued ?? {}).reduce(
+    (total, book) => total + (parseSize(book.size) ?? 0),
+    0,
+  );
+  const queueSummary = (
+    <QueueSummary
+      count={Object.keys(currentStatus.queued ?? {}).length + savedQueue.length}
+      sizeBytes={
+        upNextBytes +
+        savedQueue.reduce(
+          (total, item) =>
+            total + item.releases.reduce((sum, pick) => sum + (pick.release.size_bytes ?? 0), 0),
+          0,
+        )
+      }
+      estimate={queueEstimate}
+      points={mamQueue.points}
     />
   );
 
@@ -2905,6 +2971,7 @@ function App() {
           key={activityTab}
           tab={activityTab}
           queuedPanel={savedPanelFor('queued')}
+          queueSummary={queueSummary}
           onReorderDownloads={handleReorderDownloads}
           status={activitySidebarStatus}
           isAdmin={requestRoleIsAdmin}

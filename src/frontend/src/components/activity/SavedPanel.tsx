@@ -4,10 +4,12 @@ import { useDependencyEffect, useMountEffect } from '../../hooks/useMountEffect'
 import { useRowDrag } from '../../hooks/useRowDrag';
 import { withBasePath } from '../../utils/basePath';
 import { formatCountdown } from '../../utils/mamAccount';
+import type { QueueEta, QueuePoints } from '../../utils/mamRatio';
 import { formatDateTime, isoTimeAgo } from '../../utils/relativeTime';
 import {
   SAVED_STAGE_LABELS,
   describeSavedPick,
+  hasMamPick,
   queueOrder,
   savedPickLines,
   savedStage,
@@ -35,6 +37,7 @@ import {
   moveToIndex,
   type DragHandleProps,
 } from './QueueControls';
+import { QueueEtaCell } from './QueueSummary';
 
 interface SavedPanelProps {
   items: SavedItem[];
@@ -54,6 +57,14 @@ interface SavedPanelProps {
   positionOffset?: number;
   // Queued only: when the automatic check next runs (ms since epoch), or null.
   nextCheckAt?: number | null;
+  // Queued only: when each item fits the MAM ratio, by item id (see estimateQueue).
+  etas?: QueueEtas | null;
+}
+
+interface QueueEtas {
+  byId: Map<number, QueueEta>;
+  keepRatio: number;
+  points: QueuePoints | null;
 }
 
 // A queued row's place in line and its move buttons.
@@ -134,6 +145,7 @@ const SavedRow = ({
   onOpenDetails,
   onChooseReleases,
   nextCheckAt,
+  etas,
   queue,
 }: RowProps) => {
   const [busy, setBusy] = useState<'get' | 'choose' | 'remove' | null>(null);
@@ -151,6 +163,7 @@ const SavedRow = ({
   const openDetails = onOpenDetails ? () => onOpenDetails(item) : undefined;
   const hasPicks = item.kind !== 'book' && item.releases.length > 0;
   const reason = waitingFor(item);
+  const eta = etas?.byId.get(item.id);
 
   return (
     <tr
@@ -230,6 +243,20 @@ const SavedRow = ({
           <td className={`${cellClassName} min-w-[10rem] text-xs`} title={item.auto_status ?? ''}>
             {reason ?? <span className="opacity-50">First check pending</span>}
           </td>
+          {etas && (
+            <td className={`${cellClassName} text-xs whitespace-nowrap`}>
+              {eta ? (
+                <QueueEtaCell
+                  eta={eta}
+                  keepRatio={etas.keepRatio}
+                  points={etas.points}
+                  isMam={hasMamPick(item)}
+                />
+              ) : (
+                '—'
+              )}
+            </td>
+          )}
           <td
             className={`${cellClassName} text-xs whitespace-nowrap opacity-70`}
             title={item.auto_checked_at ? formatDateTime(Date.parse(item.auto_checked_at)) : ''}
@@ -390,6 +417,7 @@ const SavedTable = ({
                   <HeaderCell label="Title" />
                   <HeaderCell label="Releases" />
                   <HeaderCell label="Waiting for" />
+                  {rowHandlers.etas && <HeaderCell label="ETA" />}
                   <HeaderCell label="Last checked" />
                   <HeaderCell label="Next check" />
                 </>

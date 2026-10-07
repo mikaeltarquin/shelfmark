@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Release } from '../types';
 import {
+  estimateQueue,
   projectRatio,
   releaseChargeBytes,
   unsatSlotsFull,
@@ -120,5 +121,67 @@ describe('unsatSlotsFull', () => {
     expect(unsatSlotsFull(null)).toBe(false);
     expect(unsatSlotsFull({ available: false })).toBe(false);
     expect(unsatSlotsFull(slotsSnapshot({ unsat_limit: null }))).toBe(false);
+  });
+});
+
+const pick = (gib: number, charged = true) => ({
+  sizeBytes: gib * GIB,
+  chargeBytes: charged ? gib * GIB : 0,
+});
+
+describe('estimateQueue', () => {
+  // 300 up, 100 down: 50 GiB of room before the ratio drops below 2.
+  const base: MamRatioSnapshot = { ...snapshot, keep_ratio: 2 };
+  const points = { balance: 10_000, perHour: 100, perGb: 500, stepGb: 50 };
+
+  it('lets what fits go first, and prices the rest in upload credit and hours', () => {
+    const estimate = estimateQueue(
+      base,
+      [[pick(20)], [pick(40)], [pick(5)], [pick(3, false)]],
+      points,
+    );
+    expect(estimate?.roomBytes).toBe(50 * GIB);
+    expect(estimate?.totalBytes).toBe(68 * GIB);
+    expect(estimate?.chargeBytes).toBe(65 * GIB);
+    // The 40 GiB one waits; the 5 GiB one behind it fits and goes ahead.
+    expect(estimate?.etas.map((eta) => eta.kind)).toEqual(['fits', 'credit', 'fits', 'free']);
+    // 165 GiB down needs 330 up: 30 short, so 50 GB (25,000 BP), 15,000 more at 100 an hour.
+    expect(estimate?.etas[1]).toEqual({ kind: 'credit', creditGb: 50, points: 25_000, hours: 150 });
+    expect(estimate).toMatchObject({ creditGb: 50, points: 25_000, hours: 150 });
+  });
+
+  it('counts the credit cumulatively, in queue order', () => {
+    const estimate = estimateQueue(base, [[pick(60)], [pick(60)]], {
+      ...points,
+      balance: 100_000,
+    });
+    // 160 down: 20 short (50 GB); 220 down: 140 short (150 GB).
+    expect(estimate?.etas).toEqual([
+      { kind: 'credit', creditGb: 50, points: 25_000, hours: 0 },
+      { kind: 'credit', creditGb: 150, points: 75_000, hours: 0 },
+    ]);
+  });
+
+  it('takes an item at its slowest pick', () => {
+    const estimate = estimateQueue(base, [[pick(1), pick(80)]], points);
+    expect(estimate?.etas[0]).toMatchObject({ kind: 'credit', creditGb: 100 });
+  });
+
+  it('lets an ebook-sized download through below the ratio, as the automatic check does', () => {
+    const low = { ...base, uploaded_bytes: 150 * GIB };
+    const estimate = estimateQueue(low, [[{ sizeBytes: 5e7, chargeBytes: 5e7 }]], points);
+    expect(estimate?.etas[0]).toEqual({ kind: 'fits' });
+    expect(estimate?.roomBytes).toBe(-25 * GIB);
+  });
+
+  it('has no wait without the bonus points rate', () => {
+    expect(estimateQueue(base, [[pick(80)]], null)?.etas[0]).toMatchObject({ hours: null });
+    expect(estimateQueue(base, [[pick(80)]], { ...points, perHour: null })?.etas[0]).toMatchObject({
+      hours: null,
+    });
+  });
+
+  it('needs the account', () => {
+    expect(estimateQueue({ available: false }, [[pick(1)]], points)).toBeNull();
   });
 });

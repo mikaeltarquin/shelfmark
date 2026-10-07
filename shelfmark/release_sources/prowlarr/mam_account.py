@@ -876,6 +876,22 @@ def warning_ratio() -> float:
     return value if value is not None and math.isfinite(value) else RATIO_WARNING
 
 
+def keep_ratio() -> float:
+    """The ratio to stay at or above: Keep Ratio At Least, or 1.0 (the buffer) when it's off."""
+    from shelfmark.core import saved_autoget
+
+    target = saved_autoget.target_ratio()
+    return target if target > 0 else 1.0
+
+
+def ratio_room_bytes(uploaded: int, downloaded: int, ratio: float) -> int:
+    """How much more can be downloaded before uploaded / downloaded drops below `ratio`.
+
+    Negative once it already has: then it's how far the downloaded total is over.
+    """
+    return int(uploaded / ratio) - downloaded if ratio > 0 else uploaded - downloaded
+
+
 def ratio_snapshot() -> dict[str, Any]:
     """What the projected-ratio line needs; no username or bonus points (all users see it)."""
     if not is_configured():
@@ -884,14 +900,21 @@ def ratio_snapshot() -> dict[str, Any]:
         stats = get_stats()
     except MAM_ERRORS as exc:
         return {"available": False, "error": describe_error(exc)}
+    pending = pending_charge_bytes()
+    keep = keep_ratio()
     return {
         "available": True,
         "uploaded_bytes": stats.uploaded_bytes,
         "downloaded_bytes": stats.downloaded_bytes,
         "ratio": stats.ratio,
         "buffer_bytes": stats.buffer_bytes,
-        "pending_bytes": pending_charge_bytes(),
+        "pending_bytes": pending,
         "warning_ratio": warning_ratio(),
+        "keep_ratio": keep,
+        # Room left after Shelfmark's active MAM downloads
+        "room_bytes": ratio_room_bytes(
+            stats.uploaded_bytes, stats.downloaded_bytes + pending, keep
+        ),
         "unsat_count": stats.unsat_count,
         "unsat_limit": stats.unsat_limit,
         "unsat_pending": pending_unsat_count(stats.fetched_at, stats.unsat_count),

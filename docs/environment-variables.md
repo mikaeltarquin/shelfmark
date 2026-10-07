@@ -348,8 +348,8 @@ Audiobook formats to include in search results. ZIP/RAR archives are extracted a
 | `METADATA_PROVIDER_COMBINED` | Metadata provider for combined mode searches. Uses the book provider if not set. | string (choice) | _empty string_ |
 | `DEFAULT_RELEASE_SOURCE` | The release source tab to open by default in the release modal for books. Leave unset to use the first available source. | string (choice) | _empty string_ |
 | `DEFAULT_RELEASE_SOURCE_AUDIOBOOK` | The release source tab to open by default in the release modal for audiobooks. Uses the book release source if not set. | string (choice) | _empty string_ |
-| `SHOW_SERIES_COLUMN` | Series name and number, for books and audiobooks. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the Prowlarr settings. | boolean | `true` |
-| `SHOW_NARRATOR_COLUMN` | Audiobooks only. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the Prowlarr settings. | boolean | `true` |
+| `SHOW_SERIES_COLUMN` | Series name and number, for books and audiobooks. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the MyAnonamouse settings. | boolean | `true` |
+| `SHOW_NARRATOR_COLUMN` | Audiobooks only. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the MyAnonamouse settings. | boolean | `true` |
 | `SHOW_BITRATE_COLUMN` | Audiobooks only. AudiobookBay lists it for most releases. In Prowlarr results it needs a MAM session ID and is read from the MyAnonamouse uploader's tags, so some releases won't have one. Other Prowlarr indexers fill it only if they report a bitrate attribute, which most don't. | boolean | `true` |
 
 <details>
@@ -475,7 +475,7 @@ The release source tab to open by default in the release modal for audiobooks. U
 
 **Show Series Column**
 
-Series name and number, for books and audiobooks. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the Prowlarr settings.
+Series name and number, for books and audiobooks. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the MyAnonamouse settings.
 
 - **Type:** boolean
 - **Default:** `true`
@@ -484,7 +484,7 @@ Series name and number, for books and audiobooks. Filled in for MyAnonamouse res
 
 **Show Narrator Column**
 
-Audiobooks only. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the Prowlarr settings.
+Audiobooks only. Filled in for MyAnonamouse results from Prowlarr when a MAM session ID is set in the MyAnonamouse settings.
 
 - **Type:** boolean
 - **Default:** `true`
@@ -1355,7 +1355,7 @@ How long to cache individual book details. Default: 600 (10 minutes). Max: 60480
 | `PROWLARR_USE_SEED_PREFERENCES` | Apply per-indexer seed time and ratio preferences from Prowlarr when sending torrents to the download client | boolean | `false` |
 | `PROWLARR_MAM_ID` | The mam_id value MyAnonamouse shows when you create a session. MAM locks each session to one IP or ASN, so reusing Prowlarr's or another client's session often fails with a 403: you will likely need a separate session for Shelfmark if it reaches MAM from another IP (different host, VPN or proxy) or the existing session is ASN-locked to another network. Leave empty to turn enrichment off. | string (secret) | _none_ |
 | `MAM_BLOCK_ON_LOW_BUFFER` | Before queueing MyAnonamouse torrents, check that they fit in the account's buffer (uploaded minus downloaded), counting Shelfmark's MAM downloads that are still active. If not, admins are offered upload credit to buy first; other users are asked to contact an admin. Freeleech torrents don't count. If MAM can't be reached, downloads go ahead. | boolean | `true` |
-| `MAM_BLOCK_ON_UNSAT_LIMIT` | MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding. | boolean | `true` |
+| `MAM_BLOCK_ON_UNSAT_LIMIT` | MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding. Queued MAM downloads also wait while MAM can't be read, rejects the torrent client's announces, or has frozen downloads. | boolean | `true` |
 | `MAM_UNSAT_RESERVE_SLOTS` | Hold back downloads that would leave fewer free unsatisfied slots than this. | number | `5` |
 | `SAVED_AUTO_GET_ENABLED` | Turn off to pause every automatic download; items stay marked. | boolean | `true` |
 | `SAVED_AUTO_GET_TARGET_RATIO` | Non-freeleech downloads that would take the ratio below this wait, unless they're ebook-sized (100 MB or less) and lower it by less than 0.01. 0 turns the ratio check off. | number | `2.0` |
@@ -1472,7 +1472,7 @@ Before queueing MyAnonamouse torrents, check that they fit in the account's buff
 
 **Hold Back Downloads at the Unsatisfied Limit**
 
-MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding.
+MyAnonamouse limits how many torrents can be unsatisfied (not yet seeded 72 hours) at once, by user class. Before queueing MAM torrents (freeleech too), check that they, plus Shelfmark's MAM downloads not yet started, leave the slots below free. Buying upload credit doesn't help here; wait for torrents to finish seeding. Queued MAM downloads also wait while MAM can't be read, rejects the torrent client's announces, or has frozen downloads.
 
 - **Type:** boolean
 - **Default:** `true`
