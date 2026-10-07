@@ -648,7 +648,10 @@ def pending_unsat_count(
     counted = {
         task.task_id
         for status, task in _active_mam_tasks()
-        if task.mam_torrent_id and status in not_started
+        if task.mam_torrent_id
+        and status in not_started
+        # Back only to pick up the files of a torrent the client has: MAM counts it
+        and not (task.torrent_client_hash and task.handoff_recorded)
     }
     since = (stats_fetched_at if stats_fetched_at is not None else time.time()) - _UNSAT_LAG_SECONDS
     snatched = [

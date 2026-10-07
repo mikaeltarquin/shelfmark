@@ -165,7 +165,10 @@ class BookQueue:
             and previous_status in _NOT_STARTED
             and status not in _NOT_STARTED
             and status != QueueStatus.CANCELLED
+            # Back only to pick up files its torrent client finished: no new snatch.
+            and not (task.torrent_client_hash and task.handoff_recorded)
         ):
+            task.handoff_recorded = True
             now = time.time()
             self._handoffs[book_id] = (now, task)
             cutoff = now - _HANDOFF_MEMORY_SECONDS
@@ -207,6 +210,9 @@ class BookQueue:
         """Drop a task's handoff: it never reached the indexer (refused at grab)."""
         with self._lock:
             self._handoffs.pop(task_id, None)
+            task = self._task_data.get(task_id)
+            if task is not None:
+                task.handoff_recorded = False
 
     def hold(self, task_id: str, message: str) -> bool:
         """Put a picked-up task back as queued without queueing it, to wait for room.
@@ -224,6 +230,29 @@ class BookQueue:
             task.progress = 0.0
             self._update_status(task_id, QueueStatus.QUEUED)
             return True
+
+    def detach(self, task_id: str, message: str) -> bool:
+        """Free a downloading task's worker while its download goes on elsewhere.
+
+        For a torrent the client is downloading: it stays downloading, with `message`,
+        until `enqueue_existing` brings it back to pick up the files (or it is
+        cancelled). Its retry data is saved again, so a retry after a restart finds
+        the torrent in the client.
+        """
+        with self._lock:
+            task = self._task_data.get(task_id)
+            if task is None or self._status.get(task_id) != QueueStatus.DOWNLOADING:
+                return False
+            self._active_downloads.pop(task_id, None)
+            self._cancel_flags.pop(task_id, None)
+            task.status_message = message
+            hook = self._queue_hook
+        if hook is not None:
+            try:
+                hook(task_id, task)
+            except _QUEUE_HOOK_ERRORS as exc:
+                logger.warning("Queue hook failed while detaching task %s: %s", task_id, exc)
+        return True
 
     def update_status(self, book_id: str, status: QueueStatus) -> None:
         """Update status of a book in the queue."""
