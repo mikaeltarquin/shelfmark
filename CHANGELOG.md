@@ -9,8 +9,9 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 - **The Queued page shows the size of the queue and when each item fits your ratio.**
   At the top: the total size, how much counts against your MyAnonamouse ratio, the room
   left before it drops below **Keep Ratio At Least**, and the upload credit the whole
-  queue needs. Each saved item gets an **ETA**: fits now, freeleech, or the upload credit
-  it needs and, for admins, roughly how long the bonus points for it take to earn.
+  queue needs. Each saved item gets an **ETA**, when both the ratio and an unsatisfied slot
+  allow it to start: from the upload credit it needs and (for admins) how long the bonus
+  points take to earn, and from when torrents seeding in your client reach 72 hours.
 - **MyAnonamouse has its own settings tab**, under **Settings → Indexers**, after Prowlarr.
 
 ### Changed

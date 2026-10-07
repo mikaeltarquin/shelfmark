@@ -1,5 +1,5 @@
 import { formatGib, formatPoints, formatRatio, formatWait } from '../../utils/mamAccount';
-import type { QueueEstimate, QueueEta, QueuePoints } from '../../utils/mamRatio';
+import type { QueueCredit, QueueEstimate, QueueEta, QueuePoints } from '../../utils/mamRatio';
 
 interface QueueSummaryProps {
   count: number; // Downloads up next plus saved items waiting
@@ -38,7 +38,37 @@ const describeCreditWait = (hours: number | null, points: QueuePoints | null): s
   return points ? 'Points rate not known yet' : 'Ask an admin to buy upload credit';
 };
 
-/** A queued item's ETA cell: when it fits the ratio, and what that takes. */
+const creditLine = (credit: QueueCredit): string =>
+  `${credit.gb} GB credit · ${formatPoints(credit.points)} BP`;
+
+/** In words, for a tooltip: why an item starts when it does. */
+const describeEta = (eta: QueueEta, keepRatio: number, points: QueuePoints | null): string => {
+  const ratio = formatRatio(keepRatio);
+  const lines: string[] = [];
+  if (eta.credit) {
+    lines.push(
+      `Counting what's ahead of it, ${eta.credit.gb} GB of upload credit (${formatPoints(
+        eta.credit.points,
+      )} bonus points) keeps the ratio at ${ratio}. ${describeCreditWait(eta.credit.hours, points)}${
+        points?.perHour ? ` at ~${Math.round(points.perHour)} an hour` : ''
+      }.`,
+    );
+  } else if (!eta.free) {
+    lines.push(`Fits without the ratio dropping below ${ratio}.`);
+  }
+  if (eta.waitsFor === 'slot') {
+    lines.push(
+      eta.seconds === null
+        ? "Waits for an unsatisfied slot; the torrent client can't say when one frees up."
+        : 'Waits for an unsatisfied slot: estimated from when seeding torrents reach 72 hours (and those ahead of it free theirs).',
+    );
+  } else if (eta.waitsFor === 'pause') {
+    lines.push('Waits for MyAnonamouse to lift its download pause.');
+  }
+  return lines.join('\n');
+};
+
+/** A queued item's ETA cell: when it can start, and what it waits for. */
 export const QueueEtaCell = ({
   eta,
   keepRatio,
@@ -50,40 +80,47 @@ export const QueueEtaCell = ({
   points: QueuePoints | null;
   isMam: boolean;
 }) => {
-  if (eta.kind === 'free') {
-    return <span className="opacity-60">{isMam ? 'Freeleech' : '—'}</span>;
+  const title = describeEta(eta, keepRatio, points);
+  let headline: string;
+  let detail: string | null = null;
+  let tone = '';
+  if (eta.seconds === 0) {
+    tone = 'text-emerald-700 dark:text-emerald-400';
+    headline = 'Now';
+    if (eta.credit) {
+      headline = 'Buy credit';
+      tone = 'text-amber-700 dark:text-amber-400';
+      detail = creditLine(eta.credit);
+    } else if (eta.free && isMam) {
+      detail = 'Freeleech';
+    }
+  } else if (eta.seconds !== null) {
+    headline = `in ${formatWait(eta.seconds / 3600)}`;
+    if (eta.waitsFor === 'slot') detail = 'For a slot';
+    else if (eta.waitsFor === 'pause') detail = 'MAM download pause';
+    else if (eta.credit) detail = creditLine(eta.credit);
+  } else if (eta.waitsFor === 'slot') {
+    headline = 'For a slot';
+    detail = 'Time unknown';
+  } else {
+    headline = eta.credit ? `${eta.credit.gb} GB credit` : 'Unknown';
+    detail = points ? 'Points rate unknown' : 'Ask an admin';
   }
-  if (eta.kind === 'fits') {
-    return (
-      <span
-        className="text-emerald-700 dark:text-emerald-400"
-        title={`Fits without the ratio dropping below ${formatRatio(keepRatio)}. It can still wait for an unsatisfied slot.`}
-      >
-        Fits now
-      </span>
-    );
-  }
-  let headline = `${eta.creditGb} GB credit`;
-  if (eta.hours === 0) headline = 'Buy credit';
-  else if (eta.hours !== null) headline = `~${formatWait(eta.hours)}`;
+  if (!isMam && eta.seconds === 0) return <span className="opacity-60">—</span>;
   return (
-    <span
-      title={`Counting what's ahead of it, ${eta.creditGb} GB of upload credit (${formatPoints(
-        eta.points,
-      )} bonus points) keeps the ratio at ${formatRatio(keepRatio)}. ${describeCreditWait(
-        eta.hours,
-        points,
-      )}${points?.perHour ? ` at ~${Math.round(points.perHour)} an hour` : ''}.`}
-    >
-      <span className="font-medium">{headline}</span>
-      <span className="block opacity-60">
-        {eta.creditGb} GB · {formatPoints(eta.points)} BP
-      </span>
+    <span title={title}>
+      <span className={`font-medium ${tone}`}>{headline}</span>
+      {detail && <span className="block opacity-60">{detail}</span>}
     </span>
   );
 };
 
-/** The top of the Queued page: how much is waiting, and how it sits with the ratio. */
+const describeStart = (seconds: number | null): string => {
+  if (seconds === null) return 'Unknown';
+  return seconds === 0 ? 'Now' : `in ${formatWait(seconds / 3600)}`;
+};
+
+/** The top of the Queued page: how much is waiting, and how it sits with the ratio and slots. */
 export const QueueSummary = ({ count, sizeBytes, estimate, points }: QueueSummaryProps) => {
   if (count === 0) return null;
   const tiles = [
@@ -96,6 +133,7 @@ export const QueueSummary = ({ count, sizeBytes, estimate, points }: QueueSummar
   ];
   if (estimate) {
     const ratio = formatRatio(estimate.keepRatio);
+    const { credit } = estimate;
     tiles.push(
       <Tile
         key="charge"
@@ -112,14 +150,12 @@ export const QueueSummary = ({ count, sizeBytes, estimate, points }: QueueSummar
         tone={estimate.roomBytes < 0 ? 'text-red-600 dark:text-red-400' : undefined}
         title={`How much more can be downloaded before the ratio drops below ${ratio} (Keep Ratio At Least), counting the downloads up next and in progress.`}
       />,
-    );
-    tiles.push(
-      estimate.creditGb > 0 ? (
+      credit && credit.gb > 0 ? (
         <Tile
           key="credit"
           label="Credit for all of it"
-          value={`${estimate.creditGb} GB`}
-          detail={`${formatPoints(estimate.points)} BP · ${describeCreditWait(estimate.hours, points)}`}
+          value={`${credit.gb} GB`}
+          detail={`${formatPoints(credit.points)} BP · ${describeCreditWait(credit.hours, points)}`}
           tone="text-amber-700 dark:text-amber-400"
           title={`Upload credit to buy so the whole queue downloads without the ratio dropping below ${ratio}${
             points?.perHour
@@ -136,10 +172,20 @@ export const QueueSummary = ({ count, sizeBytes, estimate, points }: QueueSummar
           tone="text-emerald-700 dark:text-emerald-400"
         />
       ),
+      <Tile
+        key="done"
+        label="All started"
+        value={describeStart(estimate.seconds)}
+        detail="Ratio and slots allowing"
+        title="When the last saved pick can start: once the ratio allows (with upload credit bought as the points come in) and an unsatisfied slot is free. Unknown when the points rate or the slot timing isn't known."
+      />,
     );
   }
   return (
-    <section aria-label="Queue summary" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <section
+      aria-label="Queue summary"
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5"
+    >
       {tiles}
     </section>
   );

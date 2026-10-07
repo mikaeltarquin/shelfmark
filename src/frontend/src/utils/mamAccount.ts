@@ -183,6 +183,7 @@ export interface MamUnsatTiming {
   reason?: string; // Why there's no timing (no client, client can't report it...)
   client?: string | null;
   next_seconds?: number | null; // Until the next torrent reaches 72 hours seeded
+  free_seconds?: number[]; // Until each seeding one reaches 72 hours, soonest first
   within_window?: number; // Torrents reaching 72 hours within window_hours
   window_hours?: number;
   seeding?: number; // MAM torrents seeding but not yet at 72 hours

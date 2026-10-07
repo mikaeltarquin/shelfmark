@@ -28,6 +28,7 @@ def test_next_slot_and_slots_in_the_next_six_hours():
         "available": True,
         "client": "Deluge",
         "next_seconds": 2 * HOUR,
+        "free_seconds": [2 * HOUR, 5 * HOUR, 12 * HOUR],
         "within_window": 2,
         "window_hours": 6,
         "seeding": 3,
@@ -70,7 +71,9 @@ def test_cached_timing_counts_down(monkeypatch):
     monkeypatch.setattr(mam_account.time, "time", lambda: clock[0])
     assert mam_account.unsat_timing()["next_seconds"] == HOUR
     clock[0] += 45
-    assert mam_account.unsat_timing()["next_seconds"] == HOUR - 45
+    timing = mam_account.unsat_timing()
+    assert timing["next_seconds"] == HOUR - 45
+    assert timing["free_seconds"] == [HOUR - 45]
     client.list_tracker_torrents.assert_called_once()
 
 

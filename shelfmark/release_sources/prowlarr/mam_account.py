@@ -441,6 +441,8 @@ def summarize_unsat_timing(torrents: list[Any], client_name: str | None) -> dict
         "available": True,
         "client": client_name,
         "next_seconds": remaining[0] if remaining else None,
+        # When each one frees its slot, soonest first: the Queued page's slot ETAs
+        "free_seconds": remaining,
         "within_window": sum(1 for r in remaining if r <= UNSAT_WINDOW_SECONDS),
         "window_hours": UNSAT_WINDOW_SECONDS // 3600,
         "seeding": len(remaining),
@@ -483,12 +485,13 @@ def _client_torrents(*, refresh: bool = False) -> _ClientRead:
 
 
 def _aged_timing(timing: dict[str, Any], age: float) -> dict[str, Any]:
-    """A cached timing as of now: the next slot is `age` seconds closer than when read."""
+    """A cached timing as of now: each slot is `age` seconds closer than when read."""
+    # Rounded up, so a slot is never promised early.
+    aged = [max(0, math.ceil(seconds - age)) for seconds in timing.get("free_seconds", [])]
     next_seconds = timing.get("next_seconds")
     if not isinstance(next_seconds, (int, float)):
-        return timing
-    # Rounded up, so a slot is never promised early.
-    return {**timing, "next_seconds": max(0, math.ceil(next_seconds - age))}
+        return {**timing, "free_seconds": aged}
+    return {**timing, "next_seconds": max(0, math.ceil(next_seconds - age)), "free_seconds": aged}
 
 
 def client_unsat_count(
@@ -919,4 +922,5 @@ def ratio_snapshot() -> dict[str, Any]:
         "unsat_limit": stats.unsat_limit,
         "unsat_pending": pending_unsat_count(stats.fetched_at, stats.unsat_count),
         "unsat_reserve": unsat_reserve_slots(),
+        "unsat_check": unsat_check_enabled(),
     }

@@ -129,6 +129,7 @@ import { getDynamicOptionGroup } from './utils/dynamicFieldOptions';
 import { resolveDefaultLanguageCodes } from './utils/languageFilters';
 import {
   estimateQueue,
+  isMamRelease,
   releaseChargeBytes,
   type MamBufferCheck,
   type MamRatioSnapshot,
@@ -984,9 +985,11 @@ function App() {
               item.releases.map((pick) => ({
                 sizeBytes: pick.release.size_bytes ?? 0,
                 chargeBytes: releaseChargeBytes(pick.release),
+                mam: isMamRelease(pick.release),
               })),
             ),
             mamQueue.points,
+            mamQueue.slots,
           )
         : null,
     [mamQueue, savedQueue],
