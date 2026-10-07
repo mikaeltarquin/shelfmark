@@ -330,3 +330,25 @@ class TestClientsReportRejectedAnnounces:
         for _ in range(3):
             assert [t.name for t in qbit.list_tracker_torrents("myanonamouse")] == ["P"]
         assert sorted(asked) == ["o", "p"]
+
+
+def test_a_torrent_back_only_to_import_is_not_a_new_snatch(monkeypatch):
+    from shelfmark.core.models import DownloadTask, QueueStatus
+    from shelfmark.core.queue import book_queue
+
+    new = DownloadTask(task_id="new", source="prowlarr", title="t", mam_torrent_id=1)
+    back = DownloadTask(
+        task_id="back",
+        source="prowlarr",
+        title="t",
+        mam_torrent_id=2,
+        torrent_client_hash="a" * 40,
+        handoff_recorded=True,
+    )
+    monkeypatch.setattr(
+        mam_account,
+        "_active_mam_tasks",
+        lambda: [(QueueStatus.QUEUED, new), (QueueStatus.QUEUED, back)],
+    )
+    monkeypatch.setattr(book_queue, "handoff_times_since", lambda _since: [])
+    assert mam_account.pending_unsat_count() == 1

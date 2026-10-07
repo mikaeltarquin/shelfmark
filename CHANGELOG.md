@@ -16,6 +16,14 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
 
 ### Changed
 
+- **Torrents download in the background, so more go at once.** A worker used to stay
+  with each torrent until the client had downloaded it, so only **Max Concurrent
+  Downloads** torrents (3 by default) were ever in flight, however many MyAnonamouse
+  slots were free. Now, once Deluge, qBittorrent, Transmission or rTorrent has had a
+  torrent for 30 seconds, its worker moves on to the next download; the torrent stays in
+  **Downloads** with the client's progress, and a worker comes back to pick up the files
+  when it's finished. MAM grabs are now limited by the free unsatisfied slots (and the
+  slots kept free), not by the workers.
 - **The MyAnonamouse panel's Buffer is now Room to your ratio**: how much more can be
   downloaded before the ratio drops below **Keep Ratio At Least**, counting Shelfmark's
   active MAM downloads. The plain buffer is in its tooltip.
@@ -32,10 +40,9 @@ Releases of this fork. Images: `ghcr.io/mikaeltarquin/shelfmark:<version>` and `
   lifts, with a countdown in the top bar.
 - qBittorrent's MyAnonamouse torrents with no working tracker are no longer left out of
   the slot timing.
-- **A torrent with no progress for 5 minutes waits in the torrent client instead of being
-  cancelled.** It was left downloading there with nothing to pick up the files, and shown
-  as Cancelled. Now it waits on **Activity → Queued** ("Waiting in Deluge: no progress…")
-  and carries on once the client shows it moving or finished.
+- **A torrent with no progress for 5 minutes is no longer cancelled.** It was left
+  downloading in the torrent client with nothing to pick up the files, and shown as
+  Cancelled. Now it stays in Downloads, saying how long it has made no progress.
 - **A retry finds its torrent in the client by its hash**, without downloading the
   .torrent again, so it works while MyAnonamouse has frozen downloads. The hash is kept
   from when the torrent was handed to the client.

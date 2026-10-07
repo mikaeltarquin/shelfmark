@@ -1,4 +1,4 @@
-"""A stalled torrent waits in the torrent client instead of being cancelled, and a
+"""A torrent the client is downloading goes on there without holding a worker, and a
 download in the client is found by its hash, without downloading the .torrent again.
 """
 
@@ -23,8 +23,8 @@ def queue(monkeypatch):
     monkeypatch.setattr(orchestrator, "book_queue", fresh)
     monkeypatch.setattr(orchestrator, "ws_manager", None)
     monkeypatch.setattr(orchestrator, "_held_for_slot", {})
-    monkeypatch.setattr(orchestrator, "_parking", set())
-    monkeypatch.setattr(orchestrator, "_waiting_in_client", {})
+    monkeypatch.setattr(orchestrator, "_watching", set())
+    monkeypatch.setattr(orchestrator, "_watched", {})
     monkeypatch.setattr(orchestrator, "_ensure_client_watcher", lambda: None)
     monkeypatch.setattr(orchestrator, "_client_name", lambda: "Deluge")
     monkeypatch.setattr(mam_account, "grab_allowance", lambda **_kw: mam_account.GrabAllowance(9))
@@ -55,15 +55,16 @@ class FakeClient:
         return (HASH, self.status) if url in self.present else None
 
 
-def _stall_in_client(queue, *, progress: float = 0.0, client_hash: str | None = HASH):
-    """A download handed to the client, stalled there: what the stall check sees."""
+def _in_client(queue, *, progress: float = 0.0, client_hash: str | None = HASH):
+    """A download handed to the client, then handed over to the watcher (after
+    `WATCH_AFTER_SECONDS`, or a stall), or cancelled when it can't be."""
 
     def download(task_id, flag):
         task = queue.get_task(task_id)
         task.torrent_client_hash = client_hash
         task.progress = progress
         queue.update_status(task_id, QueueStatus.DOWNLOADING)
-        if not orchestrator._park_stalled_torrent(task_id, flag):
+        if not orchestrator._watch_in_background(task_id, flag):
             orchestrator._cancel_stalled_task(task_id)
         return None
 
@@ -75,68 +76,128 @@ def _status(progress: float, *, complete: bool = False) -> DownloadStatus:
     return DownloadStatus(progress, state, None, complete, None)
 
 
-def test_a_stalled_torrent_waits_in_the_client_instead_of_being_cancelled(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue, progress=12.0))
+def _use(monkeypatch, client) -> None:
+    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _p: client)
+
+
+def test_a_torrent_in_the_client_frees_its_worker_and_stays_downloading(queue, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue, progress=12.0))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
 
-    assert queue.get_task_status("t1") == QueueStatus.QUEUED
-    assert queue.get_task("t1").status_message.startswith("Waiting in Deluge")
-    assert orchestrator.waiting_in_client() == ["t1"]
-    assert orchestrator._waiting_in_client["t1"] == 12.0
-    assert queue.get_next() is None  # Not back with the workers until it moves
+    assert queue.get_task_status("t1") == QueueStatus.DOWNLOADING
+    assert queue.get_task("t1").status_message == "Downloading in Deluge (12%)"
+    assert orchestrator.watched_downloads() == ["t1"]
+    assert queue.get_next() is None  # Not back with the workers until it's finished
 
 
-def test_a_stall_outside_a_torrent_client_still_cancels(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue, client_hash=None))
+def test_its_retry_data_is_saved_with_the_hash(queue, monkeypatch):
+    saved: list[str | None] = []
+    queue.set_queue_hook(lambda _id, task: saved.append(task.torrent_client_hash))
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue))
+    orchestrator._process_single_download("t1", _add(queue, "t1"))
+    assert saved[-1] == HASH
+
+
+def test_a_download_outside_a_torrent_client_still_cancels_on_a_stall(queue, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue, client_hash=None))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
 
     assert queue.get_task_status("t1") == QueueStatus.CANCELLED
-    assert orchestrator.waiting_in_client() == []
+    assert orchestrator.watched_downloads() == []
 
 
-def test_goes_back_to_the_workers_once_it_moves(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue, progress=12.0))
+def test_progress_is_shown_and_a_finished_torrent_goes_back_to_import(queue, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue, progress=12.0))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
-    client = FakeClient(_status(12.0))
-    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _p: client)
+    client = FakeClient(_status(40.0))
+    _use(monkeypatch, client)
 
-    assert orchestrator.release_moving_torrents() == []
-    client.status = _status(30.0)
-    assert orchestrator.release_moving_torrents() == ["t1"]
-    assert orchestrator.waiting_in_client() == []
+    assert orchestrator.check_watched_downloads() == []
+    assert queue.get_task("t1").progress == 40.0
+    assert queue.get_task("t1").status_message == "Downloading in Deluge (40%)"
+
+    client.status = _status(100.0, complete=True)
+    assert orchestrator.check_watched_downloads() == ["t1"]
+    assert orchestrator.watched_downloads() == []
     picked = queue.get_next()
     assert picked is not None
     assert picked[0] == "t1"
 
 
-def test_a_finished_torrent_goes_back_too(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue))
+def test_a_torrent_with_no_progress_says_so(queue, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue, progress=5.0))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
-    client = FakeClient(_status(0.0, complete=True))
-    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _p: client)
-    assert orchestrator.release_moving_torrents() == ["t1"]
+    _use(monkeypatch, FakeClient(_status(5.0)))
+    later = orchestrator.time.time() + orchestrator.STALL_TIMEOUT + 60
+    monkeypatch.setattr(orchestrator.time, "time", lambda: later)
+
+    orchestrator.check_watched_downloads()
+    message = queue.get_task("t1").status_message
+    assert message.startswith("No progress in Deluge for 6 minutes at 5%")
+    assert queue.get_task_status("t1") == QueueStatus.DOWNLOADING
 
 
 def test_a_torrent_removed_from_the_client_fails(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue))
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
-    client = FakeClient(DownloadStatus.error("Torrent not found"))
-    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _p: client)
+    _use(monkeypatch, FakeClient(DownloadStatus.error("Torrent not found")))
 
-    assert orchestrator.release_moving_torrents() == []
+    assert orchestrator.check_watched_downloads() == []
     assert queue.get_task_status("t1") == QueueStatus.ERROR
     assert queue.get_task("t1").status_message == "The torrent is no longer in Deluge"
 
 
-def test_a_cancelled_wait_is_dropped(queue, monkeypatch):
-    monkeypatch.setattr(orchestrator, "_download_task", _stall_in_client(queue))
+def test_a_cancelled_one_is_dropped(queue, monkeypatch):
+    monkeypatch.setattr(orchestrator, "_download_task", _in_client(queue))
     orchestrator._process_single_download("t1", _add(queue, "t1"))
-    queue.cancel_download("t1")
-    monkeypatch.setattr("shelfmark.download.clients.get_client", lambda _p: FakeClient())
+    assert queue.cancel_download("t1") is True
+    _use(monkeypatch, FakeClient())
 
-    assert orchestrator.release_moving_torrents() == []
-    assert orchestrator.waiting_in_client() == []
+    assert orchestrator.check_watched_downloads() == []
+    assert orchestrator.watched_downloads() == []
     assert queue.get_task_status("t1") == QueueStatus.CANCELLED
+
+
+def test_due_for_watching_after_a_while_in_the_client(queue):
+    _add(queue, "t1")
+    task = queue.get_task("t1")
+    task.torrent_client_hash = HASH
+    queue.update_status("t1", QueueStatus.DOWNLOADING)
+    since: dict[str, float] = {}
+
+    assert orchestrator._due_for_watching(["t1"], since, 1000.0) == []
+    assert orchestrator._due_for_watching(["t1"], since, 1010.0) == []
+    later = 1000.0 + orchestrator.WATCH_AFTER_SECONDS
+    assert orchestrator._due_for_watching(["t1"], since, later) == ["t1"]
+
+
+def test_not_due_before_the_client_has_it(queue):
+    _add(queue, "t1")
+    queue.update_status("t1", QueueStatus.DOWNLOADING)  # No hash: not in a client
+    assert orchestrator._due_for_watching(["t1"], {"t1": 0.0}, 10_000.0) == []
+
+
+class TestOneSnatch:
+    """Coming back to import doesn't count as a new MAM snatch."""
+
+    def test_the_handoff_is_recorded_once(self, queue):
+        _add(queue, "t1", mam_torrent_id=7)
+        queue.get_task("t1").torrent_client_hash = HASH
+        queue.update_status("t1", QueueStatus.DOWNLOADING)
+        first = queue.handoff_times_since(0)
+        assert [task.task_id for _at, task in first] == ["t1"]
+
+        assert queue.enqueue_existing("t1")
+        queue.get_next()
+        queue.update_status("t1", QueueStatus.RESOLVING)
+        queue.update_status("t1", QueueStatus.DOWNLOADING)
+        assert queue.handoff_times_since(0) == first
+
+    def test_a_refused_grab_counts_on_the_next_try(self, queue):
+        _add(queue, "t1", mam_torrent_id=7)
+        queue.update_status("t1", QueueStatus.DOWNLOADING)
+        queue.forget_handoff("t1")
+        assert queue.get_task("t1").handoff_recorded is False
 
 
 class TestFoundByHash:

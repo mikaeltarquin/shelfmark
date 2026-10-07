@@ -37,15 +37,17 @@ IP registration (mousehole, VPN) and the downloads go once a re-announce succeed
 until the time shown. See
 [Unsatisfied limit](myanonamouse-enrichment.md#unsatisfied-limit).
 
-## "Waiting in Deluge: no progress for 5 minutes"
+## "Downloading in Deluge" or "No progress in Deluge for … minutes"
 
-Not an error: the torrent is in your torrent client but hasn't moved for 5 minutes (no
-peers yet, queued in the client, or the tracker refusing it for now). It goes on
-downloading there, and Shelfmark picks it up again once the client shows it moving or
-finished (checked every 2 minutes), so it doesn't hold up other downloads meanwhile. If
-the torrent is removed from the client, the download fails saying so. Cancel it from
-Activity to stop waiting. Like other waiting downloads it doesn't survive a restart: use
-Retry, which finds the torrent in the client.
+Not an error. Once the torrent client has had a torrent for 30 seconds, Shelfmark leaves
+it downloading there and moves on to the next download, so more torrents download at
+once than there are download workers. The row in **Downloads** shows the client's
+progress (checked every 30 seconds), and the files are picked up when it's finished.
+"No progress" means it hasn't moved for 5 minutes or more: no peers yet, queued in the
+client, or the tracker refusing it for now. If the torrent is removed from the client,
+the download fails saying so. Cancel it from Activity to stop watching it (the torrent
+stays in the client). After a restart it shows as interrupted: Retry finds the torrent
+in the client by its hash.
 
 ## A queued book doesn't download
 
